@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Token 生成速度可视化</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="language-toggle">
+            <button id="langButton" class="lang-button">中文</button>
+            <div id="langDropdown" class="lang-dropdown hidden">
+                <div class="lang-option" data-lang="en">English</div>
+                <div class="lang-option active" data-lang="zh">中文</div>
+            </div>
+        </div>
+        
+        <div class="header">
+            <h1 id="title">Token 生成速度可视化</h1>
+            <p id="subtitle" class="subtitle">实时体验不同的 token 生成速度</p>
+        </div>
+        
+        <div class="speed-control">
+            <div class="speed-label">
+                <span><span id="speedLabel">生成速度</span>: <span id="speedValue">5</span> tokens/s</span>
+                <span class="range-label"><span id="rangeLabel">范围</span>: 1-100 tokens/s</span>
+            </div>
+            <div class="slider-container">
+                <input 
+                    type="range" 
+                    id="speedSlider" 
+                    min="1" 
+                    max="100" 
+                    value="5" 
+                    class="slider"
+                >
+                <div class="slider-labels">
+                    <span>1</span>
+                    <span>25</span>
+                    <span>50</span>
+                    <span>75</span>
+                    <span>100</span>
+                </div>
+                <div class="slider-descriptions">
+                    <span id="slow">慢</span>
+                    <span id="medium">中等</span>
+                    <span id="fast">快</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-item">
+                <span>Tokens: <span id="tokenCount">0</span></span>
+            </div>
+            <div class="stat-item">
+                <span>Time: <span id="timeElapsed">0</span>s</span>
+            </div>
+            <div class="stat-item">
+                <span>Speed: <span id="actualSpeed">0.00</span> tokens/s</span>
+            </div>
+        </div>
+        
+        <div id="textOutput" class="text-output"></div>
+        
+        <button id="generateButton" class="generate-button">开始生成</button>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>

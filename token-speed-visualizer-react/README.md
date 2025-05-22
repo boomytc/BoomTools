@@ -57,8 +57,8 @@
 1. **克隆仓库**
 
    ```bash
-   git clone https://github.com/yourusername/token-speed-visualizer.git
-   cd token-speed-visualizer
+   git clone https://github.com/boomytc/BoomTools.git
+   cd token-speed-visualizer-react
    ```
 
 2. **安装依赖**

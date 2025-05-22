@@ -9,10 +9,12 @@ function App() {
   const [time, setTime] = useState(0)
   const [actualSpeed, setActualSpeed] = useState(0)
   const [language, setLanguage] = useState('zh')
+  const [showLangMenu, setShowLangMenu] = useState(false)
 
   const textRef = useRef(null)
   const animationRef = useRef(null)
   const startTimeRef = useRef(null)
+  const langMenuRef = useRef(null)
 
   const fullText = `在那遥远的维罗纳城邦，两个同样尊贵的家族，
 因宿怨长存而再起纷争，血染古城墙。
@@ -100,6 +102,20 @@ function App() {
     }
   }, [generatedText])
 
+  // 点击外部关闭语言菜单
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (langMenuRef.current && !langMenuRef.current.contains(event.target)) {
+        setShowLangMenu(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
+
   // 语言文本
   const texts = {
     zh: {
@@ -129,15 +145,36 @@ function App() {
 
   return (
     <div className="container">
-      <div className="language-toggle">
-        <select
-          className="lang-select"
-          value={language}
-          onChange={(e) => setLanguage(e.target.value)}
+      <div className="language-toggle" ref={langMenuRef}>
+        <button
+          className="lang-button"
+          onClick={() => setShowLangMenu(!showLangMenu)}
         >
-          <option value="zh">中文</option>
-          <option value="en">English</option>
-        </select>
+          <span>{language === 'zh' ? '中文' : 'English'}</span>
+        </button>
+
+        {showLangMenu && (
+          <div className="lang-dropdown">
+            <div
+              className={`lang-option ${language === 'en' ? 'active' : ''}`}
+              onClick={() => {
+                setLanguage('en');
+                setShowLangMenu(false);
+              }}
+            >
+              English
+            </div>
+            <div
+              className={`lang-option ${language === 'zh' ? 'active' : ''}`}
+              onClick={() => {
+                setLanguage('zh');
+                setShowLangMenu(false);
+              }}
+            >
+              中文
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="header">

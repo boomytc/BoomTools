@@ -7,4 +7,4 @@
 ### [Flask 版本](https://github.com/boomytc/BoomTools/tree/main/token-speed-visualizer-flask)
 
 ## C/C++ 注释翻译
-### [实现](https://github.com/boomytc/BoomTools/tree/main/AI/CommentTranslate)
+### [实现](https://github.com/boomytc/BoomTools/tree/main/AI/comment-translate)

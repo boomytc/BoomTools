@@ -5,3 +5,6 @@
 ### [React 版本](https://github.com/boomytc/BoomTools/tree/main/token-speed-visualizer-react)
 
 ### [Flask 版本](https://github.com/boomytc/BoomTools/tree/main/token-speed-visualizer-flask)
+
+## C/C++ 注释翻译
+### [实现](https://github.com/boomytc/BoomTools/tree/main/AI/CommentTranslate)

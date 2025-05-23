@@ -4,18 +4,20 @@
       "host": "192.168.1.102",
       "port": 22,
       "username": "fl01",
-      "password": "MTIzNDU2"
+      "password": "123456"
     }
   ],
   "last_connection": {
     "host": "192.168.1.102",
     "port": 22,
     "username": "fl01",
-    "password": "MTIzNDU2"
+    "password": "123456"
   },
+  "command_history": [
+    "ls"
+  ],
   "ui_settings": {
-    "theme": "light",
     "font_size": 12,
-    "terminal_font_size": 10
+    "max_history": 50
   }
 }

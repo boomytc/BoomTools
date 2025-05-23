@@ -21,14 +21,20 @@ show_help() {
     echo "  <目录路径>       要处理的源代码目录"
     echo ""
     echo "选项:"
+    echo "  -a, --api-key KEY 使用指定的智谱AI API密钥"
     echo "  -t, --threads N  使用N个线程处理文件 (默认: 20)"
     echo "  -e, --exclude D  排除目录D (可指定多次)"
     echo "  -r, --report F   将处理报告保存到文件F"
+    echo "  -m, --model M    使用指定的模型 (默认: glm-4-plus)"
+    echo "  -b, --batch      使用批处理模式"
+    echo "  -c, --config F   使用指定的配置文件"
+    echo "  --resume         恢复上次的处理进度"
     echo "  -h, --help       显示此帮助信息"
     echo ""
     echo "示例:"
     echo "  $0 /path/to/src --threads 16 --exclude terrsimPlugins --exclude thirdparty"
     echo "  $0 /path/to/src -t 8 -e test -r report.md"
+    echo "  $0 /path/to/src --api-key YOUR_API_KEY_HERE --batch"
     exit 1
 }
 
@@ -45,10 +51,19 @@ shift
 THREADS=20
 EXCLUDE_ARGS=""
 REPORT_FILE="report.md"
+API_KEY_ARG=""
+MODEL_ARG=""
+BATCH_ARG=""
+CONFIG_ARG=""
+RESUME_ARG=""
 
 # 解析选项
 while [ "$#" -gt 0 ]; do
     case "$1" in
+        -a|--api-key)
+            API_KEY_ARG="--api-key $2"
+            shift 2
+            ;;
         -t|--threads)
             THREADS="$2"
             shift 2
@@ -60,6 +75,22 @@ while [ "$#" -gt 0 ]; do
         -r|--report)
             REPORT_FILE="$2"
             shift 2
+            ;;
+        -m|--model)
+            MODEL_ARG="--model $2"
+            shift 2
+            ;;
+        -b|--batch)
+            BATCH_ARG="--batch"
+            shift
+            ;;
+        -c|--config)
+            CONFIG_ARG="--config $2"
+            shift 2
+            ;;
+        --resume)
+            RESUME_ARG="--resume"
+            shift
             ;;
         -h|--help)
             show_help
@@ -102,7 +133,7 @@ fi
 if ! python3 -c "import magic" &> /dev/null; then
     echo "正在安装python-magic库..."
     auto_confirm pip3 install python-magic
-    
+
     # 在Linux上，可能还需要安装系统依赖
     if [ "$(uname)" = "Linux" ]; then
         if command -v apt-get &> /dev/null; then
@@ -122,9 +153,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPORT_ARGS="--output-report $REPORT_FILE"
 
 echo "开始翻译C/C++文件注释 (使用 $THREADS 线程)..."
-# 运行Python脚本，使用内置API密钥、指定的线程数和排除目录
-time python3 "$SCRIPT_DIR/translate_comments.py" "$DIRECTORY" --threads "$THREADS" $EXCLUDE_ARGS $REPORT_ARGS
+# 运行Python脚本，使用指定的参数
+time python3 "$SCRIPT_DIR/translate_comments.py" "$DIRECTORY" --threads "$THREADS" $EXCLUDE_ARGS $REPORT_ARGS $API_KEY_ARG $MODEL_ARG $BATCH_ARG $CONFIG_ARG $RESUME_ARG
 
 # 打印总结
 echo "处理完成!"
-echo "详细报告已保存至: $REPORT_FILE" 
+echo "详细报告已保存至: $REPORT_FILE"

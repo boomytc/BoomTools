@@ -16,19 +16,20 @@
 
 本目录包含以下主要文件：
 
-1. `translate_comments.sh` - 标准版翻译工具的 Shell 脚本入口
-2. `translate_comments.py` - 标准版翻译工具的 Python 实现
-3. `translate_comments_batch.sh` - 批处理版翻译工具的 Shell 脚本入口
-4. `translate_comments_batch.py` - 批处理版翻译工具的 Python 实现
+1. `translate_comments.sh` - 翻译工具的 Shell 脚本入口
+2. `translate_comments.py` - 翻译工具的 Python 实现
+3. `utils/` - 工具函数模块目录
 
-### 标准版与批处理版的区别
+### 工具特点
 
-- **标准版**：使用智谱 AI 的标准 API 接口，逐个文件进行翻译处理
-- **批处理版**：使用智谱 AI 的批处理 API 接口，将多个翻译请求批量提交，提高处理效率
+- **模块化设计**：代码结构清晰，便于维护和扩展
+- **两种处理模式**：支持标准模式和批处理模式
+  - **标准模式**：使用智谱 AI 的标准 API 接口，逐个文件进行翻译处理
+  - **批处理模式**：使用智谱 AI 的批处理 API 接口，将多个翻译请求批量提交，提高处理效率
+- **严格的验证**：确保翻译结果不破坏代码结构和格式
+- **进度管理**：支持保存和恢复处理进度
 
 ## 使用方法
-
-### 标准版
 
 ```bash
 ./translate_comments.sh <目录路径> [选项...]
@@ -38,37 +39,50 @@
 - `<目录路径>` - 要处理的源代码目录
 
 选项：
+- `-a, --api-key KEY` - 使用指定的智谱 AI API 密钥
 - `-t, --threads N` - 使用 N 个线程处理文件（默认：20）
 - `-e, --exclude D` - 排除目录 D（可指定多次）
 - `-r, --report F` - 将处理报告保存到文件 F
+- `-m, --model M` - 使用指定的模型（默认：glm-4-plus）
+- `-b, --batch` - 使用批处理模式
+- `-c, --config F` - 使用指定的配置文件
+- `--resume` - 恢复上次的处理进度
 - `-h, --help` - 显示帮助信息
 
-示例：
+### 标准模式示例
+
 ```bash
-./translate_comments.sh /path/to/src --threads 16 --exclude terrsimPlugins --exclude thirdparty
-./translate_comments.sh /path/to/src -t 8 -e test -r report.md
+# 基本用法
+./translate_comments.sh /path/to/src
+
+# 使用8个线程，排除test目录，将报告保存到custom_report.md
+./translate_comments.sh /path/to/src -t 8 -e test -r custom_report.md
+
+# 使用自定义API密钥
+./translate_comments.sh /path/to/src --api-key YOUR_API_KEY_HERE
 ```
 
-### 批处理版
+### 批处理模式示例
 
 ```bash
-./translate_comments_batch.sh <目录路径> [选项...]
+# 使用批处理模式
+./translate_comments.sh /path/to/src --batch
+
+# 使用批处理模式，自定义API密钥和线程数
+./translate_comments.sh /path/to/src --batch --api-key YOUR_API_KEY_HERE --threads 16
+
+# 使用批处理模式，排除多个目录
+./translate_comments.sh /path/to/src --batch --exclude terrsimPlugins --exclude thirdparty
 ```
 
-参数：
-- `<目录路径>` - 要处理的源代码目录
+### 恢复处理进度
 
-选项：
-- `-a, --api-key KEY` - 使用指定的智谱 AI API 密钥（如果未提供，则使用 Python 脚本中的默认密钥）
-- `-t, --threads N` - 指定本地操作线程数量（默认：20）。Python 脚本本身的默认是 64。
-- `-e, --exclude D` - 排除不需要处理的目录 D（可指定多次）
-- `-r, --report F` - 指定输出处理报告的文件路径（默认：report.md）
-- `-h, --help` - 显示帮助信息
-
-示例：
 ```bash
-./translate_comments_batch.sh /path/to/src --api-key YOUR_API_KEY_HERE --threads 16 --exclude terrsimPlugins --exclude thirdparty
-./translate_comments_batch.sh /path/to/src -t 8 -e test -r report.md
+# 恢复上次的处理进度
+./translate_comments.sh /path/to/src --resume
+
+# 恢复上次的处理进度，使用批处理模式
+./translate_comments.sh /path/to/src --resume --batch
 ```
 
 ## 依赖项
@@ -93,28 +107,24 @@
 ## 注意事项
 
 - 工具默认使用内置的 API 密钥，建议通过 `--api-key` 参数提供您自己的 API 密钥
-- 对于大型代码库，建议使用批处理版本以提高效率
+- 对于大型代码库，建议使用批处理模式以提高效率
 - 处理报告默认保存在脚本所在目录的 `report.md` 文件中
 - 如果翻译过程中出现错误，工具会自动恢复原始文件内容
+- 可以使用 `--resume` 参数恢复上次的处理进度
+- 可以使用 `--config` 参数指定配置文件，保存常用设置
 
 ## 版本信息
 
-- 标准版：v1.3（2024-07-25）
-- 批处理版：v2.0（2023-05-21）
+- v3.0（2024-05-23）
 
 ## 更新日志
 
-### 标准版 v1.3 更新内容
-1. 放宽翻译结果的验证条件，不再检查关键代码结构
-2. 不再检查翻译后长度减少是否过多
-3. 只在原文与译文完全相同时判定为翻译失败
-4. 优化大文件处理逻辑
-5. 扩大目标文件范围，增加 .c、.cpp 等源文件的处理
-6. 添加文件类型分布统计功能
-
-### 批处理版 v2.0 更新内容
-1. 重构为使用智谱 AI Batch API 进行翻译
-2. 优化大文件处理和 API 调用效率
-3. 调整进度报告和错误处理以适应批处理流程
-4. 增强错误恢复和文件备份机制
-5. 改进大文件分块处理逻辑
+### v3.0 更新内容
+1. 重构为模块化设计，提高代码可维护性和可扩展性
+2. 合并标准版和批处理版为单一工具，通过参数选择处理模式
+3. 增强翻译质量验证，确保翻译结果不破坏代码结构
+4. 优化提示词，提高翻译质量，特别是对专业术语的处理
+5. 添加进度保存和恢复功能，支持中断后继续处理
+6. 支持配置文件，方便保存常用设置
+7. 改进大文件分块处理逻辑，提高翻译效率和质量
+8. 增强错误恢复和文件备份机制

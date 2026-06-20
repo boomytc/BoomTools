@@ -34,15 +34,10 @@ class OperationPanel(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
 
-        self.operation_form = OperationFormWidget()
-        self.operation_form.file_browse_requested.connect(self.file_browse_requested.emit)
-        self.operation_form.spec_changed.connect(self.refresh_stack_controls)
-        self.operation_form.spec_changed.connect(self.command_preview_requested.emit)
-        layout.addWidget(self.operation_form, 1)
-
         mode_row = QHBoxLayout()
+        mode_row.setSpacing(10)
         self.single_mode_radio = QRadioButton("单操作")
-        self.stack_mode_radio = QRadioButton("Stack")
+        self.stack_mode_radio = QRadioButton("Stack 链式")
         self.single_mode_radio.setChecked(True)
         mode_row.addWidget(self.single_mode_radio)
         mode_row.addWidget(self.stack_mode_radio)
@@ -52,7 +47,14 @@ class OperationPanel(QWidget):
         self.single_mode_radio.toggled.connect(lambda checked: self.stack_mode_toggled.emit(False) if checked else None)
         self.stack_mode_radio.toggled.connect(lambda checked: self.stack_mode_toggled.emit(True) if checked else None)
 
+        self.operation_form = OperationFormWidget()
+        self.operation_form.file_browse_requested.connect(self.file_browse_requested.emit)
+        self.operation_form.spec_changed.connect(self.refresh_stack_controls)
+        self.operation_form.spec_changed.connect(self.command_preview_requested.emit)
+        layout.addWidget(self.operation_form, 1)
+
         button_row = QHBoxLayout()
+        button_row.setSpacing(8)
         self.start_button = QPushButton("开始处理")
         self.start_button.setObjectName("primaryButton")
         self.cancel_button = QPushButton("取消当前")

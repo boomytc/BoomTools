@@ -9,11 +9,11 @@ from shared.contracts import TaskStatus
 
 
 STATUS_STYLES: dict[str, tuple[str, str, str]] = {
-    TaskStatus.pending.value: ("等待", "#fff7d6", "#8a5a00"),
-    TaskStatus.running.value: ("运行中", "#dbeafe", "#174ea6"),
-    TaskStatus.succeeded.value: ("完成", "#dcfce7", "#166534"),
-    TaskStatus.failed.value: ("失败", "#fee2e2", "#991b1b"),
-    TaskStatus.cancelled.value: ("取消", "#e5e7eb", "#4b5563"),
+    TaskStatus.pending.value: ("等待", "#3b3218", "#ffd166"),
+    TaskStatus.running.value: ("运行中", "#17365f", "#8fbdff"),
+    TaskStatus.succeeded.value: ("完成", "#153b2a", "#64d691"),
+    TaskStatus.failed.value: ("失败", "#4a1f28", "#ff8a9a"),
+    TaskStatus.cancelled.value: ("取消", "#2b303d", "#a7b0c2"),
 }
 
 
@@ -21,7 +21,7 @@ class StatusBadgeDelegate(QStyledItemDelegate):
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index) -> None:  # type: ignore[override]
         status = index.data(STATUS_ROLE)
         status_value = status.value if isinstance(status, TaskStatus) else str(index.data() or "")
-        label, background, foreground = STATUS_STYLES.get(status_value, (status_value or "-", "#e5e7eb", "#374151"))
+        label, background, foreground = STATUS_STYLES.get(status_value, (status_value or "-", "#2b303d", "#a7b0c2"))
 
         painter.save()
         self._draw_item_background(painter, option, index)
@@ -68,24 +68,24 @@ class ProgressBarDelegate(QStyledItemDelegate):
         bar_rect.moveTop(rect.y() + (rect.height() - bar_rect.height()) // 2)
 
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor("#e5e7eb"))
+        painter.setBrush(QColor("#22283a"))
         painter.drawRoundedRect(bar_rect, 6, 6)
 
         if isinstance(progress, (int, float)):
             bounded = max(0.0, min(float(progress), 1.0))
             fill_rect = QRect(bar_rect)
             fill_rect.setWidth(max(4, int(bar_rect.width() * bounded)))
-            painter.setBrush(QColor("#2563eb"))
+            painter.setBrush(QColor("#4f83ff"))
             painter.drawRoundedRect(fill_rect, 6, 6)
             text = f"{int(bounded * 100)}%"
-            text_color = QColor("#111827")
+            text_color = QColor("#dbe7ff")
         else:
-            painter.setBrush(QColor("#93c5fd"))
+            painter.setBrush(QColor("#2c518b"))
             marker_width = max(28, bar_rect.width() // 3)
             marker_rect = QRect(bar_rect.x(), bar_rect.y(), marker_width, bar_rect.height())
             painter.drawRoundedRect(marker_rect, 6, 6)
             text = "运行中"
-            text_color = QColor("#174ea6")
+            text_color = QColor("#8fbdff")
 
         painter.setPen(QPen(text_color))
         painter.drawText(bar_rect, Qt.AlignmentFlag.AlignCenter, text)

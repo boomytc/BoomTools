@@ -4,17 +4,21 @@ import shlex
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
+    QButtonGroup,
     QCheckBox,
     QComboBox,
     QDoubleSpinBox,
     QFormLayout,
     QGroupBox,
+    QGridLayout,
     QLabel,
     QLineEdit,
     QPlainTextEdit,
     QSpinBox,
+    QPushButton,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -31,6 +35,8 @@ class OperationFormWidget(QWidget):
     def __init__(self) -> None:
         super().__init__()
         self._controls: dict[str, QWidget] = {}
+        self._operation_buttons: dict[Operation, QPushButton] = {}
+        self._selected_operation = Operation.convert
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -38,12 +44,29 @@ class OperationFormWidget(QWidget):
 
         operation_group = QGroupBox("操作")
         operation_layout = QVBoxLayout(operation_group)
-        self.operation_combo = QComboBox()
-        for operation, label in OPERATION_LABELS.items():
-            self.operation_combo.addItem(label, operation.value)
-        self.operation_combo.currentIndexChanged.connect(lambda _index: self._render_fields())
-        self.operation_combo.currentIndexChanged.connect(lambda _index: self.spec_changed.emit())
-        operation_layout.addWidget(self.operation_combo)
+        operation_layout.setSpacing(10)
+        operation_hint = QLabel("选择一个处理动作，然后在下方确认参数。")
+        operation_hint.setObjectName("mutedLabel")
+        operation_layout.addWidget(operation_hint)
+
+        self.operation_button_group = QButtonGroup(self)
+        self.operation_button_group.setExclusive(True)
+        operation_grid = QGridLayout()
+        operation_grid.setHorizontalSpacing(8)
+        operation_grid.setVerticalSpacing(8)
+        for index, operation in enumerate(OPERATION_LABELS):
+            button = QPushButton(_operation_card_text(operation))
+            button.setCheckable(True)
+            button.setProperty("role", "operationCard")
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+            button.setToolTip(OPERATION_LABELS[operation])
+            button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            button.setMinimumHeight(62)
+            button.clicked.connect(lambda _checked=False, op=operation: self._select_operation(op))
+            self.operation_button_group.addButton(button)
+            self._operation_buttons[operation] = button
+            operation_grid.addWidget(button, index // 4, index % 4)
+        operation_layout.addLayout(operation_grid)
         layout.addWidget(operation_group)
 
         common_group = QGroupBox("通用裁剪时间")
@@ -63,13 +86,14 @@ class OperationFormWidget(QWidget):
         layout.addWidget(self.fields_group)
         layout.addStretch(1)
 
-        self._render_fields()
+        self._select_operation(self._selected_operation, emit=False)
 
     def selected_operation(self) -> Operation:
-        return Operation(str(self.operation_combo.currentData()))
+        return self._selected_operation
 
     def set_enabled(self, enabled: bool) -> None:
-        self.operation_combo.setEnabled(enabled)
+        for button in self._operation_buttons.values():
+            button.setEnabled(enabled)
         self.start_seconds_edit.setEnabled(enabled)
         self.end_seconds_edit.setEnabled(enabled)
         self.fields_group.setEnabled(enabled)
@@ -147,6 +171,16 @@ class OperationFormWidget(QWidget):
             widget = item.widget()
             if widget is not None:
                 widget.setParent(None)
+
+    def _select_operation(self, operation: Operation, *, emit: bool = True) -> None:
+        if operation == self._selected_operation and self._controls:
+            return
+        self._selected_operation = operation
+        for candidate, button in self._operation_buttons.items():
+            button.setChecked(candidate == operation)
+        self._render_fields()
+        if emit:
+            self.spec_changed.emit()
 
     def _create_widget(self, spec: dict[str, Any]) -> QWidget:
         kind = str(spec["kind"])
@@ -300,3 +334,43 @@ def _parse_float_text(text: str, label: str) -> float:
         return float(text)
     except ValueError as exc:
         raise ValueError(f"{label}必须是数字") from exc
+
+
+_OPERATION_SHORT_LABELS: dict[Operation, str] = {
+    Operation.convert: "转换格式",
+    Operation.resize_compress: "缩放压缩",
+    Operation.compress: "压缩视频",
+    Operation.extract_audio: "抽取音频",
+    Operation.gif: "生成 GIF",
+    Operation.mute: "静音",
+    Operation.rotate: "旋转翻转",
+    Operation.crop: "裁剪",
+    Operation.thumbnail: "提取封面",
+    Operation.reverse: "倒放",
+    Operation.fade: "淡入淡出",
+    Operation.adjust: "画面调整",
+    Operation.loop: "循环",
+    Operation.strip_metadata: "移除元数据",
+    Operation.pad: "画布补边",
+    Operation.denoise: "去噪",
+    Operation.boomerang: "倒放回放",
+    Operation.sharpen_blur: "锐化模糊",
+    Operation.speed: "速度调整",
+    Operation.volume: "音量调整",
+    Operation.normalize_audio: "响度标准化",
+    Operation.subtitles: "嵌入字幕",
+    Operation.media_info: "媒体探测",
+    Operation.raw: "Raw 参数",
+    Operation.overlay: "叠加",
+    Operation.mix_audio: "混音",
+    Operation.concat: "视频拼接",
+    Operation.side_by_side: "并排对比",
+    Operation.picture_in_picture: "画中画",
+}
+
+
+def _operation_card_text(operation: Operation) -> str:
+    label = OPERATION_LABELS[operation]
+    category, _, fallback_title = label.partition(" - ")
+    title = _OPERATION_SHORT_LABELS.get(operation, fallback_title or label)
+    return f"{title}\n{category}"

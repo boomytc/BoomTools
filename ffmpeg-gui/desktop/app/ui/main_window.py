@@ -2,9 +2,20 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QUrl, Signal
+from PySide6.QtCore import Qt, QUrl, Signal
 from PySide6.QtGui import QCloseEvent, QDesktopServices, QGuiApplication
-from PySide6.QtWidgets import QFileDialog, QMainWindow, QMessageBox, QSplitter, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QFileDialog,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QMessageBox,
+    QScrollArea,
+    QSplitter,
+    QVBoxLayout,
+    QWidget,
+)
 
 from desktop.app.core.constants import WINDOW_TITLE
 from desktop.app.runtime.binaries import RuntimeHealth
@@ -38,13 +49,14 @@ class MainWindow(QMainWindow):
         super().__init__()
         self._last_output_path: Path | None = None
         self.setWindowTitle(WINDOW_TITLE)
-        self.resize(1180, 760)
-        self.setMinimumSize(960, 620)
+        self.resize(1280, 840)
+        self.setMinimumSize(1080, 760)
 
         central = QWidget()
+        central.setObjectName("appRoot")
         root = QVBoxLayout(central)
-        root.setContentsMargins(16, 16, 16, 16)
-        root.setSpacing(12)
+        root.setContentsMargins(18, 16, 18, 16)
+        root.setSpacing(14)
 
         self.runtime_panel = RuntimePanel()
         self.operation_panel = OperationPanel()
@@ -52,16 +64,32 @@ class MainWindow(QMainWindow):
         self.task_panel = TaskPanel(task_model)
         self._connect_panel_signals()
 
-        root.addWidget(self.runtime_panel)
+        root.addWidget(self._create_masthead())
 
-        splitter = QSplitter()
-        splitter.addWidget(self.operation_panel)
-        splitter.addWidget(self.status_panel)
-        splitter.setStretchFactor(0, 0)
+        runtime_scroll = QScrollArea()
+        runtime_scroll.setObjectName("runtimeScroll")
+        runtime_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        runtime_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        runtime_scroll.setWidgetResizable(True)
+        runtime_scroll.setWidget(self.runtime_panel)
+
+        operation_scroll = QScrollArea()
+        operation_scroll.setObjectName("operationScroll")
+        operation_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        operation_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        operation_scroll.setWidgetResizable(True)
+        operation_scroll.setWidget(self.operation_panel)
+
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+        splitter.setHandleWidth(10)
+        splitter.addWidget(runtime_scroll)
+        splitter.addWidget(operation_scroll)
+        splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 1)
-        splitter.setSizes([430, 720])
+        splitter.setSizes([520, 700])
         root.addWidget(splitter, 1)
 
+        root.addWidget(self.status_panel)
         root.addWidget(self.task_panel)
         self.setCentralWidget(central)
         self.statusBar().showMessage("Ready")
@@ -220,6 +248,7 @@ class MainWindow(QMainWindow):
 
     def _connect_panel_signals(self) -> None:
         self.runtime_panel.input_browse_requested.connect(self.choose_input_file)
+        self.runtime_panel.input_path_dropped.connect(self.input_file_selected.emit)
         self.runtime_panel.batch_files_requested.connect(self.choose_batch_files)
         self.runtime_panel.output_dir_requested.connect(self.choose_output_dir)
         self.runtime_panel.refresh_requested.connect(self.refresh_requested.emit)
@@ -240,3 +269,23 @@ class MainWindow(QMainWindow):
         self.status_panel.open_output_requested.connect(self.open_output_requested.emit)
         self.status_panel.open_output_dir_requested.connect(self.open_output_dir_requested.emit)
         self.status_panel.copy_output_path_requested.connect(self.copy_output_path_requested.emit)
+
+    def _create_masthead(self) -> QFrame:
+        masthead = QFrame()
+        masthead.setObjectName("masthead")
+        layout = QHBoxLayout(masthead)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(10)
+
+        title = QLabel("ffmpeg GUI")
+        title.setObjectName("appTitle")
+        offline_badge = QLabel("offline-first")
+        offline_badge.setProperty("role", "badge")
+        local_badge = QLabel("本机处理 · 不上传")
+        local_badge.setProperty("role", "successBadge")
+
+        layout.addWidget(title)
+        layout.addWidget(offline_badge)
+        layout.addWidget(local_badge)
+        layout.addStretch(1)
+        return masthead

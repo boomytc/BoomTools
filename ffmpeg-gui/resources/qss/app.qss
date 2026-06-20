@@ -56,7 +56,8 @@ QLabel[role="successBadge"] {
   border: 1px solid #27533c;
 }
 
-QToolButton#settingsButton {
+QToolButton#settingsButton,
+QToolButton#logButton {
   color: #b8c4d8;
   background: #202638;
   border: 1px solid #4a536a;
@@ -67,7 +68,8 @@ QToolButton#settingsButton {
   font-weight: 800;
 }
 
-QToolButton#settingsButton:hover {
+QToolButton#settingsButton:hover,
+QToolButton#logButton:hover {
   color: #eef4ff;
   background: #273047;
   border-color: #6b7690;
@@ -85,8 +87,27 @@ QToolButton#settingsButton[state="error"] {
   border-color: #74404a;
 }
 
+QToolButton#logButton[state="idle"] {
+  color: #b8c4d8;
+  background: #202638;
+  border-color: #4a536a;
+}
+
+QToolButton#logButton[state="has"] {
+  color: #95adff;
+  background: #202744;
+  border-color: #4f83ff;
+}
+
+QToolButton#logButton[state="error"] {
+  color: #ff8a9a;
+  background: #3a2028;
+  border-color: #74404a;
+}
+
 /* Dialogs */
-QDialog#settingsDialog {
+QDialog#settingsDialog,
+QDialog#logDialog {
   background: #090b12;
 }
 
@@ -178,6 +199,27 @@ QLabel#mutedLabel,
 QLabel#batchProgressLabel,
 QLabel#outputEstimateLabel {
   color: #91a0b8;
+}
+
+QLabel#mediaChip {
+  color: #d8e6ff;
+  background: #202638;
+  border: 1px solid #4a536a;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-weight: 700;
+}
+
+QLabel#mediaChip[state="muted"] {
+  color: #91a0b8;
+  background: #171b26;
+  border-color: #30364a;
+}
+
+QLabel#mediaChip[state="error"] {
+  color: #ff8a9a;
+  background: #3a2028;
+  border-color: #74404a;
 }
 
 QLabel#healthLabel {

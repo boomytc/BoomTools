@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
 
 from desktop.app.core.constants import WINDOW_TITLE
 from desktop.app.runtime.binaries import RuntimeHealth
-from desktop.app.ui.dialogs import SettingsDialog
+from desktop.app.ui.dialogs import LogDialog, SettingsDialog
 from desktop.app.ui.panels import OperationPanel, RuntimePanel, StatusPanel, TaskPanel
 from desktop.app.ui.widgets.task_table_model import TaskTableModel
 from shared.contracts import MediaInfo
@@ -50,6 +50,8 @@ class MainWindow(QMainWindow):
     def __init__(self, task_model: TaskTableModel) -> None:
         super().__init__()
         self._last_output_path: Path | None = None
+        self._log_has_content = False
+        self._log_has_error = False
         self.setWindowTitle(WINDOW_TITLE)
         self.resize(1280, 900)
         self.setMinimumSize(1080, 860)
@@ -65,6 +67,7 @@ class MainWindow(QMainWindow):
         self.status_panel = StatusPanel()
         self.task_panel = TaskPanel(task_model)
         self.settings_dialog = SettingsDialog(self)
+        self.log_dialog = LogDialog(self)
         self._connect_panel_signals()
 
         root.addWidget(self._create_masthead())
@@ -120,7 +123,7 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(version)
 
     def set_media_info(self, media_info: MediaInfo | None) -> None:
-        self.status_panel.set_media_info(media_info)
+        self.runtime_panel.set_media_info(media_info)
         if media_info is not None:
             self.operation_panel.apply_media_defaults(media_info)
 
@@ -156,10 +159,14 @@ class MainWindow(QMainWindow):
         self.status_panel.reset_progress()
 
     def append_log(self, line: str) -> None:
-        self.status_panel.append_log(line)
+        self.log_dialog.append_log(line)
+        self._log_has_content = True
+        if "ERROR" in line.upper():
+            self._log_has_error = True
+        self._refresh_log_button()
 
     def clear_log(self) -> None:
-        self.status_panel.clear_log()
+        self.log_dialog.clear_log()
 
     def set_current_output(self, output_path: Path | None) -> None:
         self._last_output_path = output_path
@@ -254,6 +261,11 @@ class MainWindow(QMainWindow):
         self.settings_dialog.raise_()
         self.settings_dialog.activateWindow()
 
+    def open_log_dialog(self) -> None:
+        self.log_dialog.open()
+        self.log_dialog.raise_()
+        self.log_dialog.activateWindow()
+
     def closeEvent(self, event: QCloseEvent) -> None:
         self.closing.emit()
         super().closeEvent(event)
@@ -281,6 +293,7 @@ class MainWindow(QMainWindow):
         self.status_panel.open_output_requested.connect(self.open_output_requested.emit)
         self.status_panel.open_output_dir_requested.connect(self.open_output_dir_requested.emit)
         self.status_panel.copy_output_path_requested.connect(self.copy_output_path_requested.emit)
+        self.log_dialog.cleared.connect(self._mark_log_cleared)
 
     def _create_masthead(self) -> QFrame:
         masthead = QFrame()
@@ -300,6 +313,14 @@ class MainWindow(QMainWindow):
         layout.addWidget(offline_badge)
         layout.addWidget(local_badge)
         layout.addStretch(1)
+        self.log_button = QToolButton()
+        self.log_button.setObjectName("logButton")
+        self.log_button.setText("▤")
+        self.log_button.setAccessibleName("FFmpeg Log")
+        self.log_button.setProperty("state", "idle")
+        self.log_button.setToolTip("打开 FFmpeg Log")
+        self.log_button.clicked.connect(self.open_log_dialog)
+        layout.addWidget(self.log_button)
         self.settings_button = QToolButton()
         self.settings_button.setObjectName("settingsButton")
         self.settings_button.setText("⚙")
@@ -318,3 +339,21 @@ class MainWindow(QMainWindow):
             self.settings_button.setToolTip("设置 · ffmpeg/ffprobe 不可用")
         self.settings_button.style().unpolish(self.settings_button)
         self.settings_button.style().polish(self.settings_button)
+
+    def _mark_log_cleared(self) -> None:
+        self._log_has_content = False
+        self._log_has_error = False
+        self._refresh_log_button()
+
+    def _refresh_log_button(self) -> None:
+        if self._log_has_error:
+            self.log_button.setProperty("state", "error")
+            self.log_button.setToolTip("打开 FFmpeg Log · 有错误")
+        elif self._log_has_content:
+            self.log_button.setProperty("state", "has")
+            self.log_button.setToolTip("打开 FFmpeg Log")
+        else:
+            self.log_button.setProperty("state", "idle")
+            self.log_button.setToolTip("打开 FFmpeg Log")
+        self.log_button.style().unpolish(self.log_button)
+        self.log_button.style().polish(self.log_button)

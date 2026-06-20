@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from PySide6.QtCore import Signal
@@ -17,7 +16,6 @@ from PySide6.QtWidgets import (
 )
 
 from desktop.app.ui.widgets.path_picker import PathPicker
-from shared.contracts import MediaInfo
 
 
 class StatusPanel(QWidget):
@@ -33,19 +31,8 @@ class StatusPanel(QWidget):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
-        self.setMinimumHeight(242)
-        self.setMaximumHeight(260)
-
-        media_group = QGroupBox("媒体信息")
-        media_group.setObjectName("mediaInfoPanel")
-        media_layout = QVBoxLayout(media_group)
-        self.media_info_view = QPlainTextEdit()
-        self.media_info_view.setObjectName("mediaInfoView")
-        self.media_info_view.setReadOnly(True)
-        self.media_info_view.setPlainText("请选择本机媒体文件。")
-        self.media_info_view.setMinimumHeight(116)
-        media_layout.addWidget(self.media_info_view)
-        layout.addWidget(media_group, 1)
+        self.setMinimumHeight(226)
+        self.setMaximumHeight(240)
 
         progress_group = QGroupBox("输出")
         progress_group.setObjectName("outputPanel")
@@ -103,23 +90,6 @@ class StatusPanel(QWidget):
         progress_layout.addWidget(self.command_preview)
         layout.addWidget(progress_group, 1)
 
-        log_group = QGroupBox("FFmpeg Log")
-        log_group.setObjectName("logPanel")
-        log_layout = QVBoxLayout(log_group)
-        log_tools = QHBoxLayout()
-        log_tools.addStretch(1)
-        self.clear_log_button = QPushButton("Clear")
-        self.clear_log_button.setProperty("role", "quiet")
-        self.clear_log_button.clicked.connect(self.clear_log)
-        log_tools.addWidget(self.clear_log_button)
-        self.log_view = QPlainTextEdit()
-        self.log_view.setObjectName("logView")
-        self.log_view.setReadOnly(True)
-        self.log_view.setMinimumHeight(116)
-        log_layout.addLayout(log_tools)
-        log_layout.addWidget(self.log_view)
-        layout.addWidget(log_group, 1)
-
         self.set_result_buttons_enabled(False)
 
     def selected_output_dir(self) -> Path | None:
@@ -130,12 +100,6 @@ class StatusPanel(QWidget):
 
     def set_busy(self, busy: bool) -> None:
         self.output_dir_picker.set_enabled(not busy)
-
-    def set_media_info(self, media_info: MediaInfo | None) -> None:
-        if media_info is None:
-            self.media_info_view.setPlainText("请选择本机媒体文件。")
-            return
-        self.media_info_view.setPlainText(json.dumps(media_info.raw, ensure_ascii=False, indent=2))
 
     def set_progress(self, progress: float | None) -> None:
         if progress is None:
@@ -150,12 +114,6 @@ class StatusPanel(QWidget):
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
         self.progress_bar.setFormat("%p%")
-
-    def append_log(self, line: str) -> None:
-        self.log_view.appendPlainText(line)
-
-    def clear_log(self) -> None:
-        self.log_view.clear()
 
     def set_current_output(self, output_path: Path | None) -> None:
         self.output_path_edit.setText(str(output_path) if output_path else "")

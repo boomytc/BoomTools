@@ -3,7 +3,7 @@ from __future__ import annotations
 import shlex
 from pathlib import Path
 
-from PySide6.QtCore import QThread
+from PySide6.QtCore import QObject, QThread, Slot
 
 from desktop.app.core.config import AppConfig
 from desktop.app.runtime.ffmpeg import CommandError, CommandSpec
@@ -43,7 +43,7 @@ BATCH_SUPPORTED_OPERATIONS = {
 }
 
 
-class MainController:
+class MainController(QObject):
     def __init__(
         self,
         window: MainWindow,
@@ -55,6 +55,7 @@ class MainController:
         log_service: LogService,
         task_manager: TaskManager,
     ) -> None:
+        super().__init__()
         self.window = window
         self.task_model = task_model
         self.config_service = config_service
@@ -671,8 +672,8 @@ class MainController:
         worker = ProbeWorker(self.ffmpeg_service, self.window.selected_ffprobe_bin(), path)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
-        worker.media_info_ready.connect(lambda media_info: self._on_media_info(path, media_info))
-        worker.error_occurred.connect(self.window.show_status)
+        worker.media_info_ready.connect(self._on_media_info)
+        worker.error_occurred.connect(self._on_probe_error)
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
         thread.finished.connect(thread.deleteLater)
@@ -681,10 +682,18 @@ class MainController:
         self._probe_worker = worker
         thread.start()
 
+    @Slot()
     def _clear_probe_worker(self) -> None:
         self._probe_thread = None
         self._probe_worker = None
 
+    @Slot(object, str)
+    def _on_probe_error(self, path: Path, message: str) -> None:
+        if self.state.input_path != path:
+            return
+        self.window.show_status(message)
+
+    @Slot(object, object)
     def _on_media_info(self, path: Path, media_info: MediaInfo) -> None:
         if self.state.input_path != path:
             return

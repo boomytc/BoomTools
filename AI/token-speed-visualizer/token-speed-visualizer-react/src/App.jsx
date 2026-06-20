@@ -49,6 +49,7 @@ function App() {
     setGeneratedText('')
     setTokens(0)
     setTime(0)
+    setActualSpeed(0)
     startTimeRef.current = Date.now()
 
     // 计算每个token生成的时间间隔（毫秒）

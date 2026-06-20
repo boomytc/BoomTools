@@ -49,8 +49,8 @@
 
 ### ⚙️ 环境要求
 
-- **Node.js** (v14.0.0 或更高版本)
-- **npm** (v6.0.0 或更高版本)
+- **Node.js** (v18.0.0 或更高版本)
+- **npm**
 
 ### 📦 安装与构建
 
@@ -58,7 +58,7 @@
 
    ```bash
    git clone https://github.com/boomytc/BoomTools.git
-   cd token-speed-visualizer-react
+   cd BoomTools/AI/token-speed-visualizer/token-speed-visualizer-react
    ```
 
 2. **安装依赖**

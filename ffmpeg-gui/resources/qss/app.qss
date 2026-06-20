@@ -171,13 +171,13 @@ QSplitter::handle {
 }
 
 QScrollArea#operationScroll,
-QScrollArea#runtimeScroll {
+QScrollArea#mediaScroll {
   background: transparent;
   border: 0;
 }
 
 QScrollArea#operationScroll > QWidget > QWidget,
-QScrollArea#runtimeScroll > QWidget > QWidget {
+QScrollArea#mediaScroll > QWidget > QWidget {
   background: transparent;
 }
 
@@ -480,11 +480,11 @@ QPlainTextEdit {
 }
 
 QPlainTextEdit#mediaInfoView,
-QPlainTextEdit#commandPreview {
+QLineEdit#commandPreview {
   background: #101522;
 }
 
-QPlainTextEdit#commandPreview {
+QLineEdit#commandPreview {
   color: #cfe0ff;
 }
 

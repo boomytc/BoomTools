@@ -4,8 +4,9 @@ import subprocess
 from pathlib import Path
 
 from desktop.app.runtime.binaries import RuntimeHealth, binary_available, resolve_binary_path
-from desktop.app.runtime.ffmpeg import CommandSpec, build_command
+from desktop.app.runtime.ffmpeg import CommandSpec, build_command, validate_subtitles_burn_support
 from desktop.app.runtime.probe import probe_media
+from shared.contracts import Operation
 from shared.contracts import MediaInfo, TaskRequest
 
 
@@ -45,11 +46,16 @@ class FfmpegService:
         return probe_media(ffprobe_bin, input_path)
 
     def build_command(self, ffmpeg_bin: str, request: TaskRequest) -> CommandSpec:
+        if request.operation is Operation.subtitles and str(request.options.get("mode", "soft")).strip().lower() == "burn":
+            if not validate_subtitles_burn_support(ffmpeg_bin):
+                raise ValueError(
+                    "当前 ffmpeg 不支持 subtitles 过滤器，hard-burn 字幕需要带 libass 的构建。请安装或切换到 soft 字幕。"
+                )
         return build_command(
             ffmpeg_bin=ffmpeg_bin,
             operation=request.operation,
             options=request.options,
             input_path=request.input_path,
             output_dir=request.output_dir,
-            asset_path=request.subtitle_path,
+            extra_inputs=request.extra_inputs,
         )

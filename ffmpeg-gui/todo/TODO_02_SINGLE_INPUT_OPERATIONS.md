@@ -119,18 +119,18 @@
 
 ## UI Checklist
 
-- [ ] 在 `OperationFormWidget` 增加对应字段，不写内联业务逻辑。
-- [ ] 对需要 duration 的参数，在没有媒体信息时禁用或显示明确错误。
-- [ ] 单输入操作仍只需要一个输入文件和一个输出目录。
-- [ ] 运行中禁用表单，结束后恢复。
+- [x] 在 `OperationFormWidget` 增加对应字段，不写内联业务逻辑。
+- [x] 对需要 duration 的参数，在没有媒体信息时禁用或显示明确错误。
+- [x] 单输入操作仍只需要一个输入文件和一个输出目录。
+- [x] 运行中禁用表单，结束后恢复。
 
 ## 测试 Checklist
 
-- [ ] 每个 operation 有成功命令构建单测。
-- [ ] 每个 operation 至少一个非法参数单测。
-- [ ] 集成 smoke 增加短视频执行验证。
-- [ ] `loop` 验证输出文件存在且非空。
-- [ ] `thumbnail/gif/audio/video` 不互相污染输出扩展名。
+- [x] 每个 operation 有成功命令构建单测。
+- [x] 每个 operation 至少一个非法参数单测。
+- [x] 集成 smoke 增加短视频执行验证。
+- [x] `loop` 验证输出文件存在且非空。
+- [x] `thumbnail/gif/audio/video` 不互相污染输出扩展名。
 
 ## 反目标
 
@@ -143,4 +143,3 @@
 
 - 当前阶段完成后，GUI 应比当前新增至少 9 个单输入 operation。
 - `RUN_FFMPEG_GUI_SMOKE=1 uv run python -m pytest tests/integration` 覆盖本阶段新增 operation。
-

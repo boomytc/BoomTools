@@ -33,10 +33,13 @@ from shared.contracts import MediaInfo, TaskRecord
 
 class MainWindow(QMainWindow):
     input_file_selected = Signal(str)
+    batch_files_selected = Signal(list)
     output_dir_selected = Signal(str)
     refresh_requested = Signal()
     start_requested = Signal()
     cancel_requested = Signal()
+    cancel_queue_requested = Signal()
+    remove_pending_requested = Signal()
     open_output_requested = Signal()
     open_output_dir_requested = Signal()
     closing = Signal()
@@ -117,14 +120,28 @@ class MainWindow(QMainWindow):
         self.cancel_button.setEnabled(busy)
         self.operation_form.set_enabled(not busy)
         self.input_browse_button.setEnabled(not busy)
+        self.batch_add_button.setEnabled(not busy)
         self.output_browse_button.setEnabled(not busy)
         self.refresh_button.setEnabled(not busy)
+        self.remove_pending_button.setEnabled(not busy)
+        self.cancel_queue_button.setEnabled(busy)
         if busy:
             self._set_result_buttons_enabled(False)
 
     def set_start_enabled(self, enabled: bool) -> None:
-        if not self.cancel_button.isEnabled():
-            self.start_button.setEnabled(enabled)
+        busy = self.cancel_button.isEnabled()
+        self.start_button.setEnabled(enabled and not busy)
+        self.batch_add_button.setEnabled(enabled and not busy)
+
+    def set_batch_progress(self, current: int, total: int) -> None:
+        if total == 0:
+            self.batch_progress_label.setText("批处理：未启动")
+            return
+        self.batch_progress_label.setText(f"批处理：{current}/{total}")
+
+    def set_batch_buttons(self, pending_count: int, running: bool) -> None:
+        self.remove_pending_button.setEnabled(pending_count > 0 and not running)
+        self.cancel_queue_button.setEnabled(running)
 
     def set_progress(self, progress: float | None) -> None:
         if progress is None:
@@ -168,12 +185,23 @@ class MainWindow(QMainWindow):
         self.input_path_edit.setText(path)
         self.input_file_selected.emit(path)
 
+    def choose_batch_files(self) -> None:
+        paths, _ = QFileDialog.getOpenFileNames(self, "添加批处理文件", self.input_path_edit.text())
+        if not paths:
+            return
+        self.batch_files_selected.emit(paths)
+
     def choose_output_dir(self) -> None:
         path = QFileDialog.getExistingDirectory(self, "选择输出目录", self.output_dir_edit.text())
         if not path:
             return
         self.output_dir_edit.setText(path)
         self.output_dir_selected.emit(path)
+
+    def choose_operation_file(self, field_name: str, file_filter: str) -> None:
+        path, _ = QFileDialog.getOpenFileName(self, "选择文件", "", file_filter)
+        if path:
+            self.operation_form.set_file_path(field_name, path)
 
     def choose_subtitle_file(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "选择字幕文件", "", "Subtitles (*.srt *.vtt *.ass *.ssa)")
@@ -222,10 +250,14 @@ class MainWindow(QMainWindow):
 
         self.health_label = QLabel("等待检查 ffmpeg/ffprobe")
         self.health_label.setObjectName("healthLabel")
+        self.batch_progress_label = QLabel("批处理：未启动")
+        self.batch_add_button = QPushButton("添加多个文件到队列")
+        self.batch_add_button.clicked.connect(self.choose_batch_files)
 
         layout.addWidget(QLabel("输入"), 0, 0)
         layout.addWidget(self.input_path_edit, 0, 1, 1, 3)
         layout.addWidget(self.input_browse_button, 0, 4)
+        layout.addWidget(self.batch_add_button, 0, 5)
         layout.addWidget(QLabel("输出"), 1, 0)
         layout.addWidget(self.output_dir_edit, 1, 1, 1, 3)
         layout.addWidget(self.output_browse_button, 1, 4)
@@ -235,6 +267,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.ffprobe_bin_edit, 2, 3)
         layout.addWidget(self.refresh_button, 2, 4)
         layout.addWidget(self.health_label, 3, 0, 1, 5)
+        layout.addWidget(self.batch_progress_label, 4, 0, 1, 5)
         layout.setColumnStretch(1, 2)
         layout.setColumnStretch(3, 2)
         return panel
@@ -245,18 +278,26 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
         self.operation_form = OperationFormWidget()
-        self.operation_form.subtitle_browse_requested.connect(self.choose_subtitle_file)
+        self.operation_form.file_browse_requested.connect(self.choose_operation_file)
         layout.addWidget(self.operation_form, 1)
 
         button_row = QHBoxLayout()
         self.start_button = QPushButton("开始处理")
         self.start_button.setObjectName("primaryButton")
-        self.cancel_button = QPushButton("取消")
+        self.cancel_button = QPushButton("取消当前")
+        self.cancel_queue_button = QPushButton("取消队列")
+        self.remove_pending_button = QPushButton("移除未运行")
         self.cancel_button.setEnabled(False)
+        self.cancel_queue_button.setEnabled(False)
+        self.remove_pending_button.setEnabled(False)
         self.start_button.clicked.connect(self.start_requested.emit)
         self.cancel_button.clicked.connect(self.cancel_requested.emit)
+        self.cancel_queue_button.clicked.connect(self.cancel_queue_requested.emit)
+        self.remove_pending_button.clicked.connect(self.remove_pending_requested.emit)
         button_row.addWidget(self.start_button)
         button_row.addWidget(self.cancel_button)
+        button_row.addWidget(self.cancel_queue_button)
+        button_row.addWidget(self.remove_pending_button)
         layout.addLayout(button_row)
         return panel
 

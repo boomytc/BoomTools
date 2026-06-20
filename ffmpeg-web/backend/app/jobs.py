@@ -142,6 +142,7 @@ class JobManager:
                 options=job.options,
                 input_path=job.input_path,
                 output_dir=job.job_dir,
+                asset_path=_resolve_asset_path(job),
             )
         except CommandError as exc:
             self._fail(job, str(exc))
@@ -235,3 +236,15 @@ def _quote_arg(arg: str) -> str:
         return '"' + arg.replace('"', '\\"') + '"'
     return arg
 
+
+def _resolve_asset_path(job: Job) -> Path | None:
+    if job.operation is not Operation.subtitles:
+        return None
+    asset_id = str(job.options.get("asset_id", "")).strip()
+    if not asset_id:
+        return None
+    asset_dir = job.upload_dir / "assets"
+    if not asset_dir.exists():
+        return None
+    matches = sorted(asset_dir.glob(f"{asset_id}.*"))
+    return matches[0] if matches else None

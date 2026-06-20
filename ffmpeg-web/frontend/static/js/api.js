@@ -14,6 +14,17 @@ export async function uploadFile(file) {
   return parseResponse(response);
 }
 
+export async function uploadAsset(fileId, file, kind) {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("kind", kind);
+  const response = await fetch(`/api/uploads/${encodeURIComponent(fileId)}/assets`, {
+    method: "POST",
+    body: form,
+  });
+  return parseResponse(response);
+}
+
 export async function createJob(payload) {
   const response = await fetch("/api/jobs", {
     method: "POST",
@@ -55,4 +66,3 @@ async function parseResponse(response) {
   }
   return data;
 }
-

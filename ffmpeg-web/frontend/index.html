@@ -68,10 +68,30 @@
             <div class="field">
               <label for="operation">操作</label>
               <select id="operation" name="operation">
-                <option value="convert">格式转换</option>
-                <option value="compress">压缩视频</option>
-                <option value="extract_audio">抽取音频</option>
-                <option value="gif">生成 GIF</option>
+                <optgroup label="基础">
+                  <option value="convert">格式转换</option>
+                  <option value="compress">压缩视频</option>
+                  <option value="extract_audio">抽取音频</option>
+                  <option value="gif">生成 GIF</option>
+                </optgroup>
+                <optgroup label="视频编辑">
+                  <option value="mute">静音视频</option>
+                  <option value="rotate">旋转/翻转</option>
+                  <option value="crop">裁剪画面</option>
+                  <option value="thumbnail">提取封面</option>
+                  <option value="speed">调整速度</option>
+                  <option value="strip_metadata">移除元数据</option>
+                </optgroup>
+                <optgroup label="音频">
+                  <option value="volume">调整音量</option>
+                  <option value="normalize_audio">响度标准化</option>
+                </optgroup>
+                <optgroup label="字幕">
+                  <option value="subtitles">嵌入字幕</option>
+                </optgroup>
+                <optgroup label="高级">
+                  <option value="raw">Raw FFmpeg</option>
+                </optgroup>
               </select>
             </div>
 

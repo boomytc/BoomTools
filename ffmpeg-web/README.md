@@ -10,6 +10,10 @@
 - 压缩视频：CRF、preset、可选宽度
 - 抽取音频：MP3、WAV、AAC、FLAC
 - 生成 GIF：帧率和宽度可调
+- 静音、旋转/翻转、数字裁剪、封面提取、速度调整
+- 音量调整、响度标准化、移除元数据
+- 软字幕嵌入：SRT、VTT、ASS、SSA
+- Raw FFmpeg 高级参数模式，输入和输出路径仍由后端管理
 - 任务进度、日志、下载输出、清理任务
 
 ## 安装
@@ -54,11 +58,31 @@ FFMPEG_BIN=/opt/homebrew/bin/ffmpeg FFPROBE_BIN=/opt/homebrew/bin/ffprobe uv run
 
 - `GET /api/health`
 - `POST /api/uploads`
+- `POST /api/uploads/{file_id}/assets`
 - `POST /api/jobs`
 - `GET /api/jobs/{job_id}`
 - `GET /api/jobs/{job_id}/events`
 - `GET /api/jobs/{job_id}/download`
 - `DELETE /api/jobs/{job_id}`
+
+`POST /api/jobs` 支持的 `operation`：
+
+- `convert`
+- `compress`
+- `extract_audio`
+- `gif`
+- `mute`
+- `rotate`
+- `crop`
+- `thumbnail`
+- `speed`
+- `volume`
+- `strip_metadata`
+- `normalize_audio`
+- `subtitles`
+- `raw`
+
+`raw` 仅适合个人本机高级使用。后端仍使用参数数组执行，不使用 `shell=True`，并禁止 raw 参数自带输入路径、输出路径或 `-i`。
 
 ## 验证
 

@@ -1,4 +1,4 @@
-import { createJob, deleteJob, getHealth, uploadFile } from "./api.js";
+import { createJob, deleteJob, getHealth, uploadAsset, uploadFile } from "./api.js";
 import { collectJobPayload, renderOperationFields } from "./operations.js";
 import { watchJob } from "./job-events.js";
 
@@ -6,6 +6,7 @@ const state = {
   fileId: null,
   currentJobId: null,
   watcher: null,
+  subtitleAsset: null,
 };
 
 const els = {
@@ -127,12 +128,14 @@ async function handleUpload(file) {
   try {
     const result = await uploadFile(file);
     state.fileId = result.file_id;
+    state.subtitleAsset = null;
     renderMediaInfo(result);
     els.uploadHint.textContent = "上传完成";
     els.submitJob.disabled = false;
     showToast("文件已就绪");
   } catch (error) {
     state.fileId = null;
+    state.subtitleAsset = null;
     els.uploadHint.textContent = "上传失败";
     els.fileCard.classList.add("is-empty");
     els.submitJob.disabled = true;
@@ -150,6 +153,7 @@ async function submitJob() {
   setJobStatus({ status: "pending", message: "创建任务", progress: 0, logs_tail: [] });
   try {
     const payload = collectJobPayload(els.jobForm, state.fileId);
+    await prepareOperationAssets(payload);
     const created = await createJob(payload);
     state.currentJobId = created.job_id;
     els.deleteJob.disabled = false;
@@ -159,6 +163,26 @@ async function submitJob() {
     setJobStatus({ status: "failed", message: error.message, progress: 0, logs_tail: [] });
     showToast(error.message);
   }
+}
+
+async function prepareOperationAssets(payload) {
+  if (payload.operation !== "subtitles") {
+    return;
+  }
+  const input = els.jobForm.querySelector('input[name="subtitle_file"]');
+  const file = input?.files?.[0];
+  if (!file) {
+    throw new Error("请选择字幕文件");
+  }
+  if (state.subtitleAsset?.file === file && state.subtitleAsset?.assetId) {
+    payload.options.asset_id = state.subtitleAsset.assetId;
+    return;
+  }
+
+  setJobStatus({ status: "pending", message: "上传字幕文件", progress: 0, logs_tail: [] });
+  const uploaded = await uploadAsset(state.fileId, file, "subtitle");
+  state.subtitleAsset = { file, assetId: uploaded.asset_id };
+  payload.options.asset_id = uploaded.asset_id;
 }
 
 function startWatching(jobId) {
@@ -305,4 +329,3 @@ function formatDuration(seconds) {
   const rest = Math.round(seconds % 60);
   return `${minutes}:${String(rest).padStart(2, "0")}`;
 }
-

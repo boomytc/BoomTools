@@ -11,6 +11,16 @@ class Operation(StrEnum):
     compress = "compress"
     extract_audio = "extract_audio"
     gif = "gif"
+    mute = "mute"
+    rotate = "rotate"
+    crop = "crop"
+    thumbnail = "thumbnail"
+    speed = "speed"
+    volume = "volume"
+    strip_metadata = "strip_metadata"
+    normalize_audio = "normalize_audio"
+    subtitles = "subtitles"
+    raw = "raw"
 
 
 class JobStatus(StrEnum):
@@ -36,6 +46,13 @@ class UploadResponse(BaseModel):
     media_info: dict[str, Any]
 
 
+class AssetUploadResponse(BaseModel):
+    asset_id: str
+    kind: str
+    original_name: str
+    size: int
+
+
 class JobCreateRequest(BaseModel):
     file_id: str = Field(min_length=1)
     operation: Operation
@@ -57,4 +74,3 @@ class JobResponse(BaseModel):
     output_name: str | None = None
     output_size: int | None = None
     download_url: str | None = None
-

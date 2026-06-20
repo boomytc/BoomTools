@@ -36,7 +36,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -289,6 +290,11 @@ h2 {
   gap: 12px;
 }
 
+.field.is-wide,
+.field-note {
+  grid-column: 1 / -1;
+}
+
 .field label {
   display: block;
   margin-bottom: 6px;
@@ -298,19 +304,48 @@ h2 {
 }
 
 .field input,
-.field select {
+.field select,
+.field textarea {
   width: 100%;
-  min-height: 44px;
   border: 1px solid var(--line);
   border-radius: 7px;
   background: #ffffff;
   color: var(--ink);
+}
+
+.field input,
+.field select {
+  min-height: 44px;
   padding: 0 12px;
 }
 
+.field textarea {
+  min-height: 112px;
+  padding: 12px;
+  font-family: var(--mono);
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.field input[type="file"] {
+  padding: 10px 12px;
+}
+
 .field input:disabled,
-.field select:disabled {
+.field select:disabled,
+.field textarea:disabled {
   opacity: 0.55;
+}
+
+.field-note {
+  margin: -4px 0 0;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #f1ede3;
+  color: var(--muted);
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .primary-action,
@@ -545,4 +580,3 @@ h2 {
     animation-duration: 0.001ms !important;
   }
 }
-

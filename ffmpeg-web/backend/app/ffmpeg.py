@@ -11,6 +11,9 @@ from typing import Any
 
 CONVERT_FORMATS = {"mp4", "webm", "mov", "mkv"}
 AUDIO_FORMATS = {"mp3", "wav", "aac", "flac"}
+IMAGE_FORMATS = {"jpg", "png"}
+SUBTITLE_FORMATS = {"mp4", "mkv"}
+RAW_OUTPUT_EXTENSIONS = CONVERT_FORMATS | AUDIO_FORMATS | IMAGE_FORMATS | {"gif", "avi", "ogg"}
 PRESETS = {
     "ultrafast",
     "superfast",
@@ -21,6 +24,24 @@ PRESETS = {
     "slow",
     "slower",
     "veryslow",
+}
+ROTATE_FILTERS = {
+    "cw90": "transpose=1",
+    "ccw90": "transpose=2",
+    "180": "hflip,vflip",
+    "hflip": "hflip",
+    "vflip": "vflip",
+    "hvflip": "hflip,vflip",
+}
+LOUDNESS_TARGETS = {"-14", "-16", "-23"}
+RAW_FORBIDDEN_ARGS = {
+    "-i",
+    "-y",
+    "-n",
+    "-progress",
+    "-nostats",
+    "-nostdin",
+    "-hide_banner",
 }
 
 
@@ -97,6 +118,7 @@ def build_command(
     options: dict[str, Any],
     input_path: Path,
     output_dir: Path,
+    asset_path: Path | None = None,
 ) -> CommandSpec:
     output_dir.mkdir(parents=True, exist_ok=True)
     normalized = dict(options or {})
@@ -115,7 +137,7 @@ def build_command(
     ]
     args.extend(_trim_input_args(normalized))
     args.extend(["-i", str(input_path)])
-    args.extend(_operation_args(operation, normalized))
+    args.extend(_operation_args(operation, normalized, asset_path))
     args.append(str(output_path))
     return CommandSpec(args=args, output_path=output_path, output_name=output_name)
 
@@ -139,7 +161,7 @@ def _trim_input_args(options: dict[str, Any]) -> list[str]:
     return args
 
 
-def _operation_args(operation: str, options: dict[str, Any]) -> list[str]:
+def _operation_args(operation: str, options: dict[str, Any], asset_path: Path | None) -> list[str]:
     if operation == "convert":
         fmt = _choice(options.get("output_format", "mp4"), CONVERT_FORMATS, "output_format")
         return _video_codec_args(fmt)
@@ -176,26 +198,126 @@ def _operation_args(operation: str, options: dict[str, Any]) -> list[str]:
             "0",
         ]
 
+    if operation == "mute":
+        fmt = _choice(options.get("output_format", "mp4"), CONVERT_FORMATS, "output_format")
+        return _video_codec_args(fmt, include_audio=False)
+
+    if operation == "rotate":
+        fmt = _choice(options.get("output_format", "mp4"), CONVERT_FORMATS, "output_format")
+        mode = _choice(options.get("mode", "cw90"), set(ROTATE_FILTERS), "mode")
+        return ["-vf", ROTATE_FILTERS[mode], *_video_codec_args(fmt)]
+
+    if operation == "crop":
+        fmt = _choice(options.get("output_format", "mp4"), CONVERT_FORMATS, "output_format")
+        x = _bounded_int(options.get("x"), "x", 0, 7680)
+        y = _bounded_int(options.get("y"), "y", 0, 4320)
+        width = _bounded_int(options.get("width"), "width", 1, 7680)
+        height = _bounded_int(options.get("height"), "height", 1, 4320)
+        return ["-vf", f"crop={width}:{height}:{x}:{y}", *_video_codec_args(fmt)]
+
+    if operation == "thumbnail":
+        timestamp = _bounded_float(options.get("timestamp_seconds", 0), "timestamp_seconds", 0, 86_400)
+        fmt = _choice(options.get("image_format", "jpg"), IMAGE_FORMATS, "image_format")
+        args = ["-ss", _format_number(timestamp), "-frames:v", "1", "-an"]
+        if fmt == "jpg":
+            args.extend(["-q:v", "2"])
+        return args
+
+    if operation == "speed":
+        fmt = _choice(options.get("output_format", "mp4"), CONVERT_FORMATS, "output_format")
+        factor = _bounded_float(options.get("factor", 1), "factor", 0.25, 4.0)
+        return [
+            "-vf",
+            f"setpts={_format_number(1 / factor)}*PTS",
+            "-af",
+            _atempo_filter(factor),
+            *_video_codec_args(fmt),
+        ]
+
+    if operation == "volume":
+        fmt = _choice(options.get("output_format", "mp4"), CONVERT_FORMATS, "output_format")
+        multiplier = _bounded_float(options.get("multiplier", 1), "multiplier", 0, 4)
+        return ["-af", f"volume={_format_number(multiplier)}", *_audio_filter_output_args(fmt)]
+
+    if operation == "strip_metadata":
+        fmt = _choice(options.get("output_format", "mp4"), CONVERT_FORMATS, "output_format")
+        return ["-map_metadata", "-1", *_video_codec_args(fmt)]
+
+    if operation == "normalize_audio":
+        fmt = _choice(options.get("output_format", "mp4"), CONVERT_FORMATS, "output_format")
+        target = _choice(options.get("target_lufs", "-16"), LOUDNESS_TARGETS, "target_lufs")
+        return ["-af", f"loudnorm=I={target}:LRA=11:TP=-1.5", *_audio_filter_output_args(fmt)]
+
+    if operation == "subtitles":
+        if not asset_path or not asset_path.exists():
+            raise CommandError("subtitle asset was not found")
+        fmt = _choice(options.get("output_format", "mp4"), SUBTITLE_FORMATS, "output_format")
+        subtitle_codec = "mov_text" if fmt == "mp4" else "copy"
+        return [
+            "-i",
+            str(asset_path),
+            "-c:v",
+            "copy",
+            "-c:a",
+            "copy",
+            "-c:s",
+            subtitle_codec,
+            "-map",
+            "0:v",
+            "-map",
+            "0:a?",
+            "-map",
+            "1:0",
+        ]
+
+    if operation == "raw":
+        return _raw_args(options)
+
     raise CommandError(f"Unsupported operation: {operation}")
 
 
 def _output_extension(operation: str, options: dict[str, Any]) -> str:
-    if operation in {"convert", "compress"}:
+    if operation in {
+        "convert",
+        "compress",
+        "mute",
+        "rotate",
+        "crop",
+        "speed",
+        "volume",
+        "strip_metadata",
+        "normalize_audio",
+    }:
         return _choice(options.get("output_format", "mp4"), CONVERT_FORMATS, "output_format")
     if operation == "extract_audio":
         return _choice(options.get("audio_format", "mp3"), AUDIO_FORMATS, "audio_format")
     if operation == "gif":
         return "gif"
+    if operation == "thumbnail":
+        return _choice(options.get("image_format", "jpg"), IMAGE_FORMATS, "image_format")
+    if operation == "subtitles":
+        return _choice(options.get("output_format", "mp4"), SUBTITLE_FORMATS, "output_format")
+    if operation == "raw":
+        return _choice(options.get("output_extension", "mp4"), RAW_OUTPUT_EXTENSIONS, "output_extension")
     raise CommandError(f"Unsupported operation: {operation}")
 
 
-def _video_codec_args(fmt: str) -> list[str]:
+def _video_codec_args(fmt: str, *, include_audio: bool = True) -> list[str]:
     if fmt == "webm":
-        return ["-c:v", "libvpx-vp9", "-crf", "32", "-b:v", "0", "-c:a", "libopus"]
-    args = ["-c:v", "libx264", "-preset", "medium", "-crf", "23", "-c:a", "aac"]
+        args = ["-c:v", "libvpx-vp9", "-crf", "32", "-b:v", "0"]
+        args.extend(["-c:a", "libopus"] if include_audio else ["-an"])
+        return args
+    args = ["-c:v", "libx264", "-preset", "medium", "-crf", "23"]
+    args.extend(["-c:a", "aac"] if include_audio else ["-an"])
     if fmt == "mp4":
         args.extend(["-movflags", "+faststart"])
     return args
+
+
+def _audio_filter_output_args(fmt: str) -> list[str]:
+    if fmt == "webm":
+        return ["-c:v", "copy", "-c:a", "libopus"]
+    return ["-c:v", "copy", "-c:a", "aac"]
 
 
 def _audio_codec_args(fmt: str) -> list[str]:
@@ -250,6 +372,16 @@ def _bounded_int(value: Any, name: str, minimum: int, maximum: int) -> int:
     return parsed
 
 
+def _bounded_float(value: Any, name: str, minimum: float, maximum: float) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        raise CommandError(f"{name} must be a number") from None
+    if parsed < minimum or parsed > maximum:
+        raise CommandError(f"{name} must be between {_format_number(minimum)} and {_format_number(maximum)}")
+    return parsed
+
+
 def _optional_int(value: Any, name: str) -> int | None:
     if value in {None, ""}:
         return None
@@ -257,6 +389,43 @@ def _optional_int(value: Any, name: str) -> int | None:
         return int(value)
     except (TypeError, ValueError):
         raise CommandError(f"{name} must be an integer") from None
+
+
+def _raw_args(options: dict[str, Any]) -> list[str]:
+    raw = options.get("raw_args")
+    if not isinstance(raw, list) or not raw:
+        raise CommandError("raw_args must be a non-empty argument array")
+    if len(raw) > 80:
+        raise CommandError("raw_args must contain 80 or fewer arguments")
+
+    args: list[str] = []
+    for item in raw:
+        if not isinstance(item, str):
+            raise CommandError("raw_args must contain strings only")
+        arg = item.strip()
+        if not arg:
+            raise CommandError("raw_args must not contain empty arguments")
+        if len(arg) > 500:
+            raise CommandError("raw_args values must be 500 characters or fewer")
+        if arg in RAW_FORBIDDEN_ARGS:
+            raise CommandError(f"raw_args must not include {arg}")
+        if arg.startswith(("pipe:", "file:")) or "/" in arg or "\\" in arg:
+            raise CommandError("raw_args must not include file paths or pipe/file URLs")
+        args.append(arg)
+    return args
+
+
+def _atempo_filter(factor: float) -> str:
+    remaining = factor
+    filters: list[str] = []
+    while remaining < 0.5:
+        filters.append("atempo=0.5")
+        remaining /= 0.5
+    while remaining > 2.0:
+        filters.append("atempo=2")
+        remaining /= 2.0
+    filters.append(f"atempo={_format_number(remaining)}")
+    return ",".join(filters)
 
 
 def _optional_float(value: Any, name: str) -> float | None:
@@ -270,4 +439,3 @@ def _optional_float(value: Any, name: str) -> float | None:
 
 def _format_number(value: float) -> str:
     return f"{value:.3f}".rstrip("0").rstrip(".")
-

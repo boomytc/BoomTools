@@ -6,14 +6,14 @@ import re
 import uuid
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from .config import FRONTEND_ROOT, ensure_data_dirs, get_config
 from .ffmpeg import binary_available, ffmpeg_version, probe_media
 from .jobs import JobManager, TERMINAL_STATUSES
-from .schemas import HealthResponse, JobCreateRequest, JobCreateResponse, JobResponse, UploadResponse
+from .schemas import AssetUploadResponse, HealthResponse, JobCreateRequest, JobCreateResponse, JobResponse, UploadResponse
 
 
 app = FastAPI(title="BoomTools ffmpeg-web", version="0.1.0")
@@ -63,6 +63,43 @@ async def upload(file: UploadFile = File(...)) -> UploadResponse:
         original_name=original_name,
         size=size,
         media_info=media_info,
+    )
+
+
+@app.post("/api/uploads/{file_id}/assets", response_model=AssetUploadResponse)
+async def upload_asset(
+    file_id: str,
+    file: UploadFile = File(...),
+    kind: str = Form("subtitle"),
+) -> AssetUploadResponse:
+    upload_dir = config.uploads_root / file_id
+    if not _find_uploaded_input(upload_dir):
+        raise HTTPException(status_code=404, detail="Uploaded file was not found")
+    if kind != "subtitle":
+        raise HTTPException(status_code=400, detail="Unsupported asset kind")
+
+    original_name = file.filename or "subtitle"
+    ext = _safe_subtitle_extension(original_name)
+    asset_id = uuid.uuid4().hex
+    asset_dir = upload_dir / "assets"
+    asset_dir.mkdir(parents=True, exist_ok=True)
+    asset_path = asset_dir / f"{asset_id}{ext}"
+
+    size = 0
+    with asset_path.open("wb") as output:
+        while True:
+            chunk = await file.read(1024 * 1024)
+            if not chunk:
+                break
+            size += len(chunk)
+            output.write(chunk)
+    await file.close()
+
+    return AssetUploadResponse(
+        asset_id=asset_id,
+        kind=kind,
+        original_name=original_name,
+        size=size,
     )
 
 
@@ -154,3 +191,9 @@ def _safe_extension(filename: str) -> str:
         return ".bin"
     return suffix
 
+
+def _safe_subtitle_extension(filename: str) -> str:
+    suffix = Path(filename).suffix.lower()
+    if suffix not in {".srt", ".vtt", ".ass", ".ssa"}:
+        raise HTTPException(status_code=400, detail="Subtitle file must be .srt, .vtt, .ass, or .ssa")
+    return suffix

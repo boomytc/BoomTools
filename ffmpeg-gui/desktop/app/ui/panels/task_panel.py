@@ -10,8 +10,8 @@ class TaskPanel(QGroupBox):
     def __init__(self, task_model: TaskTableModel) -> None:
         super().__init__("任务队列")
         self.setObjectName("taskPanel")
-        self.setMinimumHeight(150)
-        self.setMaximumHeight(180)
+        self.setMinimumHeight(132)
+        self.setMaximumHeight(150)
         layout = QVBoxLayout(self)
         self.task_table = QTableView()
         self.task_table.setObjectName("taskTable")
@@ -29,5 +29,5 @@ class TaskPanel(QGroupBox):
         self.task_table.setColumnWidth(0, 92)
         self.task_table.setColumnWidth(1, 160)
         self.task_table.setColumnWidth(4, 120)
-        self.task_table.setMinimumHeight(108)
+        self.task_table.setMinimumHeight(92)
         layout.addWidget(self.task_table)

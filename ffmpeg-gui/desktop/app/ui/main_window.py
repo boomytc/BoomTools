@@ -49,8 +49,8 @@ class MainWindow(QMainWindow):
         super().__init__()
         self._last_output_path: Path | None = None
         self.setWindowTitle(WINDOW_TITLE)
-        self.resize(1280, 840)
-        self.setMinimumSize(1080, 760)
+        self.resize(1280, 900)
+        self.setMinimumSize(1080, 860)
 
         central = QWidget()
         central.setObjectName("appRoot")

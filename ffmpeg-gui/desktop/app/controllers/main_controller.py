@@ -159,7 +159,11 @@ class MainController:
             return
 
         operation, options, extra_inputs = self.window.selected_operation_payload()
-        self._validate_operation_inputs(operation, extra_inputs)
+        try:
+            self._validate_operation_inputs(operation, extra_inputs)
+        except ValueError as exc:
+            self.window.show_error(str(exc))
+            return
         use_stack = self.window.stack_mode()
         stack_specs = self._collect_stack_specs(operation, options, extra_inputs)
         input_paths = self._collect_input_paths()
@@ -301,7 +305,11 @@ class MainController:
         if operation not in STACK_FILTER_OPERATIONS:
             self.window.show_error("当前操作不支持加入 Stack")
             return
-        self._validate_operation_inputs(operation, extra_inputs)
+        try:
+            self._validate_operation_inputs(operation, extra_inputs)
+        except ValueError as exc:
+            self.window.show_error(str(exc))
+            return
         if self._stack_items:
             options = dict(options)
             options.pop("start_seconds", None)

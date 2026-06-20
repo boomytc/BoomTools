@@ -100,19 +100,32 @@ class FfmpegProcessWorker(QObject):
             self.finished.emit(TaskStatus.cancelled)
             return
 
-        if exit_status == QProcess.ExitStatus.NormalExit and exit_code == 0 and self._spec.output_path.exists():
-            self.progress_changed.emit(1.0)
-            self.status_changed.emit(TaskStatus.succeeded)
-            self.result_ready.emit(
-                TaskResult(output_path=self._spec.output_path, output_size=self._spec.output_path.stat().st_size)
-            )
-            self.finished.emit(TaskStatus.succeeded)
-            return
+        if exit_status == QProcess.ExitStatus.NormalExit and exit_code == 0:
+            if self._spec.output_path is None:
+                self.progress_changed.emit(1.0)
+                self.status_changed.emit(TaskStatus.succeeded)
+                self.result_ready.emit(TaskResult(output_path=None, output_size=0))
+                self.finished.emit(TaskStatus.succeeded)
+                return
+            if self._spec.output_path.exists():
+                self.progress_changed.emit(1.0)
+                self.status_changed.emit(TaskStatus.succeeded)
+                self.result_ready.emit(
+                    TaskResult(output_path=self._spec.output_path, output_size=self._spec.output_path.stat().st_size)
+                )
+                self.finished.emit(TaskStatus.succeeded)
+                return
 
         message = f"ffmpeg exited with code {exit_code}"
+        if exit_code == 0:
+            if self._spec.output_path is None:
+                message = "ffmpeg exited without output file"
+            elif not self._spec.output_path.exists():
+                message = f"ffmpeg output missing: {self._spec.output_path}"
         self.error_occurred.emit(message)
         self.status_changed.emit(TaskStatus.failed)
         self.finished.emit(TaskStatus.failed)
+        return
 
     def _kill_if_still_running(self) -> None:
         if self._process and self._process.state() != QProcess.ProcessState.NotRunning:
@@ -120,5 +133,5 @@ class FfmpegProcessWorker(QObject):
             self._process.kill()
 
     @property
-    def output_path(self) -> Path:
+    def output_path(self) -> Path | None:
         return self._spec.output_path

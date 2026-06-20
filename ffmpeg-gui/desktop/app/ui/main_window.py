@@ -4,18 +4,22 @@ import json
 from pathlib import Path
 
 from PySide6.QtCore import QUrl, Signal
-from PySide6.QtGui import QCloseEvent, QDesktopServices
+from PySide6.QtGui import QCloseEvent, QDesktopServices, QGuiApplication
 from PySide6.QtWidgets import (
     QFileDialog,
     QFrame,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
+    QRadioButton,
     QLabel,
     QLineEdit,
     QMainWindow,
     QMessageBox,
     QPlainTextEdit,
+    QListWidget,
+    QListWidgetItem,
+    QAbstractItemView,
     QProgressBar,
     QPushButton,
     QSplitter,
@@ -28,7 +32,21 @@ from desktop.app.core.constants import WINDOW_TITLE
 from desktop.app.runtime.binaries import RuntimeHealth
 from desktop.app.ui.widgets.operation_form import OperationFormWidget
 from desktop.app.ui.widgets.task_table_model import TaskTableModel
-from shared.contracts import MediaInfo, TaskRecord
+from shared.contracts import MediaInfo, Operation, TaskRecord
+
+
+STACK_FILTER_OPERATIONS = {
+    Operation.resize_compress,
+    Operation.crop,
+    Operation.rotate,
+    Operation.adjust,
+    Operation.denoise,
+    Operation.sharpen_blur,
+    Operation.pad,
+    Operation.volume,
+    Operation.speed,
+    Operation.fade,
+}
 
 
 class MainWindow(QMainWindow):
@@ -42,12 +60,21 @@ class MainWindow(QMainWindow):
     remove_pending_requested = Signal()
     open_output_requested = Signal()
     open_output_dir_requested = Signal()
+    stack_mode_toggled = Signal(bool)
+    stack_add_requested = Signal()
+    stack_move_up_requested = Signal(int)
+    stack_move_down_requested = Signal(int)
+    stack_remove_requested = Signal(int)
+    stack_clear_requested = Signal()
+    command_preview_requested = Signal()
+    copy_output_path_requested = Signal()
     closing = Signal()
 
     def __init__(self, task_model: TaskTableModel) -> None:
         super().__init__()
         self.task_model = task_model
         self._last_output_path: Path | None = None
+        self._stack_items: list[str] = []
         self.setWindowTitle(WINDOW_TITLE)
         self.resize(1180, 760)
         self.setMinimumSize(960, 620)
@@ -114,6 +141,12 @@ class MainWindow(QMainWindow):
             self.media_info_view.setPlainText("请选择本机媒体文件。")
             return
         self.media_info_view.setPlainText(json.dumps(media_info.raw, ensure_ascii=False, indent=2))
+        self.operation_form.apply_media_defaults(media_info)
+
+    def apply_media_defaults_to_form(self, media_info: MediaInfo | None) -> None:
+        if media_info is None:
+            return
+        self.operation_form.apply_media_defaults(media_info)
 
     def set_busy(self, busy: bool) -> None:
         self.start_button.setEnabled(not busy)
@@ -125,6 +158,12 @@ class MainWindow(QMainWindow):
         self.refresh_button.setEnabled(not busy)
         self.remove_pending_button.setEnabled(not busy)
         self.cancel_queue_button.setEnabled(busy)
+        self.single_mode_radio.setEnabled(not busy)
+        self.stack_mode_radio.setEnabled(not busy)
+        self.stack_add_button.setEnabled(False)
+        self._set_stack_actions_enabled(not busy and len(self._stack_items) > 0)
+        self.stack_list.setEnabled(not busy)
+        self._update_stack_add_enabled()
         if busy:
             self._set_result_buttons_enabled(False)
 
@@ -167,6 +206,35 @@ class MainWindow(QMainWindow):
         self._last_output_path = output_path
         self.output_path_edit.setText(str(output_path) if output_path else "")
         self._set_result_buttons_enabled(bool(output_path and output_path.exists()))
+
+    def current_output_path(self) -> Path | None:
+        return self._last_output_path
+
+    def set_stack_mode(self, enabled: bool) -> None:
+        self.stack_mode_radio.setChecked(enabled)
+        self.single_mode_radio.setChecked(not enabled)
+        self.stack_container.setVisible(enabled)
+        self._update_stack_add_enabled()
+        self._set_stack_actions_enabled(bool(self._stack_items))
+        self._set_stack_note_by_operation()
+
+    def stack_mode(self) -> bool:
+        return self.stack_mode_radio.isChecked()
+
+    def set_stack_items(self, items: list[str]) -> None:
+        self._stack_items = list(items)
+        self.stack_list.clear()
+        for item in items:
+            QListWidgetItem(item, self.stack_list)
+        self.stack_list_label.setText(f"Stack 队列：{len(items)}项")
+        self._set_stack_actions_enabled(len(items) > 0)
+        self._set_stack_note_by_operation()
+
+    def set_command_preview(self, command: str) -> None:
+        self.command_preview.setPlainText(command)
+
+    def set_output_estimate(self, estimate: str) -> None:
+        self.output_estimate_label.setText(estimate)
 
     def selected_operation_payload(self):
         return self.operation_form.collect()
@@ -219,6 +287,13 @@ class MainWindow(QMainWindow):
             directory = self.selected_output_dir()
         if directory and directory.exists():
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(directory)))
+
+    def copy_output_path(self) -> None:
+        if not self._last_output_path:
+            self.show_status("当前无可复制的输出路径")
+            return
+        QGuiApplication.clipboard().setText(str(self._last_output_path))
+        self.show_status("已复制输出路径到剪贴板")
 
     def closeEvent(self, event: QCloseEvent) -> None:
         self.closing.emit()
@@ -279,7 +354,21 @@ class MainWindow(QMainWindow):
         layout.setSpacing(12)
         self.operation_form = OperationFormWidget()
         self.operation_form.file_browse_requested.connect(self.choose_operation_file)
+        self.operation_form.spec_changed.connect(self._update_stack_add_enabled)
+        self.operation_form.spec_changed.connect(self.command_preview_requested.emit)
         layout.addWidget(self.operation_form, 1)
+
+        mode_row = QHBoxLayout()
+        self.single_mode_radio = QRadioButton("单操作")
+        self.stack_mode_radio = QRadioButton("Stack")
+        self.single_mode_radio.setChecked(True)
+        mode_row.addWidget(self.single_mode_radio)
+        mode_row.addWidget(self.stack_mode_radio)
+        mode_row.addStretch(1)
+        layout.addLayout(mode_row)
+
+        self.single_mode_radio.toggled.connect(lambda checked: self.stack_mode_toggled.emit(False) if checked else None)
+        self.stack_mode_radio.toggled.connect(lambda checked: self.stack_mode_toggled.emit(True) if checked else None)
 
         button_row = QHBoxLayout()
         self.start_button = QPushButton("开始处理")
@@ -299,6 +388,40 @@ class MainWindow(QMainWindow):
         button_row.addWidget(self.cancel_queue_button)
         button_row.addWidget(self.remove_pending_button)
         layout.addLayout(button_row)
+
+        self.stack_container = QGroupBox("Stack 队列")
+        stack_layout = QVBoxLayout(self.stack_container)
+        self.stack_mode_label = QLabel("说明：仅支持可链式单输入滤镜，顺序即执行顺序。")
+        stack_layout.addWidget(self.stack_mode_label)
+
+        self.stack_list_label = QLabel("Stack 队列：0项")
+        self.stack_list = QListWidget()
+        self.stack_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+
+        stack_buttons = QHBoxLayout()
+        self.stack_add_button = QPushButton("添加当前操作到 Stack")
+        self.stack_move_up_button = QPushButton("上移")
+        self.stack_move_down_button = QPushButton("下移")
+        self.stack_remove_button = QPushButton("移除")
+        self.stack_clear_button = QPushButton("清空")
+        self.stack_add_button.clicked.connect(self.stack_add_requested.emit)
+        self.stack_move_up_button.clicked.connect(self._emit_stack_move_up)
+        self.stack_move_down_button.clicked.connect(self._emit_stack_move_down)
+        self.stack_remove_button.clicked.connect(self._emit_stack_remove)
+        self.stack_clear_button.clicked.connect(self.stack_clear_requested.emit)
+        stack_buttons.addWidget(self.stack_add_button)
+        stack_buttons.addWidget(self.stack_move_up_button)
+        stack_buttons.addWidget(self.stack_move_down_button)
+        stack_buttons.addWidget(self.stack_remove_button)
+        stack_buttons.addWidget(self.stack_clear_button)
+
+        stack_layout.addWidget(self.stack_list_label)
+        stack_layout.addWidget(self.stack_list)
+        stack_layout.addLayout(stack_buttons)
+        stack_layout.addWidget(QLabel("说明：切换操作后可继续补充栈项，保存顺序即执行顺序。"))
+        self.stack_container.setVisible(False)
+        layout.addWidget(self.stack_container)
+
         return panel
 
     def _build_status_panel(self) -> QWidget:
@@ -319,17 +442,27 @@ class MainWindow(QMainWindow):
         progress_layout = QVBoxLayout(progress_group)
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
+        self.output_estimate_label = QLabel("输出大小保守估算：等待参数")
         self.output_path_edit = QLineEdit()
         self.output_path_edit.setReadOnly(True)
+        self.command_preview = QPlainTextEdit()
+        self.command_preview.setReadOnly(True)
+        self.command_preview.setFixedHeight(120)
         result_row = QHBoxLayout()
         self.open_output_button = QPushButton("打开输出文件")
         self.open_output_dir_button = QPushButton("打开输出目录")
+        self.copy_output_path_button = QPushButton("复制输出路径")
         self.open_output_button.clicked.connect(self.open_output_requested.emit)
         self.open_output_dir_button.clicked.connect(self.open_output_dir_requested.emit)
+        self.copy_output_path_button.clicked.connect(self.copy_output_path_requested.emit)
         result_row.addWidget(self.open_output_button)
         result_row.addWidget(self.open_output_dir_button)
+        result_row.addWidget(self.copy_output_path_button)
         progress_layout.addWidget(self.progress_bar)
         progress_layout.addWidget(self.output_path_edit)
+        progress_layout.addWidget(self.output_estimate_label)
+        progress_layout.addWidget(QLabel("命令预览"))
+        progress_layout.addWidget(self.command_preview)
         progress_layout.addLayout(result_row)
         layout.addWidget(progress_group)
 
@@ -356,3 +489,50 @@ class MainWindow(QMainWindow):
     def _set_result_buttons_enabled(self, enabled: bool) -> None:
         self.open_output_button.setEnabled(enabled)
         self.open_output_dir_button.setEnabled(enabled)
+        self.copy_output_path_button.setEnabled(enabled)
+
+    def _update_stack_add_enabled(self) -> None:
+        if not hasattr(self, "stack_add_button"):
+            return
+        self.stack_add_button.setEnabled(self.stack_mode() and self._is_stack_operation_supported())
+        self._set_stack_note_by_operation()
+
+    def _is_stack_operation_supported(self) -> bool:
+        return self.operation_form.selected_operation() in STACK_FILTER_OPERATIONS
+
+    def _set_stack_note_by_operation(self) -> None:
+        if not self.stack_mode():
+            return
+        if self._is_stack_operation_supported():
+            self.stack_mode_label.setText("说明：当前操作支持加入 Stack。")
+            return
+        self.stack_mode_label.setText("说明：当前操作不支持加入 Stack。")
+
+    def _emit_stack_move_up(self) -> None:
+        index = self._selected_stack_index()
+        if index is not None and index > 0:
+            self.stack_move_up_requested.emit(index)
+
+    def _emit_stack_move_down(self) -> None:
+        index = self._selected_stack_index()
+        if index is not None and index < self.stack_list.count() - 1:
+            self.stack_move_down_requested.emit(index)
+
+    def _emit_stack_remove(self) -> None:
+        index = self._selected_stack_index()
+        if index is not None:
+            self.stack_remove_requested.emit(index)
+
+    def _selected_stack_index(self) -> int | None:
+        item = self.stack_list.currentItem()
+        if item is None:
+            return None
+        return self.stack_list.row(item)
+
+    def _set_stack_actions_enabled(self, has_items: bool) -> None:
+        busy = self.cancel_button.isEnabled()
+        has_items = has_items and not busy
+        self.stack_move_up_button.setEnabled(has_items)
+        self.stack_move_down_button.setEnabled(has_items)
+        self.stack_remove_button.setEnabled(has_items)
+        self.stack_clear_button.setEnabled(has_items)

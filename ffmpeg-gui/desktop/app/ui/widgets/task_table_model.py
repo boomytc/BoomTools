@@ -70,3 +70,18 @@ class TaskTableModel(QAbstractTableModel):
         top_left = self.index(row, 0)
         bottom_right = self.index(row, self.columnCount() - 1)
         self.dataChanged.emit(top_left, bottom_right, [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole])
+
+    def records(self) -> list[TaskRecord]:
+        return list(self._records)
+
+    def remove_records(self, task_ids: set[str]) -> int:
+        if not task_ids:
+            return 0
+        rows_to_remove = [index for index, record in enumerate(self._records) if record.task_id in task_ids]
+        if not rows_to_remove:
+            return 0
+        for row in reversed(rows_to_remove):
+            self.beginRemoveRows(QModelIndex(), row, row)
+            self._records.pop(row)
+            self.endRemoveRows()
+        return len(rows_to_remove)

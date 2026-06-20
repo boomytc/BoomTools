@@ -15,11 +15,17 @@ class AppState:
     media_info: MediaInfo | None = None
     runtime_health: RuntimeHealth | None = None
     current_task: TaskRecord | None = None
+    batch_input_paths: list[Path] = field(default_factory=list)
+    is_batch_running: bool = False
+    batch_cancel_requested: bool = False
+    batch_total_items: int = 0
+    batch_current_index: int = 0
     logs: list[str] = field(default_factory=list)
     error_message: str | None = None
 
     def can_start(self) -> bool:
-        if not self.input_path or not self.input_path.exists():
+        has_input = bool(self.batch_input_paths) or (self.input_path and self.input_path.exists())
+        if not has_input:
             return False
         if self.current_task and self.current_task.status is TaskStatus.running:
             return False

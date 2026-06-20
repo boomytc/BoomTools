@@ -47,25 +47,25 @@
 
 ## Checklist
 
-- [ ] 扩展输入区域：
-  - [ ] 保留单文件选择。
-  - [ ] 增加“添加多个文件到队列”。
-  - [ ] 队列只保存本机路径，不复制媒体文件。
-- [ ] 扩展 `TaskState`：
-  - [ ] 增加 queued/running/succeeded/failed/cancelled per item。
-  - [ ] 复用现有 `QTableView`。
-  - [ ] 支持移除未运行任务。
-- [ ] 扩展 `TaskManager`：
-  - [ ] 一次只运行一个 ffmpeg。
-  - [ ] 单个失败后继续下一个。
-  - [ ] 支持“取消当前”和“取消队列”。
-- [ ] 输出命名：
-  - [ ] 使用输入文件 stem + operation + 时间戳或序号。
-  - [ ] 不覆盖已有输出。
-- [ ] UI 状态：
-  - [ ] 批处理中禁用参数表单。
-  - [ ] 明确显示当前 item 和总进度。
-  - [ ] 不支持的 operation 在批处理模式下禁用并显示原因。
+- [x] 扩展输入区域：
+  - [x] 保留单文件选择。
+  - [x] 增加“添加多个文件到队列”。
+  - [x] 队列只保存本机路径，不复制媒体文件。
+- [x] 扩展 `TaskState`：
+  - [x] 增加 queued/running/succeeded/failed/cancelled per item。
+  - [x] 复用现有 `QTableView`。
+  - [x] 支持移除未运行任务。
+- [x] 扩展 `TaskManager`：
+  - [x] 一次只运行一个 ffmpeg。
+  - [x] 单个失败后继续下一个。
+  - [x] 支持“取消当前”和“取消队列”。
+- [x] 输出命名：
+  - [x] 使用输入文件 stem + operation + 时间戳或序号。
+  - [x] 不覆盖已有输出。
+- [x] UI 状态：
+  - [x] 批处理中禁用参数表单。
+  - [x] 明确显示当前 item 和总进度。
+  - [x] 不支持的 operation 在批处理模式下禁用并显示原因。
 
 ## 反目标
 
@@ -81,4 +81,3 @@
 - 一个失败文件不会阻塞后续文件。
 - 批量取消能终止当前 ffmpeg 并标记剩余任务 cancelled。
 - `uv run python -m pytest tests/desktop` 覆盖状态流转。
-

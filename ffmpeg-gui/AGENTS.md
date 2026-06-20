@@ -53,7 +53,7 @@ ffmpeg-gui/
 │   ├── desktop/
 │   └── integration/
 ├── scripts/
-├── pyproject.toml
+├── requirements.txt
 ├── README.md
 └── AGENTS.md
 ```
@@ -130,16 +130,16 @@ GUI 视觉自动化可后置，但核心 service、runtime、contracts、task wo
 
 ## 常用命令
 
-开发阶段优先使用 `uv` 和 `pyproject.toml`：
+开发阶段使用 `uv` 创建 Python 3.14 环境，并用 `requirements.txt` 安装依赖：
 
 ```bash
 uv venv --python 3.14
-uv sync
+uv pip install -r requirements.txt
 uv run python -m desktop.app.main
 uv run python -m pytest
 ```
 
-如果项目尚未创建 `pyproject.toml`，先创建工程配置，不要长期依赖零散脚本。
+本项目是本机轻量 GUI 工具，不作为可安装 Python 包发布；当前不需要 `pyproject.toml`。如后续进入打包、发布或多依赖分组阶段，再重新引入工程配置文件。
 
 ## 禁止事项
 

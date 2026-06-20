@@ -1,0 +1,72 @@
+from __future__ import annotations
+
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
+
+from shared.contracts import TaskRecord, operation_label
+
+
+class TaskTableModel(QAbstractTableModel):
+    HEADERS = ["状态", "操作", "输入文件", "输出文件", "进度", "消息"]
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._records: list[TaskRecord] = []
+
+    def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
+        return 0 if parent.isValid() else len(self._records)
+
+    def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
+        return 0 if parent.isValid() else len(self.HEADERS)
+
+    def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> object:
+        if not index.isValid() or role not in {Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole}:
+            return None
+        record = self._records[index.row()]
+        column = index.column()
+        if column == 0:
+            return record.status.value
+        if column == 1:
+            return operation_label(record.operation)
+        if column == 2:
+            return record.input_path.name if role == Qt.ItemDataRole.DisplayRole else str(record.input_path)
+        if column == 3:
+            if not record.output_path:
+                return ""
+            return record.output_path.name if role == Qt.ItemDataRole.DisplayRole else str(record.output_path)
+        if column == 4:
+            if record.progress is None:
+                return "运行中"
+            return f"{int(record.progress * 100)}%"
+        if column == 5:
+            return record.message
+        return None
+
+    def headerData(
+        self,
+        section: int,
+        orientation: Qt.Orientation,
+        role: int = Qt.ItemDataRole.DisplayRole,
+    ) -> object:
+        if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
+            return self.HEADERS[section]
+        return None
+
+    def set_records(self, records: list[TaskRecord]) -> None:
+        self.beginResetModel()
+        self._records = list(records)
+        self.endResetModel()
+
+    def append_record(self, record: TaskRecord) -> None:
+        row = len(self._records)
+        self.beginInsertRows(QModelIndex(), row, row)
+        self._records.append(record)
+        self.endInsertRows()
+
+    def notify_record_changed(self, record: TaskRecord) -> None:
+        try:
+            row = self._records.index(record)
+        except ValueError:
+            return
+        top_left = self.index(row, 0)
+        bottom_right = self.index(row, self.columnCount() - 1)
+        self.dataChanged.emit(top_left, bottom_right, [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole])

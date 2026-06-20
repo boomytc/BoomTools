@@ -84,8 +84,8 @@ class RuntimePanel(QFrame):
         self._busy = False
         self.setObjectName("runtimePanel")
         self.setAcceptDrops(True)
-        self.setMinimumHeight(160)
-        self.setMaximumHeight(188)
+        self.setMinimumHeight(136)
+        self.setMaximumHeight(158)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 10, 12, 10)
@@ -202,13 +202,13 @@ class RuntimePanel(QFrame):
 
     def _create_input_area(self) -> MediaDropArea:
         drop_area = MediaDropArea()
-        drop_area.setMinimumHeight(88)
-        drop_area.setMaximumHeight(104)
+        drop_area.setMinimumHeight(64)
+        drop_area.setMaximumHeight(72)
         drop_area.clicked.connect(lambda: self.batch_files_requested.emit())
         drop_area.paths_dropped.connect(self._set_dropped_paths)
         drop_layout = QVBoxLayout(drop_area)
-        drop_layout.setContentsMargins(14, 10, 14, 10)
-        drop_layout.setSpacing(8)
+        drop_layout.setContentsMargins(14, 7, 14, 7)
+        drop_layout.setSpacing(4)
 
         title_row = QHBoxLayout()
         title_row.setSpacing(10)
@@ -228,7 +228,6 @@ class RuntimePanel(QFrame):
 
         drop_layout.addLayout(title_row)
         drop_layout.addWidget(drop_hint)
-        drop_layout.addStretch(1)
         return drop_area
 
     def _set_dropped_paths(self, paths: list[str | Path]) -> None:

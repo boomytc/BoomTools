@@ -16,10 +16,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from desktop.app.ui.widgets.path_picker import PathPicker
 from shared.contracts import MediaInfo
 
 
 class StatusPanel(QWidget):
+    output_dir_requested = Signal()
     open_output_requested = Signal()
     open_output_dir_requested = Signal()
     copy_output_path_requested = Signal()
@@ -31,8 +33,8 @@ class StatusPanel(QWidget):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
-        self.setMinimumHeight(220)
-        self.setMaximumHeight(235)
+        self.setMinimumHeight(242)
+        self.setMaximumHeight(260)
 
         media_group = QGroupBox("媒体信息")
         media_group.setObjectName("mediaInfoPanel")
@@ -48,7 +50,9 @@ class StatusPanel(QWidget):
         progress_group = QGroupBox("输出")
         progress_group.setObjectName("outputPanel")
         progress_layout = QVBoxLayout(progress_group)
-        progress_layout.setSpacing(9)
+        progress_layout.setSpacing(8)
+        self.output_dir_picker = PathPicker(placeholder="输出目录，默认 data/outputs", button_text="选择")
+        self.output_dir_picker.browse_requested.connect(self.output_dir_requested.emit)
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setFormat("等待任务")
@@ -78,6 +82,13 @@ class StatusPanel(QWidget):
         self.open_output_dir_button.clicked.connect(lambda _checked=False: self.open_output_dir_requested.emit())
         self.copy_output_path_button.clicked.connect(lambda _checked=False: self.copy_output_path_requested.emit())
 
+        output_dir_row = QHBoxLayout()
+        output_dir_row.setSpacing(8)
+        output_dir_label = QLabel("目标目录")
+        output_dir_label.setObjectName("subsectionTitle")
+        output_dir_row.addWidget(output_dir_label)
+        output_dir_row.addWidget(self.output_dir_picker, 1)
+        progress_layout.addLayout(output_dir_row)
         progress_layout.addWidget(self.progress_bar)
         progress_layout.addWidget(self.output_path_edit)
         progress_layout.addWidget(self.output_estimate_label)
@@ -110,6 +121,15 @@ class StatusPanel(QWidget):
         layout.addWidget(log_group, 1)
 
         self.set_result_buttons_enabled(False)
+
+    def selected_output_dir(self) -> Path | None:
+        return self.output_dir_picker.path()
+
+    def set_output_dir_text(self, path: str) -> None:
+        self.output_dir_picker.set_text(path)
+
+    def set_busy(self, busy: bool) -> None:
+        self.output_dir_picker.set_enabled(not busy)
 
     def set_media_info(self, media_info: MediaInfo | None) -> None:
         if media_info is None:

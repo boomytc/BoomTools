@@ -13,13 +13,12 @@ class RuntimePanel(QFrame):
     input_browse_requested = Signal()
     input_path_dropped = Signal(str)
     batch_files_requested = Signal()
-    output_dir_requested = Signal()
 
     def __init__(self) -> None:
         super().__init__()
         self.setObjectName("runtimePanel")
         self.setAcceptDrops(True)
-        self.setMinimumHeight(224)
+        self.setMinimumHeight(180)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
@@ -51,51 +50,31 @@ class RuntimePanel(QFrame):
         drop_layout.addWidget(self.input_path_picker)
         layout.addWidget(drop_area)
 
-        self.output_dir_picker = PathPicker(placeholder="输出目录，默认 data/outputs", button_text="输出目录")
-        self.output_dir_picker.browse_requested.connect(self.output_dir_requested.emit)
+        batch_section = QFrame()
+        batch_section.setProperty("role", "panelSurface")
+        batch_layout = QHBoxLayout(batch_section)
+        batch_layout.setContentsMargins(10, 10, 10, 10)
+        batch_layout.setSpacing(8)
 
-        output_section = QFrame()
-        output_section.setProperty("role", "panelSurface")
-        output_layout = QVBoxLayout(output_section)
-        output_layout.setContentsMargins(10, 10, 10, 10)
-        output_layout.setSpacing(8)
-
-        output_label = QLabel("输出目录")
-        output_label.setObjectName("sectionTitle")
         self.batch_progress_label = QLabel("批处理：未启动")
         self.batch_progress_label.setObjectName("batchProgressLabel")
         self.batch_add_button = QPushButton("Batch 添加")
         self.batch_add_button.setProperty("role", "quiet")
         self.batch_add_button.clicked.connect(lambda _checked=False: self.batch_files_requested.emit())
 
-        batch_row = QHBoxLayout()
-        batch_row.setSpacing(8)
-        batch_row.addWidget(self.batch_progress_label)
-        batch_row.addStretch(1)
-        batch_row.addWidget(self.batch_add_button)
-
-        output_layout.addWidget(output_label)
-        output_layout.addWidget(self.output_dir_picker)
-        output_layout.addLayout(batch_row)
-        layout.addWidget(output_section)
-
-    def set_initial_paths(self, *, output_dir: Path) -> None:
-        self.output_dir_picker.set_text(str(output_dir))
+        batch_layout.addWidget(self.batch_progress_label)
+        batch_layout.addStretch(1)
+        batch_layout.addWidget(self.batch_add_button)
+        layout.addWidget(batch_section)
 
     def selected_input_path(self) -> Path | None:
         return self.input_path_picker.path()
-
-    def selected_output_dir(self) -> Path | None:
-        return self.output_dir_picker.path()
 
     def input_path_text(self) -> str:
         return self.input_path_picker.text()
 
     def set_input_path_text(self, path: str) -> None:
         self.input_path_picker.set_text(path)
-
-    def set_output_dir_text(self, path: str) -> None:
-        self.output_dir_picker.set_text(path)
 
     def set_batch_progress(self, current: int, total: int) -> None:
         if total == 0:
@@ -106,7 +85,6 @@ class RuntimePanel(QFrame):
     def set_busy(self, busy: bool) -> None:
         enabled = not busy
         self.input_path_picker.set_enabled(enabled)
-        self.output_dir_picker.set_enabled(enabled)
         self.batch_add_button.setEnabled(enabled)
 
     def set_batch_add_enabled(self, enabled: bool) -> None:

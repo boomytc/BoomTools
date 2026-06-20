@@ -99,7 +99,7 @@ class MainWindow(QMainWindow):
 
     def set_initial_paths(self, *, ffmpeg_bin: str, ffprobe_bin: str, output_dir: Path) -> None:
         self.settings_dialog.set_initial_paths(ffmpeg_bin=ffmpeg_bin, ffprobe_bin=ffprobe_bin)
-        self.runtime_panel.set_initial_paths(output_dir=output_dir)
+        self.status_panel.set_output_dir_text(str(output_dir))
 
     def selected_ffmpeg_bin(self) -> str:
         return self.settings_dialog.selected_ffmpeg_bin()
@@ -111,7 +111,7 @@ class MainWindow(QMainWindow):
         return self.runtime_panel.selected_input_path()
 
     def selected_output_dir(self) -> Path | None:
-        return self.runtime_panel.selected_output_dir()
+        return self.status_panel.selected_output_dir()
 
     def set_runtime_health(self, health: RuntimeHealth) -> None:
         version = self.settings_dialog.set_runtime_health(health)
@@ -133,6 +133,7 @@ class MainWindow(QMainWindow):
         self.runtime_panel.set_busy(busy)
         self.operation_panel.set_busy(busy)
         self.settings_dialog.set_busy(busy)
+        self.status_panel.set_busy(busy)
         if busy:
             self.status_panel.set_result_buttons_enabled(False)
 
@@ -216,7 +217,7 @@ class MainWindow(QMainWindow):
         path = QFileDialog.getExistingDirectory(self, "选择输出目录", str(self.selected_output_dir() or ""))
         if not path:
             return
-        self.runtime_panel.set_output_dir_text(path)
+        self.status_panel.set_output_dir_text(path)
         self.output_dir_selected.emit(path)
 
     def choose_operation_file(self, field_name: str, file_filter: str) -> None:
@@ -261,7 +262,7 @@ class MainWindow(QMainWindow):
         self.runtime_panel.input_browse_requested.connect(self.choose_input_file)
         self.runtime_panel.input_path_dropped.connect(self.input_file_selected.emit)
         self.runtime_panel.batch_files_requested.connect(self.choose_batch_files)
-        self.runtime_panel.output_dir_requested.connect(self.choose_output_dir)
+        self.status_panel.output_dir_requested.connect(self.choose_output_dir)
         self.settings_dialog.check_requested.connect(self.refresh_requested.emit)
 
         self.operation_panel.file_browse_requested.connect(self.choose_operation_file)

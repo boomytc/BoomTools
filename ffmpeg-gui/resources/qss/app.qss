@@ -56,6 +56,50 @@ QLabel[role="successBadge"] {
   border: 1px solid #27533c;
 }
 
+QToolButton#settingsButton {
+  color: #b8c4d8;
+  background: #202638;
+  border: 1px solid #4a536a;
+  border-radius: 6px;
+  min-width: 30px;
+  min-height: 28px;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+QToolButton#settingsButton:hover {
+  color: #eef4ff;
+  background: #273047;
+  border-color: #6b7690;
+}
+
+QToolButton#settingsButton[state="ok"] {
+  color: #73e0a3;
+  background: #173527;
+  border-color: #2f654a;
+}
+
+QToolButton#settingsButton[state="error"] {
+  color: #ff8a9a;
+  background: #3a2028;
+  border-color: #74404a;
+}
+
+/* Dialogs */
+QDialog#settingsDialog {
+  background: #090b12;
+}
+
+QLabel#dialogTitle {
+  color: #f4f7fb;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+QLabel#settingsDescription {
+  color: #91a0b8;
+}
+
 /* Containers */
 QFrame#runtimePanel,
 QGroupBox {
@@ -143,6 +187,12 @@ QLabel#healthLabel {
   border-radius: 9px;
   padding: 3px 9px;
   font-weight: 700;
+}
+
+QLabel#healthLabel[state="idle"] {
+  color: #b8c4d8;
+  background: #202638;
+  border-color: #4a536a;
 }
 
 QLabel#healthLabel[state="ok"] {

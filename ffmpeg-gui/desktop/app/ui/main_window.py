@@ -13,12 +13,14 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QScrollArea,
     QSplitter,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
 from desktop.app.core.constants import WINDOW_TITLE
 from desktop.app.runtime.binaries import RuntimeHealth
+from desktop.app.ui.dialogs import SettingsDialog
 from desktop.app.ui.panels import OperationPanel, RuntimePanel, StatusPanel, TaskPanel
 from desktop.app.ui.widgets.task_table_model import TaskTableModel
 from shared.contracts import MediaInfo
@@ -62,6 +64,7 @@ class MainWindow(QMainWindow):
         self.operation_panel = OperationPanel()
         self.status_panel = StatusPanel()
         self.task_panel = TaskPanel(task_model)
+        self.settings_dialog = SettingsDialog(self)
         self._connect_panel_signals()
 
         root.addWidget(self._create_masthead())
@@ -95,13 +98,14 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("Ready")
 
     def set_initial_paths(self, *, ffmpeg_bin: str, ffprobe_bin: str, output_dir: Path) -> None:
-        self.runtime_panel.set_initial_paths(ffmpeg_bin=ffmpeg_bin, ffprobe_bin=ffprobe_bin, output_dir=output_dir)
+        self.settings_dialog.set_initial_paths(ffmpeg_bin=ffmpeg_bin, ffprobe_bin=ffprobe_bin)
+        self.runtime_panel.set_initial_paths(output_dir=output_dir)
 
     def selected_ffmpeg_bin(self) -> str:
-        return self.runtime_panel.selected_ffmpeg_bin()
+        return self.settings_dialog.selected_ffmpeg_bin()
 
     def selected_ffprobe_bin(self) -> str:
-        return self.runtime_panel.selected_ffprobe_bin()
+        return self.settings_dialog.selected_ffprobe_bin()
 
     def selected_input_path(self) -> Path | None:
         return self.runtime_panel.selected_input_path()
@@ -110,7 +114,8 @@ class MainWindow(QMainWindow):
         return self.runtime_panel.selected_output_dir()
 
     def set_runtime_health(self, health: RuntimeHealth) -> None:
-        version = self.runtime_panel.set_runtime_health(health)
+        version = self.settings_dialog.set_runtime_health(health)
+        self._set_settings_button_health(health)
         if version:
             self.statusBar().showMessage(version)
 
@@ -127,6 +132,7 @@ class MainWindow(QMainWindow):
     def set_busy(self, busy: bool) -> None:
         self.runtime_panel.set_busy(busy)
         self.operation_panel.set_busy(busy)
+        self.settings_dialog.set_busy(busy)
         if busy:
             self.status_panel.set_result_buttons_enabled(False)
 
@@ -242,6 +248,11 @@ class MainWindow(QMainWindow):
         QGuiApplication.clipboard().setText(str(self._last_output_path))
         self.show_status("已复制输出路径到剪贴板")
 
+    def open_settings_dialog(self) -> None:
+        self.settings_dialog.open()
+        self.settings_dialog.raise_()
+        self.settings_dialog.activateWindow()
+
     def closeEvent(self, event: QCloseEvent) -> None:
         self.closing.emit()
         super().closeEvent(event)
@@ -251,7 +262,7 @@ class MainWindow(QMainWindow):
         self.runtime_panel.input_path_dropped.connect(self.input_file_selected.emit)
         self.runtime_panel.batch_files_requested.connect(self.choose_batch_files)
         self.runtime_panel.output_dir_requested.connect(self.choose_output_dir)
-        self.runtime_panel.refresh_requested.connect(self.refresh_requested.emit)
+        self.settings_dialog.check_requested.connect(self.refresh_requested.emit)
 
         self.operation_panel.file_browse_requested.connect(self.choose_operation_file)
         self.operation_panel.start_requested.connect(self.start_requested.emit)
@@ -288,4 +299,21 @@ class MainWindow(QMainWindow):
         layout.addWidget(offline_badge)
         layout.addWidget(local_badge)
         layout.addStretch(1)
+        self.settings_button = QToolButton()
+        self.settings_button.setObjectName("settingsButton")
+        self.settings_button.setText("⚙")
+        self.settings_button.setAccessibleName("设置")
+        self.settings_button.setToolTip("打开设置")
+        self.settings_button.clicked.connect(self.open_settings_dialog)
+        layout.addWidget(self.settings_button)
         return masthead
+
+    def _set_settings_button_health(self, health: RuntimeHealth) -> None:
+        if health.ok:
+            self.settings_button.setProperty("state", "ok")
+            self.settings_button.setToolTip("设置 · ffmpeg/ffprobe 可用")
+        else:
+            self.settings_button.setProperty("state", "error")
+            self.settings_button.setToolTip("设置 · ffmpeg/ffprobe 不可用")
+        self.settings_button.style().unpolish(self.settings_button)
+        self.settings_button.style().polish(self.settings_button)

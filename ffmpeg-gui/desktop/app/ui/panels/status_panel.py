@@ -26,8 +26,8 @@ class StatusPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-        self.setMinimumHeight(92)
-        self.setMaximumHeight(118)
+        self.setMinimumHeight(78)
+        self.setMaximumHeight(96)
 
         output_group = QGroupBox("输出")
         output_group.setObjectName("outputPanel")

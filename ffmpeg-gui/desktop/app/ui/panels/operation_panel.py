@@ -27,6 +27,7 @@ class OperationPanel(QWidget):
 
     def __init__(self) -> None:
         super().__init__()
+        self.setObjectName("operationPanel")
         self._busy = False
         self._pending_count = 0
         self._batch_running = False
@@ -35,27 +36,17 @@ class OperationPanel(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
 
-        mode_row = QHBoxLayout()
-        mode_row.setSpacing(10)
+        control_row = QHBoxLayout()
+        control_row.setSpacing(8)
         self.single_mode_radio = QRadioButton("单操作")
         self.stack_mode_radio = QRadioButton("Stack 链式")
         self.single_mode_radio.setChecked(True)
-        mode_row.addWidget(self.single_mode_radio)
-        mode_row.addWidget(self.stack_mode_radio)
-        mode_row.addStretch(1)
-        layout.addLayout(mode_row)
+        control_row.addWidget(self.single_mode_radio)
+        control_row.addWidget(self.stack_mode_radio)
 
         self.single_mode_radio.toggled.connect(lambda checked: self.stack_mode_toggled.emit(False) if checked else None)
         self.stack_mode_radio.toggled.connect(lambda checked: self.stack_mode_toggled.emit(True) if checked else None)
-
-        self.operation_form = OperationFormWidget()
-        self.operation_form.file_browse_requested.connect(self.file_browse_requested.emit)
-        self.operation_form.spec_changed.connect(self.refresh_stack_controls)
-        self.operation_form.spec_changed.connect(self.command_preview_requested.emit)
-        layout.addWidget(self.operation_form)
-
-        button_row = QHBoxLayout()
-        button_row.setSpacing(8)
+        control_row.addStretch(1)
         self.start_button = QPushButton("开始处理")
         self.start_button.setObjectName("primaryButton")
         self.cancel_button = QPushButton("取消当前")
@@ -71,11 +62,17 @@ class OperationPanel(QWidget):
         self.cancel_button.clicked.connect(lambda _checked=False: self.cancel_requested.emit())
         self.cancel_queue_button.clicked.connect(lambda _checked=False: self.cancel_queue_requested.emit())
         self.remove_pending_button.clicked.connect(lambda _checked=False: self.remove_pending_requested.emit())
-        button_row.addWidget(self.start_button)
-        button_row.addWidget(self.cancel_button)
-        button_row.addWidget(self.cancel_queue_button)
-        button_row.addWidget(self.remove_pending_button)
-        layout.addLayout(button_row)
+        control_row.addWidget(self.start_button)
+        control_row.addWidget(self.cancel_button)
+        control_row.addWidget(self.cancel_queue_button)
+        control_row.addWidget(self.remove_pending_button)
+        layout.addLayout(control_row)
+
+        self.operation_form = OperationFormWidget()
+        self.operation_form.file_browse_requested.connect(self.file_browse_requested.emit)
+        self.operation_form.spec_changed.connect(self.refresh_stack_controls)
+        self.operation_form.spec_changed.connect(self.command_preview_requested.emit)
+        layout.addWidget(self.operation_form, 1)
 
         self.stack_panel = StackPanel()
         self.stack_panel.add_requested.connect(self.stack_add_requested.emit)

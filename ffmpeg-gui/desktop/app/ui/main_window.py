@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QUrl, Signal
+from PySide6.QtCore import QUrl, Signal
 from PySide6.QtGui import QCloseEvent, QDesktopServices, QGuiApplication
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -11,8 +11,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QMessageBox,
-    QScrollArea,
-    QSplitter,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -21,7 +19,7 @@ from PySide6.QtWidgets import (
 from desktop.app.core.constants import WINDOW_TITLE
 from desktop.app.runtime.binaries import RuntimeHealth
 from desktop.app.ui.dialogs import LogDialog, SettingsDialog
-from desktop.app.ui.panels import CommandPreviewPanel, OperationPanel, RuntimePanel, StatusPanel, TaskPanel
+from desktop.app.ui.panels import CommandPreviewPanel, OperationPanel, RuntimePanel, TaskPanel
 from desktop.app.ui.widgets.task_table_model import TaskTableModel
 from shared.contracts import BATCH_SUPPORTED_OPERATIONS, MediaInfo, Operation
 
@@ -55,18 +53,17 @@ class MainWindow(QMainWindow):
         self._log_has_content = False
         self._log_has_error = False
         self.setWindowTitle(WINDOW_TITLE)
-        self.resize(1280, 900)
+        self.resize(1320, 920)
         self.setMinimumSize(1080, 860)
 
         central = QWidget()
         central.setObjectName("appRoot")
         root = QVBoxLayout(central)
-        root.setContentsMargins(18, 16, 18, 16)
-        root.setSpacing(14)
+        root.setContentsMargins(14, 12, 14, 12)
+        root.setSpacing(10)
 
         self.runtime_panel = RuntimePanel()
         self.operation_panel = OperationPanel()
-        self.status_panel = StatusPanel()
         self.command_preview_panel = CommandPreviewPanel()
         self.task_panel = TaskPanel(task_model)
         self.settings_dialog = SettingsDialog(self)
@@ -74,41 +71,8 @@ class MainWindow(QMainWindow):
         self._connect_panel_signals()
 
         root.addWidget(self._create_masthead())
-
-        media_column = QWidget()
-        media_column.setObjectName("mediaColumn")
-        media_column_layout = QVBoxLayout(media_column)
-        media_column_layout.setContentsMargins(0, 0, 0, 0)
-        media_column_layout.setSpacing(12)
-        media_column_layout.addWidget(self.runtime_panel)
-        media_column_layout.addWidget(self.status_panel)
-        media_column_layout.addStretch(1)
-
-        media_scroll = QScrollArea()
-        media_scroll.setObjectName("mediaScroll")
-        media_scroll.setFrameShape(QFrame.Shape.NoFrame)
-        media_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        media_scroll.setWidgetResizable(True)
-        media_scroll.setWidget(media_column)
-        media_scroll.setMinimumWidth(420)
-
-        operation_scroll = QScrollArea()
-        operation_scroll.setObjectName("operationScroll")
-        operation_scroll.setFrameShape(QFrame.Shape.NoFrame)
-        operation_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        operation_scroll.setWidgetResizable(True)
-        operation_scroll.setWidget(self.operation_panel)
-        operation_scroll.setMinimumWidth(540)
-
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.setHandleWidth(10)
-        splitter.addWidget(media_scroll)
-        splitter.addWidget(operation_scroll)
-        splitter.setStretchFactor(0, 0)
-        splitter.setStretchFactor(1, 1)
-        splitter.setSizes([520, 700])
-        root.addWidget(splitter, 1)
-
+        root.addWidget(self.runtime_panel)
+        root.addWidget(self.operation_panel, 1)
         root.addWidget(self.command_preview_panel)
         root.addWidget(self.task_panel)
         self.setCentralWidget(central)
@@ -116,7 +80,7 @@ class MainWindow(QMainWindow):
 
     def set_initial_paths(self, *, ffmpeg_bin: str, ffprobe_bin: str, output_dir: Path) -> None:
         self.settings_dialog.set_initial_paths(ffmpeg_bin=ffmpeg_bin, ffprobe_bin=ffprobe_bin)
-        self.status_panel.set_output_dir_text(str(output_dir))
+        self.runtime_panel.set_output_dir_text(str(output_dir))
 
     def selected_ffmpeg_bin(self) -> str:
         return self.settings_dialog.selected_ffmpeg_bin()
@@ -134,7 +98,7 @@ class MainWindow(QMainWindow):
         return self.runtime_panel.batch_input_mode()
 
     def selected_output_dir(self) -> Path | None:
-        return self.status_panel.selected_output_dir()
+        return self.runtime_panel.selected_output_dir()
 
     def set_runtime_health(self, health: RuntimeHealth) -> None:
         version = self.settings_dialog.set_runtime_health(health)
@@ -156,7 +120,6 @@ class MainWindow(QMainWindow):
         self.runtime_panel.set_busy(busy)
         self.operation_panel.set_busy(busy)
         self.settings_dialog.set_busy(busy)
-        self.status_panel.set_busy(busy)
 
     def set_start_enabled(self, enabled: bool) -> None:
         busy = self.operation_panel.is_busy()
@@ -234,18 +197,12 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(message)
 
     def choose_input_file(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(self, "选择媒体文件")
-        if not path:
-            return
-        self.set_batch_input_mode(False)
-        self.runtime_panel.set_input_path_text(path)
-        self.input_file_selected.emit(path)
+        self.choose_batch_files()
 
     def choose_batch_files(self) -> None:
-        paths, _ = QFileDialog.getOpenFileNames(self, "添加批处理文件", self.runtime_panel.input_path_text())
+        paths, _ = QFileDialog.getOpenFileNames(self, "添加媒体文件", self.runtime_panel.input_path_text())
         if not paths:
             return
-        self.set_batch_input_mode(True)
         self.runtime_panel.set_batch_paths(paths)
         self.batch_files_selected.emit(paths)
 
@@ -253,7 +210,7 @@ class MainWindow(QMainWindow):
         path = QFileDialog.getExistingDirectory(self, "选择输出目录", str(self.selected_output_dir() or ""))
         if not path:
             return
-        self.status_panel.set_output_dir_text(path)
+        self.runtime_panel.set_output_dir_text(path)
         self.output_dir_selected.emit(path)
 
     def choose_operation_file(self, field_name: str, file_filter: str) -> None:
@@ -312,7 +269,7 @@ class MainWindow(QMainWindow):
         self.runtime_panel.batch_files_requested.connect(self.choose_batch_files)
         self.runtime_panel.batch_paths_dropped.connect(self.batch_files_selected.emit)
         self.runtime_panel.batch_files_cleared.connect(self.batch_files_cleared.emit)
-        self.status_panel.output_dir_requested.connect(self.choose_output_dir)
+        self.runtime_panel.output_dir_requested.connect(self.choose_output_dir)
         self.settings_dialog.check_requested.connect(self.refresh_requested.emit)
 
         self.operation_panel.file_browse_requested.connect(self.choose_operation_file)

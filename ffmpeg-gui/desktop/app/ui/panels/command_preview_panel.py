@@ -12,11 +12,11 @@ class CommandPreviewPanel(QFrame):
         super().__init__()
         self._command = ""
         self.setObjectName("commandPreviewPanel")
-        self.setMinimumHeight(54)
-        self.setMaximumHeight(62)
+        self.setMinimumHeight(50)
+        self.setMaximumHeight(58)
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setContentsMargins(12, 8, 12, 8)
         layout.setSpacing(10)
 
         self.title_label = QLabel("命令预览")

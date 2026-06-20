@@ -103,38 +103,27 @@ class MainController(QObject):
             )
 
     def on_input_file_selected(self, path_text: str) -> None:
-        path = Path(path_text)
-        self.state.input_mode = "single"
-        self.state.input_path = path
-        self.state.media_info = None
-        self.window.set_batch_input_mode(False)
-        self.window.set_media_info(None)
-        self.window.reset_progress()
-        self.window.set_current_output(None)
-        self.window.set_start_enabled(False)
-        if not path.exists():
-            self._clear_prepared_records()
-            self.window.show_error("输入文件不存在")
-            return
-        self._set_prepared_inputs([path], status=TaskStatus.probing, message="正在读取媒体信息")
-        self._start_probe(path)
+        self.on_batch_files_selected([path_text])
 
     def on_batch_files_selected(self, path_texts: list[str]) -> None:
         batch_paths = [Path(path) for path in path_texts if Path(path).exists()]
         if not batch_paths:
             self.window.show_error("请选择至少一个可用文件")
             return
-        self.state.input_mode = "batch"
-        self.state.batch_input_paths = batch_paths
-        self.state.input_path = batch_paths[0]
+        added_records = self._append_prepared_inputs(batch_paths, status=TaskStatus.ready, message="已添加到任务队列")
+        input_paths = self._prepared_input_paths()
+        self._sync_input_state(input_paths)
         self.state.media_info = None
-        self.window.set_batch_input_mode(True)
-        self.window.set_batch_input_paths(batch_paths)
         self.window.set_media_info(None)
         self.window.reset_progress()
         self.window.set_current_output(None)
-        self.window.set_batch_progress(0, len(batch_paths))
-        self._set_prepared_inputs(batch_paths, status=TaskStatus.ready, message="已选择")
+        self.window.set_batch_progress(0, len(input_paths))
+        if len(input_paths) == 1 and len(added_records) == 1:
+            added_records[0].status = TaskStatus.probing
+            added_records[0].message = "正在读取媒体信息"
+            added_records[0].touch()
+            self.task_model.notify_record_changed(added_records[0])
+            self._start_probe(input_paths[0])
         self._refresh_start_state()
         self._refresh_command_preview()
 
@@ -207,10 +196,6 @@ class MainController(QObject):
             return
         if use_stack and not stack_specs:
             self.window.show_error("Stack 需要至少添加一个可链式操作")
-            return
-
-        if self.state.input_mode == "batch" and not use_stack and operation not in BATCH_SUPPORTED_OPERATIONS:
-            self.window.show_error("当前操作不支持批量处理")
             return
 
         if len(input_paths) > 1 and effective_operation not in BATCH_SUPPORTED_OPERATIONS:
@@ -383,11 +368,11 @@ class MainController(QObject):
         input_paths = self._collect_input_paths()
         can_start = self.state.can_start()
         batch_error = None
-        if self.state.input_mode == "batch" and not self.window.stack_mode():
+        if len(input_paths) > 1 and not self.window.stack_mode():
             operation, _, _ = self.window.selected_operation_payload()
             if operation not in BATCH_SUPPORTED_OPERATIONS:
                 can_start = False
-                batch_error = f"批量模式暂不支持「{operation_label(operation)}」。"
+                batch_error = f"多个文件暂不支持「{operation_label(operation)}」。"
         if self.window.stack_mode():
             try:
                 can_stack = bool(self._collect_stack_specs(*self.window.selected_operation_payload()))
@@ -439,8 +424,8 @@ class MainController(QObject):
     def _format_output_estimate(self, spec: CommandSpec) -> str:
         if spec.output_path is None:
             return "输出大小保守估算：此命令不生成文件"
-        if self.state.input_mode == "batch":
-            return "输出大小保守估算：批量模式会按每个文件实际时长生成"
+        if len(self._collect_input_paths()) > 1:
+            return "输出大小保守估算：多个文件会按每个文件实际时长生成"
         if not self.state.media_info or not self.state.media_info.duration_seconds:
             return "输出大小保守估算：等待媒体时长后估算"
 
@@ -491,8 +476,15 @@ class MainController(QObject):
 
     def _set_prepared_inputs(self, input_paths: list[Path], *, status: TaskStatus, message: str) -> None:
         self._clear_prepared_records()
+        self._append_prepared_inputs(input_paths, status=status, message=message)
+
+    def _append_prepared_inputs(self, input_paths: list[Path], *, status: TaskStatus, message: str) -> list[TaskRecord]:
         operation, operation_text = self._queue_operation_display()
+        existing_paths = {record.input_path for record in self._prepared_records}
+        added_records: list[TaskRecord] = []
         for input_path in input_paths:
+            if input_path in existing_paths:
+                continue
             record = TaskRecord(
                 operation=operation,
                 operation_text=operation_text,
@@ -502,8 +494,11 @@ class MainController(QObject):
                 progress=0.0,
             )
             self._prepared_records.append(record)
+            added_records.append(record)
+            existing_paths.add(input_path)
             self.task_state.add(record)
             self.task_model.append_record(record)
+        return added_records
 
     def _clear_prepared_records(self) -> None:
         if not self._prepared_records:
@@ -769,6 +764,9 @@ class MainController(QObject):
         worker.start()
 
     def _collect_input_paths(self) -> list[Path]:
+        prepared_paths = self._prepared_input_paths()
+        if prepared_paths:
+            return prepared_paths
         if self.state.input_mode == "batch":
             if self.state.batch_input_paths:
                 return list(self.state.batch_input_paths)
@@ -777,6 +775,16 @@ class MainController(QObject):
         if input_path and input_path.exists():
             return [input_path]
         return []
+
+    def _prepared_input_paths(self) -> list[Path]:
+        return [record.input_path for record in self._prepared_records if record.input_path.exists()]
+
+    def _sync_input_state(self, input_paths: list[Path]) -> None:
+        self.state.input_mode = "batch" if len(input_paths) > 1 else "single"
+        self.state.input_path = input_paths[0] if input_paths else None
+        self.state.batch_input_paths = list(input_paths) if len(input_paths) > 1 else []
+        self.window.set_batch_input_mode(len(input_paths) > 1)
+        self.window.set_batch_input_paths(input_paths)
 
     def _on_probe_task_path(self, path: Path) -> bool:
         return self.state.input_path == path

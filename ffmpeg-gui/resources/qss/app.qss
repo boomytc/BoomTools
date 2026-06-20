@@ -220,6 +220,12 @@ QLabel#formSectionLabel {
   margin-top: 2px;
 }
 
+QLabel#outputDirSummary {
+  color: #91a0b8;
+  font-size: 12px;
+  padding: 0 2px;
+}
+
 QLabel#mediaChip {
   color: #d8e6ff;
   background: #202638;
@@ -441,9 +447,9 @@ QPushButton[role="operationCard"] {
   border: 1px solid #4b5368;
   border-radius: 7px;
   padding: 4px 6px;
-  min-width: 76px;
-  min-height: 32px;
-  font-size: 12px;
+  min-width: 62px;
+  min-height: 28px;
+  font-size: 11px;
   font-weight: 800;
   text-align: center;
 }

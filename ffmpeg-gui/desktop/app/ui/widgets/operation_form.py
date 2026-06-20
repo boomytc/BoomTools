@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QGroupBox,
     QGridLayout,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QPlainTextEdit,
@@ -42,12 +43,13 @@ class OperationFormWidget(QWidget):
         self._batch_mode = False
         self._batch_supported_operations: set[Operation] = set()
 
-        layout = QVBoxLayout(self)
+        layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
+        layout.setSpacing(12)
 
         operation_group = QGroupBox("处理动作")
         operation_group.setObjectName("operationGroup")
+        operation_group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         operation_layout = QVBoxLayout(operation_group)
         operation_layout.setSpacing(8)
         self.operation_hint = QLabel("先选择一个处理动作，参数会在下方更新。")
@@ -57,9 +59,9 @@ class OperationFormWidget(QWidget):
         self.operation_button_group = QButtonGroup(self)
         self.operation_button_group.setExclusive(True)
         operation_grid = QGridLayout()
-        operation_grid.setHorizontalSpacing(7)
-        operation_grid.setVerticalSpacing(7)
-        operation_columns = 6
+        operation_grid.setHorizontalSpacing(6)
+        operation_grid.setVerticalSpacing(6)
+        operation_columns = 8
         for index, operation in enumerate(OPERATION_LABELS):
             button = QPushButton(_operation_card_text(operation))
             button.setCheckable(True)
@@ -67,18 +69,19 @@ class OperationFormWidget(QWidget):
             button.setCursor(Qt.CursorShape.PointingHandCursor)
             button.setToolTip(OPERATION_LABELS[operation])
             button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-            button.setMinimumHeight(36)
+            button.setMinimumHeight(30)
             button.clicked.connect(lambda _checked=False, op=operation: self._select_operation(op))
             self.operation_button_group.addButton(button)
             self._operation_buttons[operation] = button
             operation_grid.addWidget(button, index // operation_columns, index % operation_columns)
         operation_layout.addLayout(operation_grid)
-        layout.addWidget(operation_group)
 
         self.parameters_group = QGroupBox("参数")
         self.parameters_group.setObjectName("parameterGroup")
+        self.parameters_group.setMinimumWidth(320)
+        self.parameters_group.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
         parameters_layout = QVBoxLayout(self.parameters_group)
-        parameters_layout.setSpacing(8)
+        parameters_layout.setSpacing(6)
 
         self.selected_operation_label = QLabel()
         self.selected_operation_label.setObjectName("operationSelectionLabel")
@@ -111,7 +114,8 @@ class OperationFormWidget(QWidget):
         self.empty_fields_label = QLabel("当前动作无需额外参数。")
         self.empty_fields_label.setObjectName("mutedLabel")
         parameters_layout.addWidget(self.empty_fields_label)
-        layout.addWidget(self.parameters_group)
+        layout.addWidget(operation_group, 3)
+        layout.addWidget(self.parameters_group, 2)
 
         self._select_operation(self._selected_operation, emit=False)
 
@@ -369,7 +373,7 @@ class OperationFormWidget(QWidget):
 
     def _sync_operation_hint(self) -> None:
         if self._batch_mode:
-            self.operation_hint.setText("批量模式仅启用可对多个文件重复执行的动作。")
+            self.operation_hint.setText("多个文件仅启用可重复执行的动作。")
             return
         self.operation_hint.setText("先选择一个处理动作，参数会在下方更新。")
 
@@ -393,7 +397,7 @@ class OperationFormWidget(QWidget):
     def _operation_tooltip(self, operation: Operation) -> str:
         label = OPERATION_LABELS[operation]
         if self._batch_mode and operation not in self._batch_supported_operations:
-            return f"{label}\n批量模式暂不支持此动作。"
+            return f"{label}\n多个文件暂不支持此动作。"
         return label
 
 
@@ -464,6 +468,6 @@ def _operation_card_text(operation: Operation) -> str:
 def _configure_form_layout(layout: QFormLayout) -> None:
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setHorizontalSpacing(10)
-    layout.setVerticalSpacing(8)
+    layout.setVerticalSpacing(6)
     layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
     layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)

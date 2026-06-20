@@ -269,12 +269,14 @@ def test_collect_input_paths_respects_single_input_mode(tmp_path: Path) -> None:
     assert controller._collect_input_paths() == [single_path]
 
 
-def test_batch_mode_rejects_unsupported_operation_even_with_one_file(tmp_path: Path) -> None:
+def test_multiple_files_reject_unsupported_operation(tmp_path: Path) -> None:
     window = _FakeWindow()
-    input_path = tmp_path / "input.mp4"
-    input_path.write_bytes(b"\x00")
+    first = tmp_path / "first.mp4"
+    second = tmp_path / "second.mp4"
+    first.write_bytes(b"\x00")
+    second.write_bytes(b"\x00")
     window.set_operation_payload(Operation.thumbnail, {"timestamp_seconds": 0.0, "image_format": "jpg"}, {})
-    window.set_batch_paths([input_path])
+    window.set_batch_paths([first, second])
 
     controller = _make_controller(window)
     controller.state.runtime_health = RuntimeHealth(
@@ -285,12 +287,12 @@ def test_batch_mode_rejects_unsupported_operation_even_with_one_file(tmp_path: P
         ffprobe_path="ffprobe",
     )
     controller.state.input_mode = "batch"
-    controller.state.batch_input_paths = [input_path]
-    controller.state.input_path = input_path
+    controller.state.batch_input_paths = [first, second]
+    controller.state.input_path = first
     window.set_batch_input_mode(True)
     controller.start_task()
 
-    assert any("当前操作不支持批量处理" in message for message in window.error_messages)
+    assert any("该操作不支持批处理" in message for message in window.error_messages)
 
 
 def test_batch_selection_creates_ready_queue_rows(tmp_path: Path) -> None:
@@ -306,3 +308,19 @@ def test_batch_selection_creates_ready_queue_rows(tmp_path: Path) -> None:
 
     assert [record.input_path for record in task_model.records] == [first, second]
     assert [record.status for record in task_model.records] == [TaskStatus.ready, TaskStatus.ready]
+
+
+def test_file_selection_appends_to_existing_queue_rows(tmp_path: Path) -> None:
+    window = _FakeWindow()
+    first = tmp_path / "first.mp4"
+    second = tmp_path / "second.mov"
+    third = tmp_path / "third.webm"
+    for path in (first, second, third):
+        path.write_bytes(b"\x00")
+    task_model = _TaskModel()
+
+    controller = _make_controller(window, task_model=task_model)
+    controller.on_batch_files_selected([str(first), str(second)])
+    controller.on_batch_files_selected([str(third)])
+
+    assert [record.input_path for record in task_model.records] == [first, second, third]

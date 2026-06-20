@@ -120,18 +120,19 @@ class MainWindow(QMainWindow):
     def set_busy(self, busy: bool) -> None:
         self.runtime_panel.set_busy(busy)
         self.operation_panel.set_busy(busy)
+        self.task_panel.set_busy(busy)
         self.settings_dialog.set_busy(busy)
 
     def set_start_enabled(self, enabled: bool) -> None:
         busy = self.operation_panel.is_busy()
         effective_enabled = enabled and not busy
-        self.operation_panel.set_start_enabled(effective_enabled)
+        self.task_panel.set_start_enabled(effective_enabled)
 
     def set_batch_progress(self, current: int, total: int) -> None:
         self.runtime_panel.set_batch_progress(current, total)
 
     def set_batch_buttons(self, pending_count: int, running: bool) -> None:
-        self.operation_panel.set_batch_buttons(pending_count=pending_count, running=running)
+        self.task_panel.set_batch_buttons(pending_count=pending_count, running=running)
 
     def set_progress(self, progress: float | None) -> None:
         self.task_panel.refresh_total_progress()
@@ -274,10 +275,6 @@ class MainWindow(QMainWindow):
         self.settings_dialog.check_requested.connect(self.refresh_requested.emit)
 
         self.operation_panel.file_browse_requested.connect(self.choose_operation_file)
-        self.operation_panel.start_requested.connect(self.start_requested.emit)
-        self.operation_panel.cancel_requested.connect(self.cancel_requested.emit)
-        self.operation_panel.cancel_queue_requested.connect(self.cancel_queue_requested.emit)
-        self.operation_panel.remove_pending_requested.connect(self.remove_pending_requested.emit)
         self.operation_panel.stack_mode_toggled.connect(self.stack_mode_toggled.emit)
         self.operation_panel.stack_add_requested.connect(self.stack_add_requested.emit)
         self.operation_panel.stack_move_up_requested.connect(self.stack_move_up_requested.emit)
@@ -290,6 +287,10 @@ class MainWindow(QMainWindow):
         self.task_panel.open_output_dir_requested.connect(self.open_output_dir_requested.emit)
         self.task_panel.copy_output_path_requested.connect(self.copy_output_path_requested.emit)
         self.task_panel.remove_task_requested.connect(self.task_remove_requested.emit)
+        self.task_panel.start_requested.connect(self.start_requested.emit)
+        self.task_panel.cancel_requested.connect(self.cancel_requested.emit)
+        self.task_panel.cancel_queue_requested.connect(self.cancel_queue_requested.emit)
+        self.task_panel.remove_pending_requested.connect(self.remove_pending_requested.emit)
         self.command_preview_panel.command_copied.connect(lambda: self.show_status("已复制命令预览到剪贴板"))
         self.log_dialog.cleared.connect(self._mark_log_cleared)
 

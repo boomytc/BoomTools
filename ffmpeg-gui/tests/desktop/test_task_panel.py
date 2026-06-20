@@ -1,8 +1,16 @@
 from __future__ import annotations
 
+import os
+import sys
 from pathlib import Path
 
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+from PySide6.QtWidgets import QApplication
+
 from desktop.app.ui.panels.task_panel import _total_progress_summary
+from desktop.app.ui.panels.task_panel import TaskPanel
+from desktop.app.ui.widgets.task_table_model import TaskTableModel
 from shared.contracts import Operation, TaskRecord, TaskStatus
 
 
@@ -38,3 +46,38 @@ def test_total_progress_summary_handles_indeterminate_running_task() -> None:
 
     assert summary.label == "总进度 1/2 · 运行中"
     assert summary.indeterminate
+
+
+def test_task_panel_processing_buttons_follow_task_state() -> None:
+    _qt_app()
+    panel = TaskPanel(TaskTableModel())
+
+    assert not panel.start_button.isEnabled()
+    assert not panel.cancel_button.isEnabled()
+    assert not panel.cancel_queue_button.isEnabled()
+    assert not panel.remove_pending_button.isEnabled()
+
+    panel.set_start_enabled(True)
+    assert panel.start_button.isEnabled()
+
+    panel.set_busy(True)
+    assert not panel.start_button.isEnabled()
+    assert panel.cancel_button.isEnabled()
+
+    panel.set_batch_buttons(pending_count=2, running=True)
+    assert panel.cancel_queue_button.isEnabled()
+    assert not panel.remove_pending_button.isEnabled()
+
+    panel.set_busy(False)
+    panel.set_batch_buttons(pending_count=2, running=False)
+    assert panel.start_button.isEnabled()
+    assert not panel.cancel_button.isEnabled()
+    assert not panel.cancel_queue_button.isEnabled()
+    assert panel.remove_pending_button.isEnabled()
+
+
+def _qt_app() -> QApplication:
+    app = QApplication.instance()
+    if app is None:
+        return QApplication(sys.argv)
+    return app

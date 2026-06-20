@@ -33,6 +33,7 @@ from shared.contracts import MediaInfo, OPERATION_LABELS, Operation
 class OperationFormWidget(QWidget):
     file_browse_requested = Signal(str, str)
     spec_changed = Signal()
+    stack_mode_toggled = Signal(bool)
 
     def __init__(self) -> None:
         super().__init__()
@@ -47,11 +48,33 @@ class OperationFormWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
 
-        operation_group = QGroupBox("处理动作")
+        operation_group = QGroupBox()
         operation_group.setObjectName("operationGroup")
         operation_group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         operation_layout = QVBoxLayout(operation_group)
         operation_layout.setSpacing(8)
+        operation_header = QHBoxLayout()
+        operation_header.setSpacing(8)
+        operation_title = QLabel("处理动作")
+        operation_title.setObjectName("sectionTitle")
+        operation_header.addWidget(operation_title)
+        operation_header.addStretch(1)
+        self.single_mode_button = QPushButton("单操作")
+        self.stack_mode_button = QPushButton("Stack 链式")
+        for button in (self.single_mode_button, self.stack_mode_button):
+            button.setCheckable(True)
+            button.setProperty("role", "segmentButton")
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.single_mode_button.setChecked(True)
+        self.mode_button_group = QButtonGroup(self)
+        self.mode_button_group.setExclusive(True)
+        self.mode_button_group.addButton(self.single_mode_button)
+        self.mode_button_group.addButton(self.stack_mode_button)
+        self.single_mode_button.clicked.connect(lambda _checked=False: self.stack_mode_toggled.emit(False))
+        self.stack_mode_button.clicked.connect(lambda _checked=False: self.stack_mode_toggled.emit(True))
+        operation_header.addWidget(self.single_mode_button)
+        operation_header.addWidget(self.stack_mode_button)
+        operation_layout.addLayout(operation_header)
         self.operation_hint = QLabel("先选择一个处理动作，参数会在下方更新。")
         self.operation_hint.setObjectName("mutedLabel")
         operation_layout.addWidget(self.operation_hint)
@@ -74,7 +97,11 @@ class OperationFormWidget(QWidget):
             self.operation_button_group.addButton(button)
             self._operation_buttons[operation] = button
             operation_grid.addWidget(button, index // operation_columns, index % operation_columns)
-        operation_layout.addLayout(operation_grid)
+        operation_grid_widget = QWidget()
+        operation_grid_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+        operation_grid_widget.setLayout(operation_grid)
+        operation_layout.addWidget(operation_grid_widget)
+        operation_layout.addStretch(1)
 
         self.parameters_group = QGroupBox("参数")
         self.parameters_group.setObjectName("parameterGroup")
@@ -121,6 +148,17 @@ class OperationFormWidget(QWidget):
 
     def selected_operation(self) -> Operation:
         return self._selected_operation
+
+    def set_stack_mode(self, enabled: bool) -> None:
+        self.stack_mode_button.setChecked(enabled)
+        self.single_mode_button.setChecked(not enabled)
+
+    def stack_mode(self) -> bool:
+        return self.stack_mode_button.isChecked()
+
+    def set_stack_mode_enabled(self, enabled: bool) -> None:
+        self.single_mode_button.setEnabled(enabled)
+        self.stack_mode_button.setEnabled(enabled)
 
     def set_enabled(self, enabled: bool) -> None:
         self._form_enabled = enabled

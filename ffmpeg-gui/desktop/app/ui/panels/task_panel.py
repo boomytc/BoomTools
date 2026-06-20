@@ -3,7 +3,17 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import QModelIndex, QPoint, Qt, Signal
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QHeaderView, QLabel, QMenu, QProgressBar, QTableView, QVBoxLayout
+from PySide6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QMenu,
+    QProgressBar,
+    QPushButton,
+    QTableView,
+    QVBoxLayout,
+)
 
 from desktop.app.ui.delegates import MediaSummaryDelegate, ProgressBarDelegate, RemoveActionDelegate
 from desktop.app.ui.widgets.task_table_model import ACTION_ENABLED_ROLE, TaskTableModel
@@ -11,6 +21,10 @@ from shared.contracts import TERMINAL_STATUSES, TaskRecord, TaskStatus
 
 
 class TaskPanel(QFrame):
+    start_requested = Signal()
+    cancel_requested = Signal()
+    cancel_queue_requested = Signal()
+    remove_pending_requested = Signal()
     open_output_requested = Signal()
     open_output_dir_requested = Signal()
     copy_output_path_requested = Signal()
@@ -19,9 +33,13 @@ class TaskPanel(QFrame):
     def __init__(self, task_model: TaskTableModel) -> None:
         super().__init__()
         self._task_model = task_model
+        self._busy = False
+        self._start_enabled = False
+        self._pending_count = 0
+        self._batch_running = False
         self.setObjectName("taskPanel")
-        self.setMinimumHeight(154)
-        self.setMaximumHeight(202)
+        self.setMinimumHeight(172)
+        self.setMaximumHeight(228)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 10, 12, 12)
         layout.setSpacing(8)
@@ -42,6 +60,22 @@ class TaskPanel(QFrame):
         header_row.addStretch(1)
         header_row.addWidget(self.total_progress_label)
         header_row.addWidget(self.total_progress_bar)
+        self.start_button = QPushButton("开始处理")
+        self.start_button.setObjectName("primaryButton")
+        self.cancel_button = QPushButton("取消当前")
+        self.cancel_button.setProperty("role", "danger")
+        self.cancel_queue_button = QPushButton("取消队列")
+        self.cancel_queue_button.setProperty("role", "danger")
+        self.remove_pending_button = QPushButton("移除未运行")
+        self.remove_pending_button.setProperty("role", "quiet")
+        self.start_button.clicked.connect(lambda _checked=False: self.start_requested.emit())
+        self.cancel_button.clicked.connect(lambda _checked=False: self.cancel_requested.emit())
+        self.cancel_queue_button.clicked.connect(lambda _checked=False: self.cancel_queue_requested.emit())
+        self.remove_pending_button.clicked.connect(lambda _checked=False: self.remove_pending_requested.emit())
+        header_row.addWidget(self.start_button)
+        header_row.addWidget(self.cancel_button)
+        header_row.addWidget(self.cancel_queue_button)
+        header_row.addWidget(self.remove_pending_button)
         layout.addLayout(header_row)
 
         self.task_table = QTableView()
@@ -70,7 +104,7 @@ class TaskPanel(QFrame):
         self.task_table.setColumnWidth(3, 120)
         self.task_table.setColumnWidth(4, 72)
         self.task_table.verticalHeader().setDefaultSectionSize(54)
-        self.task_table.setMinimumHeight(92)
+        self.task_table.setMinimumHeight(104)
         self.task_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         layout.addWidget(self.task_table)
         self.task_table.clicked.connect(self._handle_table_clicked)
@@ -81,7 +115,21 @@ class TaskPanel(QFrame):
         task_model.rowsInserted.connect(lambda *_args: self.refresh_total_progress())
         task_model.rowsRemoved.connect(lambda *_args: self.refresh_total_progress())
         task_model.dataChanged.connect(lambda *_args: self.refresh_total_progress())
+        self._sync_processing_buttons()
         self.refresh_total_progress()
+
+    def set_busy(self, busy: bool) -> None:
+        self._busy = busy
+        self._sync_processing_buttons()
+
+    def set_start_enabled(self, enabled: bool) -> None:
+        self._start_enabled = enabled
+        self._sync_processing_buttons()
+
+    def set_batch_buttons(self, pending_count: int, running: bool) -> None:
+        self._pending_count = pending_count
+        self._batch_running = running
+        self._sync_processing_buttons()
 
     def refresh_total_progress(self) -> None:
         summary = _total_progress_summary(self._task_model.records())
@@ -142,6 +190,12 @@ class TaskPanel(QFrame):
         open_dir_action.triggered.connect(self.open_output_dir_requested.emit)
         copy_path_action.triggered.connect(self.copy_output_path_requested.emit)
         menu.exec(self.task_table.viewport().mapToGlobal(position))
+
+    def _sync_processing_buttons(self) -> None:
+        self.start_button.setEnabled(self._start_enabled and not self._busy)
+        self.cancel_button.setEnabled(self._busy)
+        self.cancel_queue_button.setEnabled(self._batch_running)
+        self.remove_pending_button.setEnabled(self._pending_count > 0 and not self._batch_running and not self._busy)
 
 
 class _TotalProgressSummary:

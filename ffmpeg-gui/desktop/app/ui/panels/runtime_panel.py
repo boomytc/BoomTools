@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QDragEnterEvent, QDropEvent
+from PySide6.QtGui import QDragEnterEvent, QDropEvent, QKeyEvent, QMouseEvent
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -13,6 +13,57 @@ from PySide6.QtWidgets import (
 )
 
 from shared.contracts import MediaInfo
+
+
+class MediaDropArea(QFrame):
+    clicked = Signal()
+    paths_dropped = Signal(list)
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.setObjectName("fileDropArea")
+        self.setAcceptDrops(True)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setAccessibleName("选择或拖入本机视频/音频文件")
+        self.setToolTip("点击选择本机媒体文件，或拖入文件")
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if (
+            self.isEnabled()
+            and event.button() == Qt.MouseButton.LeftButton
+            and self.rect().contains(event.position().toPoint())
+        ):
+            self.clicked.emit()
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if self.isEnabled() and event.key() in (
+            Qt.Key.Key_Return,
+            Qt.Key.Key_Enter,
+            Qt.Key.Key_Space,
+        ):
+            self.clicked.emit()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
+        if self.isEnabled() and event.mimeData().hasUrls():
+            event.acceptProposedAction()
+            return
+        super().dragEnterEvent(event)
+
+    def dropEvent(self, event: QDropEvent) -> None:
+        urls = event.mimeData().urls()
+        paths = [url.toLocalFile() for url in urls if url.toLocalFile()]
+        if self.isEnabled() and paths:
+            self.paths_dropped.emit(paths)
+            event.acceptProposedAction()
+            return
+        super().dropEvent(event)
 
 
 class RuntimePanel(QFrame):
@@ -29,6 +80,7 @@ class RuntimePanel(QFrame):
         self._batch_paths: list[Path] = []
         self._last_input_dir: Path | None = None
         self._output_dir_path: Path | None = None
+        self._input_add_enabled = True
         self._busy = False
         self.setObjectName("runtimePanel")
         self.setAcceptDrops(True)
@@ -106,12 +158,12 @@ class RuntimePanel(QFrame):
 
     def set_busy(self, busy: bool) -> None:
         self._busy = busy
-        enabled = not busy
-        self.input_choose_button.setEnabled(enabled)
-        self.output_dir_button.setEnabled(enabled)
+        self._sync_input_add_enabled()
+        self.output_dir_button.setEnabled(not busy)
 
     def set_batch_add_enabled(self, enabled: bool) -> None:
-        self.input_choose_button.setEnabled(enabled and not self._busy)
+        self._input_add_enabled = enabled
+        self._sync_input_add_enabled()
 
     def set_batch_input_mode(self, enabled: bool, *, emit: bool = True) -> None:
         if emit:
@@ -131,7 +183,7 @@ class RuntimePanel(QFrame):
             self.batch_files_cleared.emit()
 
     def dragEnterEvent(self, event: QDragEnterEvent) -> None:
-        if not self._busy and event.mimeData().hasUrls():
+        if self._can_add_inputs() and event.mimeData().hasUrls():
             event.acceptProposedAction()
             return
         super().dragEnterEvent(event)
@@ -145,40 +197,53 @@ class RuntimePanel(QFrame):
         if not paths:
             super().dropEvent(event)
             return
-        self.set_batch_paths(paths)
-        self.batch_paths_dropped.emit([str(path) for path in self._batch_paths])
+        self._set_dropped_paths(paths)
         event.acceptProposedAction()
 
-    def _create_input_area(self) -> QFrame:
-        drop_area = QFrame()
-        drop_area.setObjectName("fileDropArea")
+    def _create_input_area(self) -> MediaDropArea:
+        drop_area = MediaDropArea()
         drop_area.setMinimumHeight(88)
         drop_area.setMaximumHeight(104)
+        drop_area.clicked.connect(lambda: self.batch_files_requested.emit())
+        drop_area.paths_dropped.connect(self._set_dropped_paths)
         drop_layout = QVBoxLayout(drop_area)
         drop_layout.setContentsMargins(14, 10, 14, 10)
         drop_layout.setSpacing(8)
 
         title_row = QHBoxLayout()
         title_row.setSpacing(10)
-        drop_title = QLabel("选择或拖入本机视频/音频文件")
+        drop_title = QLabel("点击选择或拖入本机视频/音频文件")
         drop_title.setObjectName("dropTitle")
         self.selection_summary = QLabel("未选择文件")
         self.selection_summary.setObjectName("batchProgressLabel")
-        self.input_choose_button = QPushButton("添加媒体文件")
-        self.input_choose_button.setProperty("role", "quiet")
-        self.input_choose_button.clicked.connect(lambda _checked=False: self.batch_files_requested.emit())
+        drop_title.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self.selection_summary.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         title_row.addWidget(drop_title)
         title_row.addStretch(1)
         title_row.addWidget(self.selection_summary)
-        title_row.addWidget(self.input_choose_button)
 
         drop_hint = QLabel("可一次选择多个文件；新文件会追加到任务队列，文件只在本机处理。")
         drop_hint.setObjectName("mutedLabel")
+        drop_hint.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
         drop_layout.addLayout(title_row)
         drop_layout.addWidget(drop_hint)
         drop_layout.addStretch(1)
         return drop_area
+
+    def _set_dropped_paths(self, paths: list[str | Path]) -> None:
+        if not self._can_add_inputs():
+            return
+        self.set_batch_paths(paths)
+        self.batch_paths_dropped.emit([str(path) for path in self._batch_paths])
+
+    def _can_add_inputs(self) -> bool:
+        return self._input_add_enabled and not self._busy
+
+    def _sync_input_add_enabled(self) -> None:
+        can_add = self._can_add_inputs()
+        self.drop_area.setEnabled(can_add)
+        self.drop_area.setCursor(Qt.CursorShape.PointingHandCursor if can_add else Qt.CursorShape.ArrowCursor)
 
     def _normalize_paths(self, paths: list[str | Path]) -> list[Path]:
         normalized: list[Path] = []

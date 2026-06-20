@@ -154,6 +154,16 @@ QFrame#fileDropArea:hover {
   background: #1d2437;
 }
 
+QFrame#fileDropArea:focus {
+  border-color: #5b8dff;
+  background: #1d2437;
+}
+
+QFrame#fileDropArea:disabled {
+  border-color: #30364a;
+  background: #171b26;
+}
+
 QGroupBox {
   margin-top: 16px;
   padding: 13px 12px 12px 12px;

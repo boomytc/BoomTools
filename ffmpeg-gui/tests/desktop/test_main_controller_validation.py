@@ -17,15 +17,19 @@ class _FakeWindow:
     def __init__(self) -> None:
         self._operation_payload = (Operation.convert, {}, {})
         self._selected_input_path: Path | None = None
+        self._selected_batch_paths: list[Path] = []
         self._selected_output_dir = "/tmp"
         self._ffmpeg_bin = "ffmpeg"
         self._ffprobe_bin = "ffprobe"
         self.stack_mode_enabled = False
+        self.batch_input_mode_enabled = False
         self.error_messages: list[str] = []
         self.status_messages: list[str] = []
 
         self.input_file_selected = _Signal()
+        self.input_mode_changed = _Signal()
         self.batch_files_selected = _Signal()
+        self.batch_files_cleared = _Signal()
         self.output_dir_selected = _Signal()
         self.refresh_requested = _Signal()
         self.start_requested = _Signal()
@@ -58,6 +62,21 @@ class _FakeWindow:
     def selected_input_path(self) -> Path | None:
         return self._selected_input_path
 
+    def selected_batch_paths(self) -> list[Path]:
+        return list(self._selected_batch_paths)
+
+    def set_batch_paths(self, paths: list[Path]) -> None:
+        self._selected_batch_paths = list(paths)
+
+    def batch_input_mode(self) -> bool:
+        return self.batch_input_mode_enabled
+
+    def set_batch_input_mode(self, enabled: bool) -> None:
+        self.batch_input_mode_enabled = enabled
+
+    def set_batch_input_paths(self, paths: list[Path]) -> None:
+        self._selected_batch_paths = list(paths)
+
     def selected_output_dir(self) -> str:
         return self._selected_output_dir
 
@@ -74,6 +93,9 @@ class _FakeWindow:
         return None
 
     def set_runtime_health(self, _health: RuntimeHealth) -> None:
+        return None
+
+    def set_media_info(self, _media_info: object) -> None:
         return None
 
     def show_error(self, message: str) -> None:
@@ -214,3 +236,43 @@ def test_stack_add_reports_unsupported_subtitle_operation(tmp_path: Path) -> Non
 
     assert any("当前操作不支持加入 Stack" in message for message in window.error_messages)
     assert controller._stack_items == []
+
+
+def test_collect_input_paths_respects_single_input_mode(tmp_path: Path) -> None:
+    window = _FakeWindow()
+    single_path = tmp_path / "single.mp4"
+    batch_path = tmp_path / "batch.mp4"
+    single_path.write_bytes(b"\x00")
+    batch_path.write_bytes(b"\x00")
+    window.set_input_path(single_path)
+    window.set_batch_paths([batch_path])
+
+    controller = _make_controller(window)
+    controller.state.input_mode = "single"
+    controller.state.batch_input_paths = [batch_path]
+
+    assert controller._collect_input_paths() == [single_path]
+
+
+def test_batch_mode_rejects_unsupported_operation_even_with_one_file(tmp_path: Path) -> None:
+    window = _FakeWindow()
+    input_path = tmp_path / "input.mp4"
+    input_path.write_bytes(b"\x00")
+    window.set_operation_payload(Operation.thumbnail, {"timestamp_seconds": 0.0, "image_format": "jpg"}, {})
+    window.set_batch_paths([input_path])
+
+    controller = _make_controller(window)
+    controller.state.runtime_health = RuntimeHealth(
+        ok=True,
+        ffmpeg_available=True,
+        ffprobe_available=True,
+        ffmpeg_path="ffmpeg",
+        ffprobe_path="ffprobe",
+    )
+    controller.state.input_mode = "batch"
+    controller.state.batch_input_paths = [input_path]
+    controller.state.input_path = input_path
+    window.set_batch_input_mode(True)
+    controller.start_task()
+
+    assert any("当前操作不支持批量处理" in message for message in window.error_messages)

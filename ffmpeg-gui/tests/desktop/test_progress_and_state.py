@@ -38,3 +38,32 @@ def test_app_state_start_gating() -> None:
 
         state.current_task = TaskRecord(operation=Operation.convert, input_path=input_path, status=TaskStatus.running)
         assert not state.can_start()
+
+
+def test_app_state_start_gating_uses_active_input_mode() -> None:
+    with TemporaryDirectory() as tmp:
+        input_path = Path(tmp) / "single.mp4"
+        batch_path = Path(tmp) / "batch.mp4"
+        input_path.write_bytes(b"placeholder")
+        batch_path.write_bytes(b"placeholder")
+        state = AppState(
+            input_mode="single",
+            input_path=input_path,
+            batch_input_paths=[batch_path],
+            runtime_health=RuntimeHealth(
+                ok=True,
+                ffmpeg_available=True,
+                ffprobe_available=True,
+                ffmpeg_path="ffmpeg",
+                ffprobe_path="ffprobe",
+            ),
+        )
+
+        assert state.can_start()
+        state.input_path = None
+        assert not state.can_start()
+
+        state.input_mode = "batch"
+        assert state.can_start()
+        state.batch_input_paths = []
+        assert not state.can_start()

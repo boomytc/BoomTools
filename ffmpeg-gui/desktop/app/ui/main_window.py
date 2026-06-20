@@ -23,12 +23,14 @@ from desktop.app.runtime.binaries import RuntimeHealth
 from desktop.app.ui.dialogs import LogDialog, SettingsDialog
 from desktop.app.ui.panels import OperationPanel, RuntimePanel, StatusPanel, TaskPanel
 from desktop.app.ui.widgets.task_table_model import TaskTableModel
-from shared.contracts import MediaInfo
+from shared.contracts import BATCH_SUPPORTED_OPERATIONS, MediaInfo
 
 
 class MainWindow(QMainWindow):
     input_file_selected = Signal(str)
+    input_mode_changed = Signal(bool)
     batch_files_selected = Signal(list)
+    batch_files_cleared = Signal()
     output_dir_selected = Signal(str)
     refresh_requested = Signal()
     start_requested = Signal()
@@ -113,6 +115,12 @@ class MainWindow(QMainWindow):
     def selected_input_path(self) -> Path | None:
         return self.runtime_panel.selected_input_path()
 
+    def selected_batch_paths(self) -> list[Path]:
+        return self.runtime_panel.selected_batch_paths()
+
+    def batch_input_mode(self) -> bool:
+        return self.runtime_panel.batch_input_mode()
+
     def selected_output_dir(self) -> Path | None:
         return self.status_panel.selected_output_dir()
 
@@ -144,7 +152,6 @@ class MainWindow(QMainWindow):
         busy = self.operation_panel.is_busy()
         effective_enabled = enabled and not busy
         self.operation_panel.set_start_enabled(effective_enabled)
-        self.runtime_panel.set_batch_add_enabled(effective_enabled)
 
     def set_batch_progress(self, current: int, total: int) -> None:
         self.runtime_panel.set_batch_progress(current, total)
@@ -185,6 +192,13 @@ class MainWindow(QMainWindow):
     def set_stack_items(self, items: list[str]) -> None:
         self.operation_panel.set_stack_items(items)
 
+    def set_batch_input_mode(self, enabled: bool) -> None:
+        self.runtime_panel.set_batch_input_mode(enabled, emit=False)
+        self.operation_panel.set_batch_input_mode(enabled, BATCH_SUPPORTED_OPERATIONS)
+
+    def set_batch_input_paths(self, paths: list[str | Path]) -> None:
+        self.runtime_panel.set_batch_paths(paths)
+
     def refresh_stack_controls(self) -> None:
         self.operation_panel.refresh_stack_controls()
 
@@ -211,6 +225,7 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getOpenFileName(self, "选择媒体文件")
         if not path:
             return
+        self.set_batch_input_mode(False)
         self.runtime_panel.set_input_path_text(path)
         self.input_file_selected.emit(path)
 
@@ -218,6 +233,8 @@ class MainWindow(QMainWindow):
         paths, _ = QFileDialog.getOpenFileNames(self, "添加批处理文件", self.runtime_panel.input_path_text())
         if not paths:
             return
+        self.set_batch_input_mode(True)
+        self.runtime_panel.set_batch_paths(paths)
         self.batch_files_selected.emit(paths)
 
     def choose_output_dir(self) -> None:
@@ -273,7 +290,10 @@ class MainWindow(QMainWindow):
     def _connect_panel_signals(self) -> None:
         self.runtime_panel.input_browse_requested.connect(self.choose_input_file)
         self.runtime_panel.input_path_dropped.connect(self.input_file_selected.emit)
+        self.runtime_panel.input_mode_changed.connect(self._on_input_mode_changed)
         self.runtime_panel.batch_files_requested.connect(self.choose_batch_files)
+        self.runtime_panel.batch_paths_dropped.connect(self.batch_files_selected.emit)
+        self.runtime_panel.batch_files_cleared.connect(self.batch_files_cleared.emit)
         self.status_panel.output_dir_requested.connect(self.choose_output_dir)
         self.settings_dialog.check_requested.connect(self.refresh_requested.emit)
 
@@ -294,6 +314,10 @@ class MainWindow(QMainWindow):
         self.status_panel.open_output_dir_requested.connect(self.open_output_dir_requested.emit)
         self.status_panel.copy_output_path_requested.connect(self.copy_output_path_requested.emit)
         self.log_dialog.cleared.connect(self._mark_log_cleared)
+
+    def _on_input_mode_changed(self, batch_mode: bool) -> None:
+        self.operation_panel.set_batch_input_mode(batch_mode, BATCH_SUPPORTED_OPERATIONS)
+        self.input_mode_changed.emit(batch_mode)
 
     def _create_masthead(self) -> QFrame:
         masthead = QFrame()

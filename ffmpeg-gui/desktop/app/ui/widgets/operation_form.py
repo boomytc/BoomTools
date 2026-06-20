@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shlex
+from collections.abc import Set as AbstractSet
 from pathlib import Path
 from typing import Any
 
@@ -37,6 +38,9 @@ class OperationFormWidget(QWidget):
         self._controls: dict[str, QWidget] = {}
         self._operation_buttons: dict[Operation, QPushButton] = {}
         self._selected_operation = Operation.convert
+        self._form_enabled = True
+        self._batch_mode = False
+        self._batch_supported_operations: set[Operation] = set()
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -45,9 +49,9 @@ class OperationFormWidget(QWidget):
         operation_group = QGroupBox("操作")
         operation_layout = QVBoxLayout(operation_group)
         operation_layout.setSpacing(10)
-        operation_hint = QLabel("选择一个处理动作，然后在下方确认参数。")
-        operation_hint.setObjectName("mutedLabel")
-        operation_layout.addWidget(operation_hint)
+        self.operation_hint = QLabel("选择一个处理动作，然后在下方确认参数。")
+        self.operation_hint.setObjectName("mutedLabel")
+        operation_layout.addWidget(self.operation_hint)
 
         self.operation_button_group = QButtonGroup(self)
         self.operation_button_group.setExclusive(True)
@@ -92,11 +96,21 @@ class OperationFormWidget(QWidget):
         return self._selected_operation
 
     def set_enabled(self, enabled: bool) -> None:
-        for button in self._operation_buttons.values():
-            button.setEnabled(enabled)
+        self._form_enabled = enabled
+        self._sync_operation_button_states()
         self.start_seconds_edit.setEnabled(enabled)
         self.end_seconds_edit.setEnabled(enabled)
         self.fields_group.setEnabled(enabled)
+
+    def set_batch_operation_support(self, enabled: bool, supported_operations: AbstractSet[Operation]) -> None:
+        self._batch_mode = enabled
+        self._batch_supported_operations = set(supported_operations)
+        if self._batch_mode and self._selected_operation not in self._batch_supported_operations:
+            replacement = self._first_available_operation()
+            if replacement is not None:
+                self._select_operation(replacement)
+        self._sync_operation_hint()
+        self._sync_operation_button_states()
 
     def set_file_path(self, field_name: str, path: str) -> None:
         widget = self._controls.get(field_name)
@@ -173,6 +187,8 @@ class OperationFormWidget(QWidget):
                 widget.setParent(None)
 
     def _select_operation(self, operation: Operation, *, emit: bool = True) -> None:
+        if self._batch_mode and operation not in self._batch_supported_operations:
+            return
         if operation == self._selected_operation and self._controls:
             return
         self._selected_operation = operation
@@ -181,6 +197,7 @@ class OperationFormWidget(QWidget):
         self._render_fields()
         if emit:
             self.spec_changed.emit()
+        self._sync_operation_button_states()
 
     def _create_widget(self, spec: dict[str, Any]) -> QWidget:
         kind = str(spec["kind"])
@@ -315,6 +332,37 @@ class OperationFormWidget(QWidget):
         if not isinstance(widget, QLineEdit):
             return
         widget.setText(text)
+
+    def _first_available_operation(self) -> Operation | None:
+        for operation in OPERATION_LABELS:
+            if not self._batch_mode or operation in self._batch_supported_operations:
+                return operation
+        return None
+
+    def _sync_operation_hint(self) -> None:
+        if self._batch_mode:
+            self.operation_hint.setText("批量模式仅启用可对多个文件重复执行的动作。")
+            return
+        self.operation_hint.setText("选择一个处理动作，然后在下方确认参数。")
+
+    def _sync_operation_button_states(self) -> None:
+        for operation, button in self._operation_buttons.items():
+            available = self._operation_is_available(operation)
+            button.setEnabled(available)
+            button.setToolTip(self._operation_tooltip(operation))
+
+    def _operation_is_available(self, operation: Operation) -> bool:
+        if not self._form_enabled:
+            return False
+        if self._batch_mode and operation not in self._batch_supported_operations:
+            return False
+        return True
+
+    def _operation_tooltip(self, operation: Operation) -> str:
+        label = OPERATION_LABELS[operation]
+        if self._batch_mode and operation not in self._batch_supported_operations:
+            return f"{label}\n批量模式暂不支持此动作。"
+        return label
 
 
 def _to_int(value: object) -> int | None:

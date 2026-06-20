@@ -354,6 +354,36 @@ QPushButton[role="pathBrowseButton"] {
   background: #191e2d;
 }
 
+QPushButton[role="segmentButton"] {
+  color: #9aa6bd;
+  background: #151a29;
+  border: 1px solid #3f475d;
+  border-radius: 6px;
+  padding: 3px 9px;
+  min-width: 72px;
+  min-height: 18px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+QPushButton[role="segmentButton"]:hover {
+  color: #eef4ff;
+  background: #20283d;
+  border-color: #63708c;
+}
+
+QPushButton[role="segmentButton"]:checked {
+  color: #ffffff;
+  background: #243f74;
+  border-color: #5b8dff;
+}
+
+QPushButton[role="segmentButton"]:disabled {
+  color: #687386;
+  background: #171b26;
+  border-color: #30364a;
+}
+
 QPushButton[role="result"] {
   color: #9adbb7;
   background: #173527;
@@ -468,6 +498,12 @@ QPlainTextEdit#logView {
 QListWidget::item {
   padding: 7px 8px;
   border-radius: 5px;
+}
+
+QListWidget#batchFileList {
+  color: #cbd6e7;
+  background: #111827;
+  border-color: #333a50;
 }
 
 QListWidget::item:selected {

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from desktop.app.runtime.binaries import RuntimeHealth
 from shared.contracts import MediaInfo, TaskRecord, TaskStatus
@@ -10,6 +10,7 @@ from shared.contracts import MediaInfo, TaskRecord, TaskStatus
 
 @dataclass
 class AppState:
+    input_mode: Literal["single", "batch"] = "single"
     input_path: Path | None = None
     output_dir: Path | None = None
     media_info: MediaInfo | None = None
@@ -24,7 +25,10 @@ class AppState:
     error_message: str | None = None
 
     def can_start(self) -> bool:
-        has_input = bool(self.batch_input_paths) or (self.input_path and self.input_path.exists())
+        if self.input_mode == "batch":
+            has_input = bool(self.batch_input_paths)
+        else:
+            has_input = bool(self.input_path and self.input_path.exists())
         if not has_input:
             return False
         if self.current_task and self.current_task.status is TaskStatus.running:

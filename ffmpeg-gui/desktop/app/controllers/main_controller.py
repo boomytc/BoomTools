@@ -18,29 +18,20 @@ from desktop.app.ui.main_window import MainWindow
 from desktop.app.ui.widgets.task_table_model import TaskTableModel
 from desktop.app.viewmodels.app_state import AppState
 from desktop.app.viewmodels.task_state import TaskState
-from shared.contracts import MediaInfo, Operation, STACK_FILTER_OPERATIONS, TaskRecord, TaskRequest, TaskResult, TaskStatus, operation_label
+from shared.contracts import (
+    BATCH_SUPPORTED_OPERATIONS,
+    MediaInfo,
+    Operation,
+    STACK_FILTER_OPERATIONS,
+    TaskRecord,
+    TaskRequest,
+    TaskResult,
+    TaskStatus,
+    operation_label,
+)
 
 
 SUBTITLE_EXTENSIONS = {".srt", ".vtt", ".ass", ".ssa"}
-BATCH_SUPPORTED_OPERATIONS = {
-    Operation.convert,
-    Operation.compress,
-    Operation.resize_compress,
-    Operation.extract_audio,
-    Operation.gif,
-    Operation.mute,
-    Operation.speed,
-    Operation.rotate,
-    Operation.fade,
-    Operation.adjust,
-    Operation.strip_metadata,
-    Operation.loop,
-    Operation.pad,
-    Operation.normalize_audio,
-    Operation.volume,
-    Operation.denoise,
-    Operation.sharpen_blur,
-}
 
 
 class MainController(QObject):
@@ -94,6 +85,7 @@ class MainController(QObject):
         self.window.set_batch_progress(0, 0)
         self.window.set_stack_items([])
         self.window.set_stack_mode(False)
+        self.window.set_batch_input_mode(False)
         self.window.set_start_enabled(self.state.can_start())
         self.window.set_batch_buttons(pending_count=0, running=False)
 
@@ -111,14 +103,14 @@ class MainController(QObject):
 
     def on_input_file_selected(self, path_text: str) -> None:
         path = Path(path_text)
+        self.state.input_mode = "single"
         self.state.input_path = path
         self.state.media_info = None
-        self.state.batch_input_paths = []
+        self.window.set_batch_input_mode(False)
         self.window.set_media_info(None)
         self.window.reset_progress()
         self.window.set_current_output(None)
         self.window.set_start_enabled(False)
-        self.window.set_batch_progress(0, 0)
         if not path.exists():
             self.window.show_error("输入文件不存在")
             return
@@ -129,14 +121,44 @@ class MainController(QObject):
         if not batch_paths:
             self.window.show_error("请选择至少一个可用文件")
             return
+        self.state.input_mode = "batch"
         self.state.batch_input_paths = batch_paths
         self.state.input_path = batch_paths[0]
         self.state.media_info = None
+        self.window.set_batch_input_mode(True)
+        self.window.set_batch_input_paths(batch_paths)
         self.window.set_media_info(None)
         self.window.reset_progress()
         self.window.set_current_output(None)
         self.window.set_batch_progress(0, len(batch_paths))
-        self.window.set_start_enabled(True)
+        self._refresh_start_state()
+        self._refresh_command_preview()
+
+    def on_input_mode_changed(self, batch_mode: bool) -> None:
+        self.state.input_mode = "batch" if batch_mode else "single"
+        self.window.set_batch_input_mode(batch_mode)
+        if batch_mode:
+            selected_batch_paths = [path for path in self.window.selected_batch_paths() if path.exists()]
+            self.state.batch_input_paths = selected_batch_paths
+            if selected_batch_paths:
+                self.state.input_path = selected_batch_paths[0]
+                self.state.media_info = None
+                self.window.set_media_info(None)
+                self.window.set_batch_progress(0, len(selected_batch_paths))
+            else:
+                self.window.set_batch_progress(0, 0)
+        else:
+            self.state.input_path = self.window.selected_input_path()
+        self._refresh_start_state()
+        self._refresh_command_preview()
+
+    def on_batch_files_cleared(self) -> None:
+        self.state.batch_input_paths = []
+        if self.state.input_mode == "batch":
+            self.state.input_path = None
+        self.window.set_batch_progress(0, 0)
+        self._refresh_start_state()
+        self._refresh_command_preview()
 
     def on_output_dir_selected(self, path_text: str) -> None:
         path = self.output_service.normalize_output_dir(Path(path_text))
@@ -174,6 +196,10 @@ class MainController(QObject):
             return
         if use_stack and not stack_specs:
             self.window.show_error("Stack 需要至少添加一个可链式操作")
+            return
+
+        if self.state.input_mode == "batch" and not use_stack and operation not in BATCH_SUPPORTED_OPERATIONS:
+            self.window.show_error("当前操作不支持批量处理")
             return
 
         if len(input_paths) > 1 and effective_operation not in BATCH_SUPPORTED_OPERATIONS:
@@ -272,7 +298,9 @@ class MainController(QObject):
 
     def _connect_signals(self) -> None:
         self.window.input_file_selected.connect(self.on_input_file_selected)
+        self.window.input_mode_changed.connect(self.on_input_mode_changed)
         self.window.batch_files_selected.connect(self.on_batch_files_selected)
+        self.window.batch_files_cleared.connect(self.on_batch_files_cleared)
         self.window.output_dir_selected.connect(self.on_output_dir_selected)
         self.window.refresh_requested.connect(self.refresh_runtime_health)
         self.window.start_requested.connect(self.start_task)
@@ -365,11 +393,11 @@ class MainController(QObject):
         input_paths = self._collect_input_paths()
         can_start = self.state.can_start()
         batch_error = None
-        if len(input_paths) > 1 and not self.window.stack_mode():
+        if self.state.input_mode == "batch" and not self.window.stack_mode():
             operation, _, _ = self.window.selected_operation_payload()
             if operation not in BATCH_SUPPORTED_OPERATIONS:
                 can_start = False
-                batch_error = f"批处理暂不支持「{operation_label(operation)}」，请切换为 convert/compress/resize_compress/extract_audio/gif/mute/speed/rotate/fade/adjust/strip_metadata/volume/loop/pad/normalize_audio/denoise/sharpen_blur 后重试。"
+                batch_error = f"批量模式暂不支持「{operation_label(operation)}」。"
         if self.window.stack_mode():
             try:
                 can_stack = bool(self._collect_stack_specs(*self.window.selected_operation_payload()))
@@ -420,6 +448,8 @@ class MainController(QObject):
     def _format_output_estimate(self, spec: CommandSpec) -> str:
         if spec.output_path is None:
             return "输出大小保守估算：此命令不生成文件"
+        if self.state.input_mode == "batch":
+            return "输出大小保守估算：批量模式会按每个文件实际时长生成"
         if not self.state.media_info or not self.state.media_info.duration_seconds:
             return "输出大小保守估算：等待媒体时长后估算"
 
@@ -653,8 +683,10 @@ class MainController(QObject):
         worker.start()
 
     def _collect_input_paths(self) -> list[Path]:
-        if self.state.batch_input_paths:
-            return list(self.state.batch_input_paths)
+        if self.state.input_mode == "batch":
+            if self.state.batch_input_paths:
+                return list(self.state.batch_input_paths)
+            return [path for path in self.window.selected_batch_paths() if path.exists()]
         input_path = self.window.selected_input_path()
         if input_path and input_path.exists():
             return [input_path]

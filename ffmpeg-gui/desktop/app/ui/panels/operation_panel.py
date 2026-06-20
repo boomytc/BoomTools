@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Set as AbstractSet
 from pathlib import Path
 
 from PySide6.QtCore import Signal
@@ -117,6 +118,10 @@ class OperationPanel(QWidget):
         self._pending_count = pending_count
         self._batch_running = running
         self._sync_batch_buttons()
+
+    def set_batch_input_mode(self, enabled: bool, supported_operations: AbstractSet[Operation]) -> None:
+        self.operation_form.set_batch_operation_support(enabled, supported_operations)
+        self.refresh_stack_controls()
 
     def set_stack_mode(self, enabled: bool) -> None:
         self.stack_mode_radio.setChecked(enabled)

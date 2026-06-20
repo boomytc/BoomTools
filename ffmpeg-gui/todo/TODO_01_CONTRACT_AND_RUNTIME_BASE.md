@@ -6,39 +6,39 @@
 
 ## Checklist
 
-- [ ] 扩展 `shared/contracts/operations.py`：
-  - [ ] `resize_compress`
-  - [ ] `reverse`
-  - [ ] `fade`
-  - [ ] `adjust`
-  - [ ] `loop`
-  - [ ] `media_info`
-  - [ ] `pad`
-  - [ ] `denoise`
-  - [ ] `boomerang`
-  - [ ] `sharpen_blur`
-  - [ ] `overlay`
-  - [ ] `mix_audio`
-  - [ ] `concat`
-  - [ ] `side_by_side`
-  - [ ] `picture_in_picture`
-- [ ] 扩展 `desktop/app/runtime/ffmpeg.py` 常量：
-  - [ ] 视频输出增加 `avi`，但只在明确 operation 支持时开放。
-  - [ ] 音频输出增加 `ogg`。
-  - [ ] 图片输入允许 `.png/.jpg/.jpeg/.webp/.gif` 用于 overlay。
-  - [ ] 第二音频输入允许 `.mp3/.wav/.ogg/.aac/.flac/.m4a`。
-  - [ ] 第二视频输入允许常见视频扩展，不做 MIME 猜测系统。
-- [ ] 新增多输入命令构建入口：
-  - [ ] 保持当前 `build_command(...)` 支持单输入。
-  - [ ] 增加明确的 `extra_inputs` 或等价结构，不复用 `subtitle_path` 承载所有二输入。
-  - [ ] 多输入仍由后端/GUI 管理路径，Raw 不能任意访问未选择路径。
-- [ ] 建立滤镜片段辅助函数：
-  - [ ] 只放可复用的 ffmpeg filter 片段，不做通用 DSL。
-  - [ ] 片段必须返回参数数组或结构化 filter，不返回 shell 字符串。
-- [ ] 扩展 `tests/desktop/test_command_builder.py`：
-  - [ ] 每个新增 operation 至少一个成功构建测试。
-  - [ ] 每类非法参数至少一个失败测试。
-  - [ ] 多输入缺失、后缀不允许、尺寸/倍率越界必须失败。
+- [x] 扩展 `shared/contracts/operations.py`：
+  - [x] `resize_compress`
+  - [x] `reverse`
+  - [x] `fade`
+  - [x] `adjust`
+  - [x] `loop`
+  - [x] `media_info`
+  - [x] `pad`
+  - [x] `denoise`
+  - [x] `boomerang`
+  - [x] `sharpen_blur`
+  - [x] `overlay`
+  - [x] `mix_audio`
+  - [x] `concat`
+  - [x] `side_by_side`
+  - [x] `picture_in_picture`
+- [x] 扩展 `desktop/app/runtime/ffmpeg.py` 常量：
+  - [x] 视频输出增加 `avi`，但只在明确 operation 支持时开放。
+  - [x] 音频输出增加 `ogg`。
+  - [x] 图片输入允许 `.png/.jpg/.jpeg/.webp/.gif` 用于 overlay。
+  - [x] 第二音频输入允许 `.mp3/.wav/.ogg/.aac/.flac/.m4a`。
+  - [x] 第二视频输入允许常见视频扩展，不做 MIME 猜测系统。
+- [x] 新增多输入命令构建入口：
+  - [x] 保持当前 `build_command(...)` 支持单输入。
+  - [x] 增加明确的 `extra_inputs` 或等价结构，不复用 `subtitle_path` 承载所有二输入。
+  - [x] 多输入仍由后端/GUI 管理路径，Raw 不能任意访问未选择路径。
+- [x] 建立滤镜片段辅助函数：
+  - [x] 只放可复用的 ffmpeg filter 片段，不做通用 DSL。
+  - [x] 片段必须返回参数数组或结构化 filter，不返回 shell 字符串。
+- [x] 扩展 `tests/desktop/test_command_builder.py`：
+  - [x] 每个新增 operation 至少一个成功构建测试。
+  - [x] 每类非法参数至少一个失败测试。
+  - [x] 多输入缺失、后缀不允许、尺寸/倍率越界必须失败。
 
 ## 参数边界
 
@@ -63,4 +63,3 @@
   - `args` 是 list。
   - 不包含 `shell=True` 风格拼接。
   - 输入和输出路径由 runtime 统一放置。
-

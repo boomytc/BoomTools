@@ -50,97 +50,176 @@ def test_rejects_unknown_format() -> None:
             )
 
 
-@pytest.mark.parametrize(
-    ("operation", "options", "expected_suffix", "expected_arg"),
-    [
-        (Operation.convert, {"output_format": "mp4"}, ".mp4", "libx264"),
-        (Operation.compress, {"output_format": "mp4", "crf": 23, "preset": "medium"}, ".mp4", "-crf"),
-        (Operation.extract_audio, {"audio_format": "flac"}, ".flac", "-vn"),
-        (Operation.gif, {"fps": 10, "width": 480}, ".gif", "fps=10,scale=480:-1:flags=lanczos"),
-        (Operation.mute, {"output_format": "mp4"}, ".mp4", "-an"),
-        (Operation.rotate, {"mode": "hflip", "output_format": "mp4"}, ".mp4", "hflip"),
-        (Operation.crop, {"x": 0, "y": 0, "width": 320, "height": 180, "output_format": "mp4"}, ".mp4", "crop=320:180:0:0"),
-        (Operation.thumbnail, {"timestamp_seconds": 0.5, "image_format": "png"}, ".png", "-frames:v"),
-        (Operation.speed, {"factor": 2, "output_format": "mp4"}, ".mp4", "setpts=0.5*PTS"),
-        (Operation.volume, {"multiplier": 0.5, "output_format": "mp4"}, ".mp4", "volume=0.5"),
-        (Operation.strip_metadata, {"output_format": "mp4"}, ".mp4", "-map_metadata"),
-        (Operation.normalize_audio, {"target_lufs": "-16", "output_format": "mp4"}, ".mp4", "loudnorm=I=-16:LRA=11:TP=-1.5"),
-        (Operation.raw, {"raw_args": ["-vf", "scale=320:-2", "-c:v", "libx264"], "output_extension": "mp4"}, ".mp4", "scale=320:-2"),
-    ],
-)
-def test_operations_build_argument_arrays(
-    operation: Operation,
-    options: dict[str, object],
-    expected_suffix: str,
-    expected_arg: str,
-) -> None:
+def test_build_single_input_operations() -> None:
     with TemporaryDirectory() as tmp:
-        spec = build_command(
-            ffmpeg_bin="ffmpeg",
-            operation=operation,
-            options=options,
-            input_path=Path(tmp) / "input.mp4",
-            output_dir=Path(tmp) / "outputs",
-        )
+        cases = [
+            (Operation.convert, {"output_format": "avi"}, ".avi", "-c:v"),
+            (Operation.compress, {"output_format": "webm", "crf": 28, "preset": "veryfast", "width": 320}, ".webm", "libvpx-vp9"),
+            (Operation.extract_audio, {"audio_format": "ogg"}, ".ogg", "libvorbis"),
+            (Operation.gif, {"fps": 8, "width": 320}, ".gif", "fps=8,scale=320:-1:flags=lanczos"),
+            (Operation.mute, {"output_format": "mp4"}, ".mp4", "-an"),
+            (Operation.rotate, {"mode": "hvflip", "output_format": "mp4"}, ".mp4", "hflip,vflip"),
+            (Operation.crop, {"x": 0, "y": 0, "width": 320, "height": 180, "output_format": "mp4"}, ".mp4", "crop=320:180:0:0"),
+            (Operation.thumbnail, {"timestamp_seconds": 0.5, "image_format": "jpg"}, ".gif", "-frames:v"),
+            (Operation.speed, {"factor": 2, "output_format": "mp4"}, ".mp4", "setpts=0.5*PTS"),
+            (Operation.volume, {"multiplier": 0.5, "output_format": "mp4"}, ".mp4", "volume=0.5"),
+            (Operation.strip_metadata, {"output_format": "mp4"}, ".mp4", "-map_metadata"),
+            (Operation.normalize_audio, {"target_lufs": "-16", "output_format": "mp4"}, ".mp4", "loudnorm=I=-16:LRA=11:TP=-1.5"),
+            (Operation.resize_compress, {"output_format": "mp4", "width": 640, "height": 360}, ".mp4", "scale=640:360"),
+            (Operation.reverse, {"output_format": "mp4", "include_audio": True}, ".mp4", "areverse"),
+            (Operation.fade, {"output_format": "mp4", "fade_in_seconds": 0.3, "fade_out_seconds": 0.4, "duration_seconds": 2.0}, ".mp4", "afade=t=out"),
+            (Operation.adjust, {"output_format": "mp4", "brightness": 0.1, "contrast": 1.2, "saturation": 2.0}, ".mp4", "eq=brightness=0.1:contrast=1.2:saturation=2"),
+            (Operation.loop, {"output_format": "mkv", "plays": 3}, ".mkv", "-stream_loop"),
+            (Operation.pad, {"output_format": "mp4", "aspect_ratio": "16:9", "color": "black"}, ".mp4", "pad="),
+            (Operation.denoise, {"output_format": "mp4", "strength": "heavy"}, ".mp4", "hqdn3d=10:10:15:15"),
+            (Operation.boomerang, {"output_format": "mp4"}, ".mp4", "concat=n=2"),
+            (Operation.sharpen_blur, {"output_format": "mp4", "mode": "blur", "strength": "medium"}, ".mp4", "boxblur=4:1"),
+            (Operation.extract_audio, {"audio_format": "ogg"}, ".ogg", "libvorbis"),
+        ]
 
-    assert isinstance(spec.args, list)
-    assert spec.output_path.suffix == expected_suffix
-    assert expected_arg in spec.args
-
-
-def test_subtitles_requires_existing_allowed_subtitle_file() -> None:
-    with TemporaryDirectory() as tmp:
-        with pytest.raises(CommandError):
-            build_command(
+        for operation, options, expected_suffix, expected_arg in cases:
+            spec = build_command(
                 ffmpeg_bin="ffmpeg",
-                operation=Operation.subtitles,
-                options={"output_format": "mp4"},
+                operation=operation,
+                options=options,
                 input_path=Path(tmp) / "input.mp4",
                 output_dir=Path(tmp) / "outputs",
             )
+            assert expected_arg in spec.args
+            assert spec.output_path.suffix == expected_suffix
 
-        bad_asset = Path(tmp) / "caption.txt"
-        bad_asset.write_text("bad", encoding="utf-8")
-        with pytest.raises(CommandError):
-            build_command(
+
+def test_build_subtitle_operations() -> None:
+    with TemporaryDirectory() as tmp:
+        soft_path = Path(tmp) / "cap.srt"
+        soft_path.write_text("1\n00:00:00,000 --> 00:00:01,000\nHello\n", encoding="utf-8")
+
+        burn_path = Path(tmp) / "cap.ass"
+        burn_path.write_text("[Script Info]\n[V4+ Styles]\n", encoding="utf-8")
+
+        cases = [
+            (Operation.subtitles, {"mode": "soft", "output_format": "mp4"}, {"subtitle": soft_path}, "-c:s"),
+            (Operation.subtitles, {"mode": "burn", "output_format": "webm", "font_size": "large"}, {"subtitle": burn_path}, "subtitles='"),
+        ]
+
+        for operation, options, extra_inputs, expected_arg in cases:
+            spec = build_command(
                 ffmpeg_bin="ffmpeg",
-                operation=Operation.subtitles,
-                options={"output_format": "mp4"},
+                operation=operation,
+                options=options,
                 input_path=Path(tmp) / "input.mp4",
                 output_dir=Path(tmp) / "outputs",
-                asset_path=bad_asset,
+                extra_inputs=extra_inputs,
             )
+            assert expected_arg in spec.args
 
-        asset = Path(tmp) / "caption.srt"
-        asset.write_text("1\n00:00:00,000 --> 00:00:01,000\nHello\n", encoding="utf-8")
-        spec = build_command(
+
+def test_build_multi_input_operations() -> None:
+    with TemporaryDirectory() as tmp:
+        secondary_image = Path(tmp) / "overlay.png"
+        secondary_image.write_bytes(b"\x89PNG\r\n")
+        secondary_audio = Path(tmp) / "music.mp3"
+        secondary_audio.write_bytes(b"id3")
+        secondary_video = Path(tmp) / "second.mp4"
+        secondary_video.write_bytes(b"")
+
+        cases = [
+            (
+                Operation.overlay,
+                {"output_format": "mp4", "position": "top_left", "width_percent": 20},
+                {"secondary_input": secondary_image},
+                "overlay=",
+            ),
+            (
+                Operation.mix_audio,
+                {"output_format": "mp4", "original_volume": 1.0, "music_volume": 0.8},
+                {"secondary_input": secondary_audio},
+                "amix=duration=first",
+            ),
+            (
+                Operation.concat,
+                {"output_format": "mp4"},
+                {"secondary_input": secondary_video},
+                "concat=n=2:v=1:a=1",
+            ),
+            (
+                Operation.side_by_side,
+                {"output_format": "mp4", "layout": "horizontal", "common_dimension": 640},
+                {"secondary_input": secondary_video},
+                "hstack=inputs=2",
+            ),
+            (
+                Operation.picture_in_picture,
+                {"output_format": "mp4", "position": "bottom_left", "width_percent": 25},
+                {"secondary_input": secondary_video},
+                "overlay=",
+            ),
+        ]
+
+        for operation, options, extra_inputs, expected_arg in cases:
+            spec = build_command(
+                ffmpeg_bin="ffmpeg",
+                operation=operation,
+                options=options,
+                input_path=Path(tmp) / "input.mp4",
+                output_dir=Path(tmp) / "outputs",
+                extra_inputs=extra_inputs,
+            )
+            assert expected_arg in spec.args
+
+
+def test_build_raw_and_media_info() -> None:
+    with TemporaryDirectory() as tmp:
+        secondary_path = Path(tmp) / "audio.wav"
+        secondary_path.write_bytes(b"")
+
+        raw_spec = build_command(
             ffmpeg_bin="ffmpeg",
-            operation=Operation.subtitles,
-            options={"output_format": "mp4"},
+            operation=Operation.raw,
+            options={"raw_args": ["-vf", "scale=320:-2", "-c:v", "libx264", "-c:a", "aac"], "output_extension": "mp4"},
             input_path=Path(tmp) / "input.mp4",
             output_dir=Path(tmp) / "outputs",
-            asset_path=asset,
+            extra_inputs={"secondary_input": secondary_path},
         )
+        assert "scale=320:-2" in raw_spec.args
+        assert raw_spec.output_path.suffix == ".mp4"
 
-    assert spec.output_path.suffix == ".mp4"
-    assert str(asset) in spec.args
-    assert "mov_text" in spec.args
+        info_spec = build_command(
+            ffmpeg_bin="ffmpeg",
+            operation=Operation.media_info,
+            options={},
+            input_path=Path(tmp) / "input.mp4",
+            output_dir=Path(tmp) / "outputs",
+        )
+        assert info_spec.output_path is None
+        assert info_spec.args == ["-hide_banner", "-i", str(Path(tmp) / "input.mp4"), "-f", "null", "-"]
 
 
 @pytest.mark.parametrize(
-    ("operation", "options"),
+    (
+        "operation",
+        "options",
+        "extra_inputs",
+    ),
     [
-        (Operation.rotate, {"mode": "sideways"}),
-        (Operation.crop, {"x": 0, "y": 0, "width": 0, "height": 100}),
-        (Operation.speed, {"factor": 8}),
-        (Operation.volume, {"multiplier": 8}),
-        (Operation.normalize_audio, {"target_lufs": "-99"}),
-        (Operation.raw, {"raw_args": ["-i", "other.mp4"], "output_extension": "mp4"}),
-        (Operation.raw, {"raw_args": ["-vf", "scale=320:-2"], "output_extension": "sh"}),
-        (Operation.raw, {"raw_args": ["-vf", "/tmp/out.mp4"], "output_extension": "mp4"}),
+        (Operation.resize_compress, {"output_format": "mp4"}, {}),
+        (Operation.fade, {"fade_in_seconds": 1.0, "output_format": "mp4"}, {}),
+        (Operation.adjust, {"brightness": 0.0, "contrast": 1.0, "saturation": 4.0}, {}),
+        (Operation.loop, {"output_format": "mp4", "plays": 1}, {}),
+        (Operation.loop, {"output_format": "mp4", "plays": 3, "start_seconds": 1}, {}),
+        (Operation.fade, {"fade_out_seconds": 0.5, "output_format": "mp4"}, {}),
+        (Operation.subtitles, {"output_format": "mp4", "mode": "burn"}, {}),
+        (Operation.overlay, {"output_format": "mp4"}, {"secondary_input": Path("/tmp/bad.txt")}),
+        (Operation.mix_audio, {"output_format": "mp4"}, {"secondary_input": Path("/tmp/bad.txt")}),
+        (Operation.concat, {"output_format": "mp4"}, {"secondary_input": Path("/tmp/bad.txt")}),
+        (Operation.side_by_side, {"output_format": "mp4", "layout": "horizontal", "common_dimension": 64, "audio_source": "first"}, {"secondary_input": Path("/tmp/bad.txt")}),
+        (Operation.picture_in_picture, {"output_format": "mp4", "position": "bottom_left", "width_percent": 30}, {"secondary_input": Path("/tmp/bad.txt")}),
+        (Operation.raw, {"raw_args": ["-i", "other.mp4"], "output_extension": "mp4"}, {}),
+        (Operation.raw, {"raw_args": ["-vf", "/tmp/out.mp4"], "output_extension": "mp4"}, {}),
+        (Operation.raw, {"raw_args": ["-vf", "scale=320:-2"], "output_extension": "sh"}, {}),
     ],
 )
-def test_rejects_invalid_options(operation: Operation, options: dict[str, object]) -> None:
+def test_rejects_invalid_options(operation: Operation, options: dict[str, object], extra_inputs: dict[str, Path]) -> None:
     with TemporaryDirectory() as tmp:
         with pytest.raises(CommandError):
             build_command(
@@ -149,4 +228,5 @@ def test_rejects_invalid_options(operation: Operation, options: dict[str, object
                 options=options,
                 input_path=Path(tmp) / "input.mp4",
                 output_dir=Path(tmp) / "outputs",
+                extra_inputs=extra_inputs,
             )

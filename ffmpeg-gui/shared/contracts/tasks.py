@@ -27,7 +27,7 @@ class TaskRequest:
     output_dir: Path
     operation: Operation
     options: dict[str, Any] = field(default_factory=dict)
-    subtitle_path: Path | None = None
+    extra_inputs: dict[str, Path] = field(default_factory=dict)
 
 
 @dataclass
@@ -52,5 +52,5 @@ class TaskRecord:
 
 @dataclass(frozen=True)
 class TaskResult:
-    output_path: Path
+    output_path: Path | None
     output_size: int

@@ -69,6 +69,7 @@ class MainController(QObject):
         self._pending_total: int = 0
         self._current_batch_total: int = 0
         self._stack_items: list[tuple[Operation, dict[str, object], dict[str, Path]]] = []
+        self._prepared_records: list[TaskRecord] = []
 
         self._connect_signals()
 
@@ -112,8 +113,10 @@ class MainController(QObject):
         self.window.set_current_output(None)
         self.window.set_start_enabled(False)
         if not path.exists():
+            self._clear_prepared_records()
             self.window.show_error("输入文件不存在")
             return
+        self._set_prepared_inputs([path], status=TaskStatus.probing, message="正在读取媒体信息")
         self._start_probe(path)
 
     def on_batch_files_selected(self, path_texts: list[str]) -> None:
@@ -131,6 +134,7 @@ class MainController(QObject):
         self.window.reset_progress()
         self.window.set_current_output(None)
         self.window.set_batch_progress(0, len(batch_paths))
+        self._set_prepared_inputs(batch_paths, status=TaskStatus.ready, message="已选择")
         self._refresh_start_state()
         self._refresh_command_preview()
 
@@ -145,10 +149,16 @@ class MainController(QObject):
                 self.state.media_info = None
                 self.window.set_media_info(None)
                 self.window.set_batch_progress(0, len(selected_batch_paths))
+                self._set_prepared_inputs(selected_batch_paths, status=TaskStatus.ready, message="已选择")
             else:
+                self._clear_prepared_records()
                 self.window.set_batch_progress(0, 0)
         else:
             self.state.input_path = self.window.selected_input_path()
+            if self.state.input_path and self.state.input_path.exists():
+                self._set_prepared_inputs([self.state.input_path], status=TaskStatus.ready, message="已选择")
+            else:
+                self._clear_prepared_records()
         self._refresh_start_state()
         self._refresh_command_preview()
 
@@ -156,6 +166,7 @@ class MainController(QObject):
         self.state.batch_input_paths = []
         if self.state.input_mode == "batch":
             self.state.input_path = None
+        self._clear_prepared_records()
         self.window.set_batch_progress(0, 0)
         self._refresh_start_state()
         self._refresh_command_preview()
@@ -230,28 +241,7 @@ class MainController(QObject):
         self._batch_options = options
         self._batch_extra_inputs = extra_inputs
         self.state.batch_input_paths = input_paths
-        self._pending_total = len(input_paths)
-        self._current_batch_total = len(input_paths)
-        self.state.batch_total_items = len(input_paths)
-        self.state.batch_current_index = 0
-        self.state.batch_cancel_requested = False
-        self.state.is_batch_running = True
-        self.task_manager.clear_batch_cancel_flag()
-        self._batch_queue = []
-
-        for input_path in input_paths:
-            task = TaskRecord(operation=operation, input_path=input_path, status=TaskStatus.pending, message="Queued")
-            self.task_state.add(task)
-            self.task_model.append_record(task)
-            self._batch_queue.append((task, input_path))
-
-        self.window.set_progress(None)
-        self.window.set_batch_progress(0, self._current_batch_total)
-        self.window.set_current_output(None)
-        self.window.set_batch_buttons(pending_count=len(self._batch_queue), running=True)
-        self.window.set_busy(True)
-        self.window.clear_log()
-        self._start_next_batch_task()
+        self._start_batch_task(input_paths)
 
     def cancel_current_task(self) -> None:
         if self.state.current_task and self.state.current_task.status is TaskStatus.running:
@@ -413,6 +403,7 @@ class MainController(QObject):
     def _refresh_command_preview(self) -> None:
         try:
             operation, options, extra_inputs = self.window.selected_operation_payload()
+            self._refresh_prepared_operation()
             if self.window.stack_mode():
                 stack_specs = self._collect_stack_specs(operation, options, extra_inputs)
                 if not stack_specs:
@@ -498,6 +489,86 @@ class MainController(QObject):
             return f"{operation_label(operation)} ({extra})"
         return operation_label(operation)
 
+    def _set_prepared_inputs(self, input_paths: list[Path], *, status: TaskStatus, message: str) -> None:
+        self._clear_prepared_records()
+        operation, operation_text = self._queue_operation_display()
+        for input_path in input_paths:
+            record = TaskRecord(
+                operation=operation,
+                operation_text=operation_text,
+                input_path=input_path,
+                status=status,
+                message=message,
+                progress=0.0,
+            )
+            self._prepared_records.append(record)
+            self.task_state.add(record)
+            self.task_model.append_record(record)
+
+    def _clear_prepared_records(self) -> None:
+        if not self._prepared_records:
+            return
+        task_ids = {record.task_id for record in self._prepared_records}
+        self.task_model.remove_records(task_ids)
+        self.task_state.remove_records(task_ids)
+        self._prepared_records.clear()
+
+    def _queue_operation_display(self) -> tuple[Operation, str | None]:
+        selected_operation = self.window.selected_operation()
+        if not self.window.stack_mode():
+            return selected_operation, None
+        if self._stack_items:
+            return self._stack_items[0][0], f"Stack x{len(self._stack_items)}"
+        return selected_operation, "Stack"
+
+    def _refresh_prepared_operation(self) -> None:
+        if not self._prepared_records:
+            return
+        operation, operation_text = self._queue_operation_display()
+        for record in self._prepared_records:
+            record.operation = operation
+            record.operation_text = operation_text
+            record.touch()
+            self.task_model.notify_record_changed(record)
+
+    def _start_record_for_path(
+        self,
+        input_path: Path,
+        *,
+        operation: Operation,
+        operation_text: str | None,
+        output_path: Path | None,
+        status: TaskStatus,
+        message: str,
+        progress: float | None,
+    ) -> TaskRecord:
+        record = self._pop_prepared_record(input_path)
+        if record is None:
+            record = TaskRecord(operation=operation, operation_text=operation_text, input_path=input_path)
+            self.task_state.add(record)
+            self.task_model.append_record(record)
+        record.operation = operation
+        record.operation_text = operation_text
+        record.output_path = output_path
+        record.status = status
+        record.message = message
+        record.progress = progress
+        record.touch()
+        self.task_model.notify_record_changed(record)
+        return record
+
+    def _pop_prepared_record(self, input_path: Path) -> TaskRecord | None:
+        for index, record in enumerate(self._prepared_records):
+            if record.input_path == input_path:
+                return self._prepared_records.pop(index)
+        return None
+
+    def _prepared_record_for_path(self, input_path: Path) -> TaskRecord | None:
+        for record in self._prepared_records:
+            if record.input_path == input_path:
+                return record
+        return None
+
     def _start_single_task(
         self,
         operation: Operation,
@@ -520,12 +591,16 @@ class MainController(QObject):
             self.window.show_error(str(exc))
             return
 
-        task = TaskRecord(operation=operation, input_path=input_path, output_path=spec.output_path)
-        task.progress = None if not self._duration_seconds_for_path(input_path) else 0.0
-        task.message = "Running ffmpeg"
+        task = self._start_record_for_path(
+            input_path,
+            operation=operation,
+            operation_text=None,
+            output_path=spec.output_path,
+            status=TaskStatus.running,
+            message="Running ffmpeg",
+            progress=None if not self._duration_seconds_for_path(input_path) else 0.0,
+        )
         self.state.current_task = task
-        self.task_state.add(task)
-        self.task_model.append_record(task)
 
         self.state.logs = []
         self.window.clear_log()
@@ -562,12 +637,16 @@ class MainController(QObject):
             self.window.show_error(str(exc))
             return
 
-        task = TaskRecord(operation=stack_specs[0][0], input_path=input_path, output_path=spec.output_path)
-        task.progress = None if not self._duration_seconds_for_path(input_path) else 0.0
-        task.message = "Running ffmpeg"
+        task = self._start_record_for_path(
+            input_path,
+            operation=stack_specs[0][0],
+            operation_text=f"Stack x{len(stack_specs)}",
+            output_path=spec.output_path,
+            status=TaskStatus.running,
+            message="Running ffmpeg",
+            progress=None if not self._duration_seconds_for_path(input_path) else 0.0,
+        )
         self.state.current_task = task
-        self.task_state.add(task)
-        self.task_model.append_record(task)
 
         self.state.logs = []
         self.window.clear_log()
@@ -597,11 +676,18 @@ class MainController(QObject):
         self.task_manager.clear_batch_cancel_flag()
         self._batch_queue = []
         display_operation = self._batch_stack_items[0][0] if self._is_batch_stack_mode else self._batch_operation
+        operation_text = f"Stack x{len(self._batch_stack_items)}" if self._is_batch_stack_mode else None
 
         for input_path in input_paths:
-            task = TaskRecord(operation=display_operation, input_path=input_path, status=TaskStatus.pending, message="Queued")
-            self.task_state.add(task)
-            self.task_model.append_record(task)
+            task = self._start_record_for_path(
+                input_path,
+                operation=display_operation,
+                operation_text=operation_text,
+                output_path=None,
+                status=TaskStatus.pending,
+                message="Queued",
+                progress=0.0,
+            )
             self._batch_queue.append((task, input_path))
 
         self.window.set_progress(None)
@@ -723,6 +809,13 @@ class MainController(QObject):
     def _on_probe_error(self, path: Path, message: str) -> None:
         if self.state.input_path != path:
             return
+        record = self._prepared_record_for_path(path)
+        if record is not None:
+            record.status = TaskStatus.ready
+            record.media_info = MediaInfo(raw={"error": message}, duration_seconds=None)
+            record.message = "媒体信息读取失败"
+            record.touch()
+            self.task_model.notify_record_changed(record)
         self.window.show_status(message)
 
     @Slot(object, object)
@@ -731,6 +824,13 @@ class MainController(QObject):
             return
         self.state.media_info = media_info
         self.window.set_media_info(media_info)
+        record = self._prepared_record_for_path(path)
+        if record is not None:
+            record.media_info = media_info
+            record.status = TaskStatus.ready
+            record.message = "媒体信息读取失败" if media_info.has_error else "已读取媒体信息"
+            record.touch()
+            self.task_model.notify_record_changed(record)
         if media_info.has_error:
             self.window.show_status(media_info.error_message or "ffprobe failed")
         else:

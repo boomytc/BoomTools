@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from PySide6.QtWidgets import QGroupBox, QTableView, QVBoxLayout
 
-from desktop.app.ui.delegates import ProgressBarDelegate, StatusBadgeDelegate
+from desktop.app.ui.delegates import MediaSummaryDelegate, ProgressBarDelegate, StatusBadgeDelegate
 from desktop.app.ui.widgets.task_table_model import TaskTableModel
 
 
@@ -10,8 +10,8 @@ class TaskPanel(QGroupBox):
     def __init__(self, task_model: TaskTableModel) -> None:
         super().__init__("任务队列")
         self.setObjectName("taskPanel")
-        self.setMinimumHeight(132)
-        self.setMaximumHeight(150)
+        self.setMinimumHeight(156)
+        self.setMaximumHeight(190)
         layout = QVBoxLayout(self)
         self.task_table = QTableView()
         self.task_table.setObjectName("taskTable")
@@ -24,10 +24,14 @@ class TaskPanel(QGroupBox):
         self.task_table.setShowGrid(False)
         self.task_table.setSortingEnabled(False)
         self.task_table.setItemDelegateForColumn(0, StatusBadgeDelegate(self.task_table))
-        self.task_table.setItemDelegateForColumn(4, ProgressBarDelegate(self.task_table))
+        self.task_table.setItemDelegateForColumn(2, MediaSummaryDelegate(self.task_table))
+        self.task_table.setItemDelegateForColumn(5, ProgressBarDelegate(self.task_table))
         self.task_table.resizeColumnsToContents()
-        self.task_table.setColumnWidth(0, 92)
-        self.task_table.setColumnWidth(1, 160)
-        self.task_table.setColumnWidth(4, 120)
-        self.task_table.setMinimumHeight(92)
+        self.task_table.setColumnWidth(0, 86)
+        self.task_table.setColumnWidth(1, 170)
+        self.task_table.setColumnWidth(2, 280)
+        self.task_table.setColumnWidth(3, 130)
+        self.task_table.setColumnWidth(4, 130)
+        self.task_table.setColumnWidth(5, 120)
+        self.task_table.setMinimumHeight(112)
         layout.addWidget(self.task_table)

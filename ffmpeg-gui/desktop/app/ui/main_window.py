@@ -23,7 +23,7 @@ from desktop.app.runtime.binaries import RuntimeHealth
 from desktop.app.ui.dialogs import LogDialog, SettingsDialog
 from desktop.app.ui.panels import OperationPanel, RuntimePanel, StatusPanel, TaskPanel
 from desktop.app.ui.widgets.task_table_model import TaskTableModel
-from shared.contracts import BATCH_SUPPORTED_OPERATIONS, MediaInfo
+from shared.contracts import BATCH_SUPPORTED_OPERATIONS, MediaInfo, Operation
 
 
 class MainWindow(QMainWindow):
@@ -213,6 +213,9 @@ class MainWindow(QMainWindow):
 
     def selected_operation_payload(self):
         return self.operation_panel.selected_operation_payload()
+
+    def selected_operation(self) -> Operation:
+        return self.operation_panel.selected_operation()
 
     def show_error(self, message: str) -> None:
         self.statusBar().showMessage(message)

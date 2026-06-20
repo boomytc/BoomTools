@@ -11,6 +11,8 @@ from .operations import Operation
 
 
 class TaskStatus(StrEnum):
+    probing = "probing"
+    ready = "ready"
     pending = "pending"
     running = "running"
     succeeded = "succeeded"
@@ -35,6 +37,8 @@ class TaskRecord:
     operation: Operation
     input_path: Path
     output_path: Path | None = None
+    operation_text: str | None = None
+    media_info: Any | None = None
     status: TaskStatus = TaskStatus.pending
     progress: float | None = 0.0
     message: str = "Queued"

@@ -5,7 +5,8 @@ from pathlib import Path
 from desktop.app.controllers.main_controller import MainController
 from desktop.app.core.config import AppConfig
 from desktop.app.runtime.binaries import RuntimeHealth
-from shared.contracts import Operation
+from desktop.app.runtime.ffmpeg import CommandSpec
+from shared.contracts import Operation, TaskStatus
 
 
 class _Signal:
@@ -52,6 +53,9 @@ class _FakeWindow:
 
     def selected_operation_payload(self):
         return self._operation_payload
+
+    def selected_operation(self) -> Operation:
+        return self._operation_payload[0]
 
     def set_operation_payload(self, operation, options: dict[str, object], extra_inputs: dict[str, Path]) -> None:
         self._operation_payload = (operation, options, extra_inputs)
@@ -110,6 +114,9 @@ class _FakeWindow:
     def set_batch_progress(self, *_: object) -> None:
         return None
 
+    def reset_progress(self) -> None:
+        return None
+
     def set_busy(self, *_: object) -> None:
         return None
 
@@ -137,6 +144,7 @@ class _FakeWindow:
     def refresh_stack_controls(self) -> None:
         return None
 
+
 class _ConfigService:
     def load(self) -> AppConfig:
         return AppConfig(ffmpeg_bin="ffmpeg", ffprobe_bin="ffprobe", output_dir=Path("/tmp"))
@@ -151,6 +159,9 @@ class _FfmpegService:
 
     def check_health(self, *_: str) -> RuntimeHealth:
         return self._health
+
+    def build_command(self, *_: object, **__: object) -> CommandSpec:
+        return CommandSpec(args=["ffmpeg", "-i", "input_placeholder", "out.mp4"], output_path=Path("/tmp/out.mp4"), output_name="out.mp4")
 
 
 class _OutputService:
@@ -167,13 +178,17 @@ class _LogService:
 
 
 class _TaskModel:
-    def append_record(self, _record: object) -> None:
-        return None
+    def __init__(self) -> None:
+        self.records: list[object] = []
+
+    def append_record(self, record: object) -> None:
+        self.records.append(record)
 
     def notify_record_changed(self, _record: object) -> None:
         return None
 
-    def remove_records(self, _record_ids: set[str]) -> None:
+    def remove_records(self, record_ids: set[str]) -> None:
+        self.records = [record for record in self.records if getattr(record, "task_id", "") not in record_ids]
         return None
 
 
@@ -194,10 +209,10 @@ class _TaskManager:
         raise AssertionError("should not reach worker creation")
 
 
-def _make_controller(window: _FakeWindow) -> MainController:
+def _make_controller(window: _FakeWindow, task_model: _TaskModel | None = None) -> MainController:
     return MainController(
         window=window,
-        task_model=_TaskModel(),
+        task_model=task_model or _TaskModel(),
         config_service=_ConfigService(),
         ffmpeg_service=_FfmpegService(
             RuntimeHealth(
@@ -276,3 +291,18 @@ def test_batch_mode_rejects_unsupported_operation_even_with_one_file(tmp_path: P
     controller.start_task()
 
     assert any("当前操作不支持批量处理" in message for message in window.error_messages)
+
+
+def test_batch_selection_creates_ready_queue_rows(tmp_path: Path) -> None:
+    window = _FakeWindow()
+    first = tmp_path / "first.mp4"
+    second = tmp_path / "second.mov"
+    first.write_bytes(b"\x00")
+    second.write_bytes(b"\x00")
+    task_model = _TaskModel()
+
+    controller = _make_controller(window, task_model=task_model)
+    controller.on_batch_files_selected([str(first), str(second)])
+
+    assert [record.input_path for record in task_model.records] == [first, second]
+    assert [record.status for record in task_model.records] == [TaskStatus.ready, TaskStatus.ready]

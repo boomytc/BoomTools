@@ -4,6 +4,9 @@ from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 
 from shared.contracts import TaskRecord, operation_label
 
+STATUS_ROLE = int(Qt.ItemDataRole.UserRole) + 1
+PROGRESS_ROLE = int(Qt.ItemDataRole.UserRole) + 2
+
 
 class TaskTableModel(QAbstractTableModel):
     HEADERS = ["状态", "操作", "输入文件", "输出文件", "进度", "消息"]
@@ -19,10 +22,18 @@ class TaskTableModel(QAbstractTableModel):
         return 0 if parent.isValid() else len(self.HEADERS)
 
     def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> object:
-        if not index.isValid() or role not in {Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole}:
+        if not index.isValid():
             return None
         record = self._records[index.row()]
         column = index.column()
+        if role == STATUS_ROLE:
+            return record.status
+        if role == PROGRESS_ROLE:
+            return record.progress
+        if role == Qt.ItemDataRole.TextAlignmentRole and column in {0, 4}:
+            return int(Qt.AlignmentFlag.AlignCenter)
+        if role not in {Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole}:
+            return None
         if column == 0:
             return record.status.value
         if column == 1:
@@ -69,7 +80,17 @@ class TaskTableModel(QAbstractTableModel):
             return
         top_left = self.index(row, 0)
         bottom_right = self.index(row, self.columnCount() - 1)
-        self.dataChanged.emit(top_left, bottom_right, [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole])
+        self.dataChanged.emit(
+            top_left,
+            bottom_right,
+            [
+                Qt.ItemDataRole.DisplayRole,
+                Qt.ItemDataRole.ToolTipRole,
+                Qt.ItemDataRole.TextAlignmentRole,
+                STATUS_ROLE,
+                PROGRESS_ROLE,
+            ],
+        )
 
     def records(self) -> list[TaskRecord]:
         return list(self._records)

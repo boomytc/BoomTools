@@ -11,17 +11,16 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QFormLayout,
     QGroupBox,
-    QHBoxLayout,
     QLabel,
     QLineEdit,
     QPlainTextEdit,
-    QPushButton,
     QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
 from desktop.app.ui.widgets.operation_specs import FIELD_SPECS, RAW_PRESET_OPTIONS
+from desktop.app.ui.widgets.path_picker import PathPicker
 from shared.contracts import MediaInfo, OPERATION_LABELS, Operation
 
 
@@ -79,6 +78,8 @@ class OperationFormWidget(QWidget):
         widget = self._controls.get(field_name)
         if isinstance(widget, QLineEdit):
             widget.setText(path)
+        elif isinstance(widget, PathPicker):
+            widget.set_text(path)
 
     def set_subtitle_path(self, path: str) -> None:
         self.set_file_path("subtitle", path)
@@ -196,19 +197,12 @@ class OperationFormWidget(QWidget):
         return QLabel(f"Unsupported field: {kind}")
 
     def _create_file_widget(self, spec: dict[str, Any]) -> QWidget:
-        container = QWidget()
-        layout = QHBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 0)
-        line = QLineEdit()
-        line.setPlaceholderText(str(spec.get("placeholder", "")))
         filter_text = str(spec.get("filter", "所有文件 (*.*)"))
         field_name = str(spec["name"])
-        button = QPushButton("选择")
-        button.clicked.connect(lambda _checked=False: self.file_browse_requested.emit(field_name, filter_text))
-        layout.addWidget(line, 1)
-        layout.addWidget(button)
-        self._controls[field_name] = line
-        return container
+        picker = PathPicker(placeholder=str(spec.get("placeholder", "")), button_text="选择")
+        picker.browse_requested.connect(lambda: self.file_browse_requested.emit(field_name, filter_text))
+        self._controls[field_name] = picker
+        return picker
 
     def _apply_raw_preset(self, args: str) -> None:
         editor = self._controls.get("raw_args")
@@ -219,6 +213,8 @@ class OperationFormWidget(QWidget):
     def _connect_change_signal(self, widget: QWidget) -> None:
         if isinstance(widget, QLineEdit):
             widget.textChanged.connect(lambda _text: self.spec_changed.emit())
+        elif isinstance(widget, PathPicker):
+            widget.text_changed.connect(lambda _text: self.spec_changed.emit())
         elif isinstance(widget, QPlainTextEdit):
             widget.textChanged.connect(lambda: self.spec_changed.emit())
         elif isinstance(widget, QComboBox):

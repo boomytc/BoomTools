@@ -17,7 +17,7 @@
 ## 范围与反目标
 
 - 按 `ffmpeg` 原生能力完成非模型功能复现，不接入 Whisper / 自动字幕模型 / Transformers.js / ffmpeg.wasm。
-- 操作名使用本项目 `snake_case`：`resize_compress`、`side_by_side`、`picture_in_picture`、`media_info` 等，不提供上游历史别名兼容层。
+- 操作名使用本项目 `snake_case`：`resize_compress`、`side_by_side`、`picture_in_picture`、`media_info` 等，按本项目单一命名规范实现。
 - 不引入 FastAPI、WebUI、数据库、远程服务或持久任务系统。
 
 ## 安装

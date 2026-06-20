@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from shared.contracts import MediaInfo, Operation
+from shared.contracts import MediaInfo, Operation, STACK_FILTER_OPERATIONS
 
 from .ffmpeg import (
     _as_bool,
@@ -21,20 +21,6 @@ from .ffmpeg import (
     _pad_filter_for_aspect_ratio,
     _trim_input_args,
 )
-
-STACK_FILTER_OPERATIONS = {
-    Operation.resize_compress,
-    Operation.crop,
-    Operation.rotate,
-    Operation.adjust,
-    Operation.denoise,
-    Operation.sharpen_blur,
-    Operation.pad,
-    Operation.volume,
-    Operation.speed,
-    Operation.fade,
-}
-
 
 def build_stack_command(
     *,

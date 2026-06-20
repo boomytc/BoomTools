@@ -112,7 +112,7 @@ class _FakeWindow:
     def set_stack_mode(self, *_: object) -> None:
         return None
 
-    def _update_stack_add_enabled(self) -> None:
+    def refresh_stack_controls(self) -> None:
         return None
 
 class _ConfigService:

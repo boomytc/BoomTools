@@ -7,7 +7,7 @@ from PySide6.QtCore import QThread
 
 from desktop.app.core.config import AppConfig
 from desktop.app.runtime.ffmpeg import CommandError, CommandSpec
-from desktop.app.runtime.filter_chain import STACK_FILTER_OPERATIONS, build_stack_command
+from desktop.app.runtime.filter_chain import build_stack_command
 from desktop.app.services.config_service import ConfigService
 from desktop.app.services.ffmpeg_service import FfmpegService
 from desktop.app.services.log_service import LogService
@@ -18,7 +18,7 @@ from desktop.app.ui.main_window import MainWindow
 from desktop.app.ui.widgets.task_table_model import TaskTableModel
 from desktop.app.viewmodels.app_state import AppState
 from desktop.app.viewmodels.task_state import TaskState
-from shared.contracts import MediaInfo, Operation, TaskRecord, TaskRequest, TaskResult, TaskStatus, operation_label
+from shared.contracts import MediaInfo, Operation, STACK_FILTER_OPERATIONS, TaskRecord, TaskRequest, TaskResult, TaskStatus, operation_label
 
 
 SUBTITLE_EXTENSIONS = {".srt", ".vtt", ".ass", ".ssa"}
@@ -297,7 +297,7 @@ class MainController:
         self._refresh_command_preview()
 
     def _refresh_stack_buttons(self) -> None:
-        self.window._update_stack_add_enabled()
+        self.window.refresh_stack_controls()
         self.window.set_stack_items([self._format_stack_item(item) for item in self._stack_items])
 
     def _on_stack_add_requested(self) -> None:

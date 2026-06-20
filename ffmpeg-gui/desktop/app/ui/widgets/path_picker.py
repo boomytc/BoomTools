@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import Signal
-from PySide6.QtWidgets import QHBoxLayout, QLineEdit, QPushButton, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLineEdit, QPushButton, QSizePolicy, QWidget
 
 
 class PathPicker(QWidget):
@@ -20,9 +20,11 @@ class PathPicker(QWidget):
         super().__init__()
         self.setObjectName("pathPicker")
         self.setProperty("role", "pathPicker")
+        self.setMinimumHeight(40)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(0, 1, 0, 1)
         layout.setSpacing(8)
 
         self.line_edit = QLineEdit()

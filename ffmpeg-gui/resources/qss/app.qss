@@ -123,13 +123,17 @@ QLabel#settingsDescription {
 
 /* Containers */
 QFrame#runtimePanel,
+QFrame#commandPreviewPanel,
+QFrame#taskPanel,
 QGroupBox {
   background: #151824;
   border: 1px solid #4a5065;
   border-radius: 8px;
 }
 
-QFrame#runtimePanel {
+QFrame#runtimePanel,
+QFrame#commandPreviewPanel,
+QFrame#taskPanel {
   padding: 0;
 }
 
@@ -197,7 +201,8 @@ QLabel#dropTitle {
 
 QLabel#mutedLabel,
 QLabel#batchProgressLabel,
-QLabel#outputEstimateLabel {
+QLabel#outputEstimateLabel,
+QLabel#totalProgressLabel {
   color: #91a0b8;
 }
 

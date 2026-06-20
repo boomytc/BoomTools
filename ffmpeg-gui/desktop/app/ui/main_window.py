@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 from desktop.app.core.constants import WINDOW_TITLE
 from desktop.app.runtime.binaries import RuntimeHealth
 from desktop.app.ui.dialogs import LogDialog, SettingsDialog
-from desktop.app.ui.panels import OperationPanel, RuntimePanel, StatusPanel, TaskPanel
+from desktop.app.ui.panels import CommandPreviewPanel, OperationPanel, RuntimePanel, StatusPanel, TaskPanel
 from desktop.app.ui.widgets.task_table_model import TaskTableModel
 from shared.contracts import BATCH_SUPPORTED_OPERATIONS, MediaInfo, Operation
 
@@ -67,6 +67,7 @@ class MainWindow(QMainWindow):
         self.runtime_panel = RuntimePanel()
         self.operation_panel = OperationPanel()
         self.status_panel = StatusPanel()
+        self.command_preview_panel = CommandPreviewPanel()
         self.task_panel = TaskPanel(task_model)
         self.settings_dialog = SettingsDialog(self)
         self.log_dialog = LogDialog(self)
@@ -108,6 +109,7 @@ class MainWindow(QMainWindow):
         splitter.setSizes([520, 700])
         root.addWidget(splitter, 1)
 
+        root.addWidget(self.command_preview_panel)
         root.addWidget(self.task_panel)
         self.setCentralWidget(central)
         self.statusBar().showMessage("Ready")
@@ -170,10 +172,10 @@ class MainWindow(QMainWindow):
         self.operation_panel.set_batch_buttons(pending_count=pending_count, running=running)
 
     def set_progress(self, progress: float | None) -> None:
-        self.status_panel.set_progress(progress)
+        self.task_panel.refresh_total_progress()
 
     def reset_progress(self) -> None:
-        self.status_panel.reset_progress()
+        self.task_panel.refresh_total_progress()
 
     def append_log(self, line: str) -> None:
         self.log_dialog.append_log(line)
@@ -205,6 +207,7 @@ class MainWindow(QMainWindow):
     def set_batch_input_mode(self, enabled: bool) -> None:
         self.runtime_panel.set_batch_input_mode(enabled, emit=False)
         self.operation_panel.set_batch_input_mode(enabled, BATCH_SUPPORTED_OPERATIONS)
+        self.command_preview_panel.set_batch_mode(enabled)
 
     def set_batch_input_paths(self, paths: list[str | Path]) -> None:
         self.runtime_panel.set_batch_paths(paths)
@@ -216,7 +219,7 @@ class MainWindow(QMainWindow):
         self.refresh_stack_controls()
 
     def set_command_preview(self, command: str) -> None:
-        self.status_panel.set_command_preview(command)
+        self.command_preview_panel.set_command(command)
 
     def set_output_estimate(self, estimate: str) -> None:
         self.status_panel.set_output_estimate(estimate)
@@ -326,10 +329,12 @@ class MainWindow(QMainWindow):
         self.status_panel.open_output_requested.connect(self.open_output_requested.emit)
         self.status_panel.open_output_dir_requested.connect(self.open_output_dir_requested.emit)
         self.status_panel.copy_output_path_requested.connect(self.copy_output_path_requested.emit)
+        self.command_preview_panel.command_copied.connect(lambda: self.show_status("已复制命令预览到剪贴板"))
         self.log_dialog.cleared.connect(self._mark_log_cleared)
 
     def _on_input_mode_changed(self, batch_mode: bool) -> None:
         self.operation_panel.set_batch_input_mode(batch_mode, BATCH_SUPPORTED_OPERATIONS)
+        self.command_preview_panel.set_batch_mode(batch_mode)
         self.input_mode_changed.emit(batch_mode)
 
     def _create_masthead(self) -> QFrame:

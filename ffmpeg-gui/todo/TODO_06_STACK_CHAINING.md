@@ -37,36 +37,36 @@
 
 ## Runtime Checklist
 
-- [ ] 新增 `filter_chain.py` 或等价模块：
-  - [ ] 将可链式 operation 转成 `{vf: list[str], af: list[str]}`。
-  - [ ] 明确不支持的 operation 返回结构化错误。
-  - [ ] 不把所有命令构建迁移到链式架构；只处理 Stack 路径。
-- [ ] 新增 `build_stack_command(...)`：
-  - [ ] 输入路径仍由 GUI 管理。
-  - [ ] trim 仍作为输入级 `-ss/-t`。
-  - [ ] 输出 codec 统一由最终输出格式决定。
-  - [ ] 单次 `-vf` / `-af` 合成。
-- [ ] 处理 filter 顺序：
-  - [ ] 用户添加顺序就是执行顺序。
-  - [ ] 不做智能重排。
-  - [ ] 需要 duration 的 fade 依赖媒体信息。
+- [x] 新增 `filter_chain.py` 或等价模块：
+  - [x] 将可链式 operation 转成 `{vf: list[str], af: list[str]}`。
+  - [x] 明确不支持的 operation 返回结构化错误。
+  - [x] 不把所有命令构建迁移到链式架构；只处理 Stack 路径。
+- [x] 新增 `build_stack_command(...)`：
+  - [x] 输入路径仍由 GUI 管理。
+  - [x] trim 仍作为输入级 `-ss/-t`。
+  - [x] 输出 codec 统一由最终输出格式决定。
+  - [x] 单次 `-vf` / `-af` 合成。
+- [x] 处理 filter 顺序：
+  - [x] 用户添加顺序就是执行顺序。
+  - [x] 不做智能重排。
+  - [x] 需要 duration 的 fade 依赖媒体信息。
 
 ## UI Checklist
 
-- [ ] 增加“单操作 / Stack”模式切换。
-- [ ] 在 Stack 模式下：
-  - [ ] 配置当前 operation 后可“添加到 Stack”。
-  - [ ] Stack 列表支持上移、下移、删除、清空。
-  - [ ] 不支持 Stack 的 operation 禁用并显示原因。
-  - [ ] 显示组合命令预览。
-- [ ] 批处理模式和 Stack 可以组合，但必须在 TODO 05 完成后再接入。
+- [x] 增加“单操作 / Stack”模式切换。
+- [x] 在 Stack 模式下：
+  - [x] 配置当前 operation 后可“添加到 Stack”。
+  - [x] Stack 列表支持上移、下移、删除、清空。
+  - [x] 不支持 Stack 的 operation 禁用并显示原因。
+  - [x] 显示组合命令预览。
+- [x] 批处理模式和 Stack 可以组合，但必须在 TODO 05 完成后再接入。
 
 ## 测试 Checklist
 
-- [ ] `crop -> adjust -> pad` 组合命令构建通过。
-- [ ] `speed -> fade` 保持用户顺序。
-- [ ] 不支持 operation 加入 Stack 会失败。
-- [ ] 集成 smoke 至少执行一个 3 步 Stack。
+- [x] `crop -> adjust -> pad` 组合命令构建通过。
+- [x] `speed -> fade` 保持用户顺序。
+- [x] 不支持 operation 加入 Stack 会失败。
+- [x] 集成 smoke 至少执行一个 3 步 Stack。
 
 ## 反目标
 
@@ -80,4 +80,3 @@
 - Stack 模式下多个滤镜只执行一次 ffmpeg。
 - 组合命令预览与实际执行参数一致。
 - 单操作模式不受 Stack 改造影响。
-

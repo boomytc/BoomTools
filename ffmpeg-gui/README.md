@@ -15,6 +15,12 @@
 - Raw FFmpeg 高级参数模式，输入和输出路径仍由应用统一管理
 - 单任务运行、进度、日志、取消、打开输出文件和打开输出目录
 
+## 范围与反目标
+
+- 按 `ffmpeg` 原生能力完成非模型功能复现，不接入 Whisper / 自动字幕模型 / Transformers.js / ffmpeg.wasm。
+- 操作名使用本项目 `snake_case`：`resize_compress`、`side_by_side`、`picture_in_picture`、`media_info` 等，不提供上游历史别名兼容层。
+- 不引入 FastAPI、WebUI、数据库、远程服务或持久任务系统。
+
 ## 安装
 
 需要 `uv`、Python 3.14、本机 `ffmpeg` 和 `ffprobe`。

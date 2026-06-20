@@ -15,16 +15,16 @@
 ## 通用设计
 
 - 扩展 `TaskRequest`：
-  - [ ] `extra_inputs: dict[str, Path]` 或等价结构。
-  - [ ] 不再继续滥用 `subtitle_path`。
-  - [ ] 保留当前单输入 operation 的简单调用方式。
+  - [x] `extra_inputs: dict[str, Path]` 或等价结构。
+  - [x] 不再继续滥用 `subtitle_path`。
+  - [x] 保留当前单输入 operation 的简单调用方式。
 - 扩展 `OperationFormWidget`：
-  - [ ] 支持 operation-specific 文件选择字段。
-  - [ ] 文件选择只通过 `QFileDialog` 或可键入本机路径。
-  - [ ] 文件后缀按 operation allowlist 校验。
+  - [x] 支持 operation-specific 文件选择字段。
+  - [x] 文件选择只通过 `QFileDialog` 或可键入本机路径。
+  - [x] 文件后缀按 operation allowlist 校验。
 - 输出默认：
-  - [ ] 多输入视频输出优先 `mp4`。
-  - [ ] 必要时允许 `mkv|mov|webm`。
+  - [x] 多输入视频输出优先 `mp4`。
+  - [x] 必要时允许 `mkv|mov|webm`。
 
 ## Operation 设计
 
@@ -89,10 +89,10 @@
 
 ## 测试 Checklist
 
-- [ ] 每个 operation 缺第二输入时失败。
-- [ ] 第二输入后缀不允许时失败。
-- [ ] 每个 operation 成功构建参数数组。
-- [ ] 集成 smoke 创建两个短视频、一个音频、一个图片，分别验证输出存在且非空。
+- [x] 每个 operation 缺第二输入时失败。
+- [x] 第二输入后缀不允许时失败。
+- [x] 每个 operation 成功构建参数数组。
+- [x] 集成 smoke 创建两个短视频、一个音频、一个图片，分别验证输出存在且非空。
 
 ## 反目标
 
@@ -106,4 +106,3 @@
 - 五个多输入 operation 都能从 GUI 选择第二输入并成功执行。
 - 关闭 GUI 或取消任务时不残留 ffmpeg 进程。
 - 单输入 operation 不受 `extra_inputs` 改造影响。
-

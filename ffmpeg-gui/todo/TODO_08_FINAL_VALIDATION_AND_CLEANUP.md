@@ -6,48 +6,48 @@
 
 ## 全量功能验收矩阵
 
-- [ ] 基础：
-  - [ ] `convert`
-  - [ ] `resize_compress`
-  - [ ] `compress`
-  - [ ] `extract_audio`
-  - [ ] `gif`
-  - [ ] `mute`
-- [ ] 视频编辑：
-  - [ ] `speed`
-  - [ ] `rotate`
-  - [ ] `crop`
-  - [ ] `thumbnail`
-  - [ ] `reverse`
-  - [ ] `fade`
-  - [ ] `adjust`
-  - [ ] `loop`
-  - [ ] `pad`
-  - [ ] `denoise`
-  - [ ] `boomerang`
-  - [ ] `sharpen_blur`
-- [ ] 音频：
-  - [ ] `volume`
-  - [ ] `normalize_audio`
-  - [ ] `mix_audio`
-- [ ] 字幕和信息：
-  - [ ] `subtitles` soft
-  - [ ] `subtitles` burn
-  - [ ] `media_info`
-- [ ] 多输入：
-  - [ ] `overlay`
-  - [ ] `concat`
-  - [ ] `side_by_side`
-  - [ ] `picture_in_picture`
-- [ ] 高级：
-  - [ ] `raw`
-  - [ ] Raw 第二输入
-  - [ ] Raw 示例命令
-- [ ] 工作流：
-  - [ ] 批处理
-  - [ ] Stack 链式处理
-  - [ ] 命令预览
-  - [ ] 输出估算
+- [x] 基础：
+  - [x] `convert`
+  - [x] `resize_compress`
+  - [x] `compress`
+  - [x] `extract_audio`
+  - [x] `gif`
+  - [x] `mute`
+- [x] 视频编辑：
+  - [x] `speed`
+  - [x] `rotate`
+  - [x] `crop`
+  - [x] `thumbnail`
+  - [x] `reverse`
+  - [x] `fade`
+  - [x] `adjust`
+  - [x] `loop`
+  - [x] `pad`
+  - [x] `denoise`
+  - [x] `boomerang`
+  - [x] `sharpen_blur`
+- [x] 音频：
+  - [x] `volume`
+  - [x] `normalize_audio`
+  - [x] `mix_audio`
+- [x] 字幕和信息：
+  - [x] `subtitles` soft
+  - [x] `subtitles` burn
+  - [x] `media_info`
+- [x] 多输入：
+  - [x] `overlay`
+  - [x] `concat`
+  - [x] `side_by_side`
+  - [x] `picture_in_picture`
+- [x] 高级：
+  - [x] `raw`
+  - [x] Raw 第二输入
+  - [x] Raw 示例命令
+- [x] 工作流：
+  - [x] 批处理
+  - [x] Stack 链式处理
+  - [x] 命令预览
+  - [x] 输出估算
 
 ## 验证命令
 
@@ -61,28 +61,28 @@ QT_QPA_PLATFORM=offscreen uv run python -c 'from PySide6.QtWidgets import QAppli
 
 ## 清理 Checklist
 
-- [ ] 删除实现过程中临时创建但不再使用的 helper、TODO stub 或实验文件。
-- [ ] 检查没有 `pyproject.toml`、`pytest.ini` 这类已确认冗余配置回流。
-- [ ] 检查没有上游 operation id alias：
-  - [ ] `resizecompress`
-  - [ ] `stripmeta`
-  - [ ] `mixaudio`
-  - [ ] `sxs`
-  - [ ] `pip`
-  - [ ] `autocaption`
-- [ ] 检查没有 Web/PWA/wasm 代码：
-  - [ ] service worker
-  - [ ] browser worker
-  - [ ] ffmpeg.wasm
-  - [ ] Transformers.js
-- [ ] 清理生成物：
-  - [ ] `__pycache__`
-  - [ ] `.pytest_cache`
-  - [ ] `data/config.json`
-  - [ ] `data/logs/*.log`
-  - [ ] smoke 测试临时媒体
-- [ ] 更新 `README.md` 功能列表、安装命令、验证命令。
-- [ ] 更新 `AGENTS.md`，只保留当前真实架构和 YAGNI 决策。
+- [x] 删除实现过程中临时创建但不再使用的 helper、TODO stub 或实验文件。
+- [x] 检查没有 `pyproject.toml`、`pytest.ini` 这类已确认冗余配置回流。
+- [x] 检查没有上游 operation id alias：
+  - [x] `resizecompress`
+  - [x] `stripmeta`
+  - [x] `mixaudio`
+  - [x] `sxs`
+  - [x] `pip`
+  - [x] `autocaption`
+- [x] 检查没有 Web/PWA/wasm 代码：
+  - [x] service worker
+  - [x] browser worker
+  - [x] ffmpeg.wasm
+  - [x] Transformers.js
+- [x] 清理生成物：
+  - [x] `__pycache__`
+  - [x] `.pytest_cache`
+  - [x] `data/config.json`
+  - [x] `data/logs/*.log`
+  - [x] smoke 测试临时媒体
+- [x] 更新 `README.md` 功能列表、安装命令、验证命令。
+- [x] 更新 `AGENTS.md`，只保留当前真实架构和 YAGNI 决策。
 
 ## 反目标
 
@@ -100,4 +100,3 @@ QT_QPA_PLATFORM=offscreen uv run python -c 'from PySide6.QtWidgets import QAppli
 - Whisper / Auto-Caption 不存在于运行时功能中。
 - 没有兼容性历史冗余。
 - 没有超出本机个人工具阶段的过度实现。
-

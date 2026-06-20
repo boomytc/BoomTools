@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Token 生成速度可视化</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="stylesheet" href="./static/styles.css" />
+    <script defer src="./static/app.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  </head>
+  <body class="min-h-screen bg-[#f4f6f5] text-zinc-950">
+    <main
+      x-data="tokenVisualizer()"
+      x-cloak
+      class="mx-auto flex min-h-screen w-full max-w-6xl flex-col gap-6 px-4 py-5 sm:px-6 lg:px-8"
+    >
+      <section class="flex flex-col gap-4 border-b border-zinc-200 pb-5 md:flex-row md:items-end md:justify-between">
+        <div class="space-y-2">
+          <p class="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-700">Token speed lab</p>
+          <h1 class="text-3xl font-semibold tracking-tight text-zinc-950 sm:text-4xl" x-text="t.title"></h1>
+        </div>
+
+        <div class="relative self-start md:self-auto">
+          <button
+            type="button"
+            class="control-button bg-white text-zinc-900"
+            @click="languageMenuOpen = !languageMenuOpen"
+            @keydown.escape.window="languageMenuOpen = false"
+            :aria-expanded="languageMenuOpen.toString()"
+          >
+            <span x-text="language === 'zh' ? '中文' : 'English'"></span>
+          </button>
+          <div
+            x-show="languageMenuOpen"
+            x-transition
+            @click.outside="languageMenuOpen = false"
+            class="absolute right-0 z-20 mt-2 w-36 border border-zinc-200 bg-white shadow-lg"
+          >
+            <button type="button" class="menu-option" :class="{ 'is-active': language === 'zh' }" @click="setLanguage('zh')">中文</button>
+            <button type="button" class="menu-option" :class="{ 'is-active': language === 'en' }" @click="setLanguage('en')">English</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid flex-1 gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div class="output-panel">
+          <div class="flex items-center justify-between gap-3 border-b border-zinc-200 px-4 py-3">
+            <div>
+              <p class="text-sm font-semibold text-zinc-900" x-text="t.output"></p>
+              <p class="text-xs text-zinc-500" x-text="t.outputMeta"></p>
+            </div>
+            <div class="h-2 w-28 overflow-hidden bg-zinc-200">
+              <div class="h-full bg-emerald-500 transition-[width]" :style="`width: ${progressPercent}%`"></div>
+            </div>
+          </div>
+
+          <pre
+            x-ref="output"
+            class="output-surface"
+            :class="{ 'is-empty': !generatedText }"
+            x-text="generatedText || t.placeholder"
+          ></pre>
+        </div>
+
+        <aside class="control-panel">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between gap-3">
+              <label for="speed" class="text-sm font-semibold text-zinc-900" x-text="t.speed"></label>
+              <span class="tabular text-sm font-semibold text-emerald-700">
+                <span x-text="speed"></span> tokens/s
+              </span>
+            </div>
+            <input
+              id="speed"
+              type="range"
+              min="1"
+              max="100"
+              step="1"
+              class="range-input"
+              x-model.number="speed"
+              :disabled="isRunning"
+            />
+            <div class="flex justify-between text-xs text-zinc-500">
+              <span>1</span>
+              <span>25</span>
+              <span>50</span>
+              <span>75</span>
+              <span>100</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <button type="button" class="primary-button" @click="start" :disabled="isRunning" x-text="t.start"></button>
+            <button type="button" class="secondary-button" @click="reset" x-text="isRunning ? t.stop : t.reset"></button>
+          </div>
+
+          <div class="grid gap-3">
+            <div class="stat-row">
+              <span x-text="t.tokens"></span>
+              <strong x-text="tokenCount"></strong>
+            </div>
+            <div class="stat-row">
+              <span x-text="t.elapsed"></span>
+              <strong><span x-text="elapsedSeconds.toFixed(2)"></span>s</strong>
+            </div>
+            <div class="stat-row">
+              <span x-text="t.actual"></span>
+              <strong><span x-text="actualSpeed.toFixed(2)"></span> tokens/s</strong>
+            </div>
+          </div>
+        </aside>
+      </section>
+    </main>
+  </body>
+</html>

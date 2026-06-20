@@ -37,6 +37,7 @@ class _FakeWindow:
         self.cancel_requested = _Signal()
         self.cancel_queue_requested = _Signal()
         self.remove_pending_requested = _Signal()
+        self.task_remove_requested = _Signal()
         self.stack_mode_toggled = _Signal()
         self.stack_add_requested = _Signal()
         self.stack_move_up_requested = _Signal()
@@ -179,17 +180,20 @@ class _LogService:
 
 class _TaskModel:
     def __init__(self) -> None:
-        self.records: list[object] = []
+        self._records: list[object] = []
 
     def append_record(self, record: object) -> None:
-        self.records.append(record)
+        self._records.append(record)
 
     def notify_record_changed(self, _record: object) -> None:
         return None
 
     def remove_records(self, record_ids: set[str]) -> None:
-        self.records = [record for record in self.records if getattr(record, "task_id", "") not in record_ids]
+        self._records = [record for record in self._records if getattr(record, "task_id", "") not in record_ids]
         return None
+
+    def records(self) -> list[object]:
+        return list(self._records)
 
 
 class _TaskManager:
@@ -306,8 +310,8 @@ def test_batch_selection_creates_ready_queue_rows(tmp_path: Path) -> None:
     controller = _make_controller(window, task_model=task_model)
     controller.on_batch_files_selected([str(first), str(second)])
 
-    assert [record.input_path for record in task_model.records] == [first, second]
-    assert [record.status for record in task_model.records] == [TaskStatus.ready, TaskStatus.ready]
+    assert [record.input_path for record in task_model.records()] == [first, second]
+    assert [record.status for record in task_model.records()] == [TaskStatus.ready, TaskStatus.ready]
 
 
 def test_file_selection_appends_to_existing_queue_rows(tmp_path: Path) -> None:
@@ -323,4 +327,40 @@ def test_file_selection_appends_to_existing_queue_rows(tmp_path: Path) -> None:
     controller.on_batch_files_selected([str(first), str(second)])
     controller.on_batch_files_selected([str(third)])
 
-    assert [record.input_path for record in task_model.records] == [first, second, third]
+    assert [record.input_path for record in task_model.records()] == [first, second, third]
+
+
+def test_remove_task_removes_single_prepared_queue_row(tmp_path: Path) -> None:
+    window = _FakeWindow()
+    first = tmp_path / "first.mp4"
+    second = tmp_path / "second.mov"
+    first.write_bytes(b"\x00")
+    second.write_bytes(b"\x00")
+    task_model = _TaskModel()
+
+    controller = _make_controller(window, task_model=task_model)
+    controller.on_batch_files_selected([str(first), str(second)])
+    task_id = task_model.records()[0].task_id
+    controller.remove_task(task_id)
+
+    assert [record.input_path for record in task_model.records()] == [second]
+    assert controller._prepared_input_paths() == [second]
+    assert window.selected_batch_paths() == [second]
+
+
+def test_remove_task_rejects_running_task(tmp_path: Path) -> None:
+    window = _FakeWindow()
+    first = tmp_path / "running.mp4"
+    second = tmp_path / "queued.mp4"
+    first.write_bytes(b"\x00")
+    second.write_bytes(b"\x00")
+    task_model = _TaskModel()
+
+    controller = _make_controller(window, task_model=task_model)
+    controller.on_batch_files_selected([str(first), str(second)])
+    record = task_model.records()[0]
+    record.status = TaskStatus.running
+    controller.remove_task(record.task_id)
+
+    assert task_model.records()[0] == record
+    assert any("不可移除" in message for message in window.status_messages)

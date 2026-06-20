@@ -35,6 +35,7 @@ class MainWindow(QMainWindow):
     cancel_requested = Signal()
     cancel_queue_requested = Signal()
     remove_pending_requested = Signal()
+    task_remove_requested = Signal(str)
     open_output_requested = Signal()
     open_output_dir_requested = Signal()
     stack_mode_toggled = Signal(bool)
@@ -288,6 +289,7 @@ class MainWindow(QMainWindow):
         self.task_panel.open_output_requested.connect(self.open_output_requested.emit)
         self.task_panel.open_output_dir_requested.connect(self.open_output_dir_requested.emit)
         self.task_panel.copy_output_path_requested.connect(self.copy_output_path_requested.emit)
+        self.task_panel.remove_task_requested.connect(self.task_remove_requested.emit)
         self.command_preview_panel.command_copied.connect(lambda: self.show_status("已复制命令预览到剪贴板"))
         self.log_dialog.cleared.connect(self._mark_log_cleared)
 

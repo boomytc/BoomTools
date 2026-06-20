@@ -4,12 +4,37 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt
 
-from desktop.app.ui.widgets.task_table_model import MEDIA_SUMMARY_ROLE, TaskTableModel
+from desktop.app.ui.widgets.task_table_model import ACTION_ENABLED_ROLE, MEDIA_SUMMARY_ROLE, TaskTableModel
 from shared.contracts import MediaInfo, Operation, TaskRecord, TaskStatus
 
 
 def test_task_table_columns_match_queue_design() -> None:
-    assert TaskTableModel.HEADERS == ["状态", "输入媒体", "操作", "输出", "进度", "消息"]
+    assert TaskTableModel.HEADERS == ["状态", "输入媒体", "处理动作", "输出", "进度", "消息", "操作"]
+
+
+def test_task_table_operation_column_uses_short_action_label() -> None:
+    record = TaskRecord(operation=Operation.convert, input_path=Path("clip.mov"), status=TaskStatus.ready)
+    model = TaskTableModel()
+    model.append_record(record)
+
+    index = model.index(0, 2)
+
+    assert model.data(index, Qt.ItemDataRole.DisplayRole) == "转换格式"
+    tooltip = str(model.data(index, Qt.ItemDataRole.ToolTipRole))
+    assert "处理动作：转换格式" in tooltip
+    assert "分类：基础" in tooltip
+
+
+def test_task_table_remove_action_enabled_by_task_status() -> None:
+    ready_record = TaskRecord(operation=Operation.convert, input_path=Path("ready.mov"), status=TaskStatus.ready)
+    running_record = TaskRecord(operation=Operation.convert, input_path=Path("running.mov"), status=TaskStatus.running)
+    model = TaskTableModel()
+    model.append_record(ready_record)
+    model.append_record(running_record)
+
+    assert model.data(model.index(0, 6), Qt.ItemDataRole.DisplayRole) == "移除"
+    assert model.data(model.index(0, 6), ACTION_ENABLED_ROLE) is True
+    assert model.data(model.index(1, 6), ACTION_ENABLED_ROLE) is False
 
 
 def test_task_table_media_summary_uses_tags(tmp_path: Path) -> None:

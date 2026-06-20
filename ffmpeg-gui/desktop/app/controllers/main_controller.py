@@ -254,6 +254,44 @@ class MainController(QObject):
         self.window.set_batch_buttons(pending_count=0, running=False)
         self.window.set_start_enabled(self.state.can_start())
 
+    def remove_task(self, task_id: str) -> None:
+        record = self._task_record_by_id(task_id)
+        if record is None:
+            return
+        if record.status in {TaskStatus.probing, TaskStatus.running}:
+            self.window.show_status("运行中或读取中的任务不可移除，请先取消")
+            return
+
+        was_prepared = any(prepared.task_id == task_id for prepared in self._prepared_records)
+        self._prepared_records = [prepared for prepared in self._prepared_records if prepared.task_id != task_id]
+
+        previous_queue_count = len(self._batch_queue)
+        self._batch_queue = [(queued_record, path) for queued_record, path in self._batch_queue if queued_record.task_id != task_id]
+        was_queued = len(self._batch_queue) != previous_queue_count
+
+        self.task_model.remove_records({task_id})
+        self.task_state.remove_records({task_id})
+        if self.state.current_task and self.state.current_task.task_id == task_id:
+            self.state.current_task = None
+            self.window.set_current_output(None)
+
+        if was_prepared:
+            input_paths = self._prepared_input_paths()
+            self._sync_input_state(input_paths)
+            self.state.media_info = None
+            self.window.set_media_info(None)
+            self.window.set_batch_progress(0, len(input_paths))
+            self._refresh_start_state()
+            self._refresh_command_preview()
+
+        if was_queued and self.state.is_batch_running:
+            self._current_batch_total = self.state.batch_current_index + len(self._batch_queue)
+            self.state.batch_total_items = self._current_batch_total
+            self.window.set_batch_progress(self.state.batch_current_index, self._current_batch_total)
+            self.window.set_batch_buttons(pending_count=len(self._batch_queue), running=True)
+
+        self.window.show_status("已从任务队列移除任务")
+
     def open_output(self) -> None:
         self.window.open_output()
 
@@ -282,6 +320,7 @@ class MainController(QObject):
         self.window.cancel_requested.connect(self.cancel_current_task)
         self.window.cancel_queue_requested.connect(self.cancel_batch)
         self.window.remove_pending_requested.connect(self.remove_pending_batch_tasks)
+        self.window.task_remove_requested.connect(self.remove_task)
         self.window.stack_mode_toggled.connect(self._on_stack_mode_toggled)
         self.window.stack_add_requested.connect(self._on_stack_add_requested)
         self.window.stack_move_up_requested.connect(self._on_stack_move_up_requested)
@@ -507,6 +546,12 @@ class MainController(QObject):
         self.task_model.remove_records(task_ids)
         self.task_state.remove_records(task_ids)
         self._prepared_records.clear()
+
+    def _task_record_by_id(self, task_id: str) -> TaskRecord | None:
+        for record in self.task_model.records():
+            if record.task_id == task_id:
+                return record
+        return None
 
     def _queue_operation_display(self) -> tuple[Operation, str | None]:
         selected_operation = self.window.selected_operation()
@@ -927,6 +972,7 @@ class MainController(QObject):
     def _remove_pending_records(self, records: list[TaskRecord]) -> None:
         pending_ids = {record.task_id for record in records}
         self.task_model.remove_records(pending_ids)
+        self.task_state.remove_records(pending_ids)
 
     def _append_log(self, line: str) -> None:
         self.state.logs.append(line)

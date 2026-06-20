@@ -5,15 +5,16 @@ from typing import Any
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 
-from shared.contracts import MediaInfo, TaskRecord, TaskStatus, operation_label
+from shared.contracts import MediaInfo, Operation, TaskRecord, TaskStatus, operation_label
 
 STATUS_ROLE = int(Qt.ItemDataRole.UserRole) + 1
 PROGRESS_ROLE = int(Qt.ItemDataRole.UserRole) + 2
 MEDIA_SUMMARY_ROLE = int(Qt.ItemDataRole.UserRole) + 3
+ACTION_ENABLED_ROLE = int(Qt.ItemDataRole.UserRole) + 4
 
 
 class TaskTableModel(QAbstractTableModel):
-    HEADERS = ["状态", "输入媒体", "操作", "输出", "进度", "消息"]
+    HEADERS = ["状态", "输入媒体", "处理动作", "输出", "进度", "消息", "操作"]
 
     def __init__(self) -> None:
         super().__init__()
@@ -40,7 +41,9 @@ class TaskTableModel(QAbstractTableModel):
             if column == 3:
                 return self._output_summary_tags(record)
             return []
-        if role == Qt.ItemDataRole.TextAlignmentRole and column in {0, 4}:
+        if role == ACTION_ENABLED_ROLE:
+            return column == 6 and _task_can_be_removed(record)
+        if role == Qt.ItemDataRole.TextAlignmentRole and column in {0, 4, 6}:
             return int(Qt.AlignmentFlag.AlignCenter)
         if role not in {Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole}:
             return None
@@ -51,7 +54,7 @@ class TaskTableModel(QAbstractTableModel):
         if column == 1:
             return record.input_path.name if role == Qt.ItemDataRole.DisplayRole else str(record.input_path)
         if column == 2:
-            return record.operation_text or operation_label(record.operation)
+            return record.operation_text or _operation_short_label(record.operation)
         if column == 3:
             if not record.output_path:
                 return "待生成" if role == Qt.ItemDataRole.DisplayRole else ""
@@ -62,6 +65,8 @@ class TaskTableModel(QAbstractTableModel):
             return f"{int(record.progress * 100)}%"
         if column == 5:
             return record.message
+        if column == 6:
+            return "移除"
         return None
 
     def headerData(
@@ -169,10 +174,11 @@ class TaskTableModel(QAbstractTableModel):
                 return f"输入文件：{record.input_path.name}\n路径：{record.input_path}\n媒体摘要：{tags}\n读取失败：{media_info.error_message}"
             return f"输入文件：{record.input_path.name}\n路径：{record.input_path}\n媒体摘要：{tags}"
         if column == 2:
-            operation = record.operation_text or operation_label(record.operation)
+            operation = record.operation_text or _operation_short_label(record.operation)
+            category = _operation_category_label(record.operation)
             if record.operation_text:
-                return f"操作：{operation}\n基础操作：{operation_label(record.operation)}"
-            return f"操作：{operation}"
+                return f"处理动作：{operation}\n首个动作：{_operation_short_label(record.operation)}\n分类：{category}"
+            return f"处理动作：{operation}\n分类：{category}"
         if column == 3:
             tags = " · ".join(self._output_summary_tags(record))
             if not record.output_path:
@@ -184,6 +190,10 @@ class TaskTableModel(QAbstractTableModel):
             return f"进度：{int(record.progress * 100)}%"
         if column == 5:
             return record.message
+        if column == 6:
+            if _task_can_be_removed(record):
+                return "从任务队列移除此任务"
+            return "运行中或读取中的任务不可移除，请先取消"
         return ""
 
 
@@ -256,6 +266,24 @@ def _format_resolution(height: int) -> str:
     if height >= 720:
         return "720p"
     return f"{height}p"
+
+
+def _operation_short_label(operation: Operation) -> str:
+    label = operation_label(operation)
+    if " - " not in label:
+        return label
+    return label.split(" - ", 1)[1]
+
+
+def _operation_category_label(operation: Operation) -> str:
+    label = operation_label(operation)
+    if " - " not in label:
+        return "未分类"
+    return label.split(" - ", 1)[0]
+
+
+def _task_can_be_removed(record: TaskRecord) -> bool:
+    return record.status not in {TaskStatus.probing, TaskStatus.running}
 
 
 def _codec_label(value: object) -> str:

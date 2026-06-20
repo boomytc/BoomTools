@@ -4,7 +4,7 @@ from PySide6.QtCore import QRect, Qt
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import QApplication, QStyle, QStyleOptionViewItem, QStyledItemDelegate
 
-from desktop.app.ui.widgets.task_table_model import MEDIA_SUMMARY_ROLE, PROGRESS_ROLE, STATUS_ROLE
+from desktop.app.ui.widgets.task_table_model import ACTION_ENABLED_ROLE, MEDIA_SUMMARY_ROLE, PROGRESS_ROLE, STATUS_ROLE
 from shared.contracts import TaskStatus
 
 
@@ -121,20 +121,23 @@ class FileSummaryDelegate(QStyledItemDelegate):
 
     def _draw_tags(self, painter: QPainter, rect: QRect, tags: list[str]) -> None:
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        tag_font = painter.font()
+        tag_font.setPointSize(max(9, tag_font.pointSize() - 2))
+        painter.setFont(tag_font)
         metrics = painter.fontMetrics()
         x = rect.x() + 10
-        y = rect.bottom() - 24
+        y = rect.bottom() - 21
         max_x = rect.right() - 10
 
         for index, tag in enumerate(tags):
-            chip_width = min(max(42, metrics.horizontalAdvance(tag) + 18), 88)
+            chip_width = min(max(30, metrics.horizontalAdvance(tag) + 12), 72)
             if x + chip_width > max_x:
                 remaining = len(tags) - index
-                if remaining > 0 and x + 44 <= max_x:
-                    self._draw_chip(painter, QRect(x, y, 40, 22), f"+{remaining}", error=False)
+                if remaining > 0 and x + 34 <= max_x:
+                    self._draw_chip(painter, QRect(x, y, 32, 18), f"+{remaining}", error=False)
                 return
-            self._draw_chip(painter, QRect(x, y, chip_width, 22), tag, error=tag == "读取失败")
-            x += chip_width + 5
+            self._draw_chip(painter, QRect(x, y, chip_width, 18), tag, error=tag == "读取失败")
+            x += chip_width + 4
 
     def _draw_chip(self, painter: QPainter, rect: QRect, text: str, *, error: bool) -> None:
         if error:
@@ -160,3 +163,45 @@ class FileSummaryDelegate(QStyledItemDelegate):
 
 
 MediaSummaryDelegate = FileSummaryDelegate
+
+
+class RemoveActionDelegate(QStyledItemDelegate):
+    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index) -> None:  # type: ignore[override]
+        enabled = bool(index.data(ACTION_ENABLED_ROLE))
+        label = str(index.data() or "移除")
+
+        painter.save()
+        self._draw_item_background(painter, option, index)
+        self._draw_button(painter, option.rect, label, enabled=enabled)
+        painter.restore()
+
+    def _draw_button(self, painter: QPainter, rect: QRect, text: str, *, enabled: bool) -> None:
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        button_width = min(54, max(38, rect.width() - 16))
+        button_height = min(22, max(18, rect.height() - 14))
+        button_rect = QRect(
+            rect.x() + (rect.width() - button_width) // 2,
+            rect.y() + (rect.height() - button_height) // 2,
+            button_width,
+            button_height,
+        )
+        if enabled:
+            background = QColor("#202638")
+            foreground = QColor("#d8e0ef")
+            border = QColor("#4a536a")
+        else:
+            background = QColor("#171b26")
+            foreground = QColor("#687386")
+            border = QColor("#30364a")
+
+        painter.setPen(QPen(border))
+        painter.setBrush(background)
+        painter.drawRoundedRect(button_rect, 5, 5)
+        painter.setPen(QPen(foreground))
+        painter.drawText(button_rect, Qt.AlignmentFlag.AlignCenter, text)
+
+    def _draw_item_background(self, painter: QPainter, option: QStyleOptionViewItem, index) -> None:
+        opt = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        opt.text = ""
+        QApplication.style().drawControl(QStyle.ControlElement.CE_ItemViewItem, opt, painter)

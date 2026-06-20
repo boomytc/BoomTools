@@ -36,7 +36,7 @@
   - `boomerang`
   - `sharpenblur`
   - `raw`
-- 当前 `ffmpeg-gui` 已有 14 个 operation，缺口集中在单输入滤镜、多输入合成、批处理、链式处理和增强体验。
+- 当前 `ffmpeg-gui` 已实现完整操作清单为 27 个（含单输入、多输入、字幕、Stack、批处理可见能力），剩余集中在细化体验与覆盖项。
 
 ## 目标 operation 命名
 
@@ -64,11 +64,11 @@
 
 ## Checklist
 
-- [ ] 在 `shared/contracts/operations.py` 中只增加目标 snake_case operation，不加入上游 id alias。
-- [ ] 更新 `OPERATION_LABELS`，按“基础 / 视频编辑 / 音频 / 字幕 / 多输入 / 高级 / 信息”分组展示。
-- [ ] 明确 `autocaption` 不进入 `Operation`，也不做 disabled 占位入口。
-- [ ] 更新测试中的目标 operation 清单，确保当前 14 个 operation 仍然保留。
-- [ ] 在 `README.md` 中说明本项目复现的是本机 ffmpeg 功能，不复现 Whisper/PWA/wasm。
+- [x] 在 `shared/contracts/operations.py` 中只增加目标 snake_case operation，不加入上游 id alias。
+- [x] 更新 `OPERATION_LABELS`，按“基础 / 视频编辑 / 音频 / 字幕 / 多输入 / 高级 / 信息”分组展示。
+- [x] 明确 `autocaption` 不进入 `Operation`，也不做 disabled 占位入口。
+- [x] 更新测试中的目标 operation 清单，覆盖当前 27 个 operation 与功能分层。
+- [x] 在 `README.md` 中说明本项目复现的是本机 ffmpeg 功能，不复现 Whisper/PWA/wasm。
 
 ## 反目标
 
@@ -80,4 +80,3 @@
 
 - `rg -n "resizecompress|stripmeta|mixaudio|sxs|pip|autocaption" ffmpeg-gui/desktop ffmpeg-gui/shared ffmpeg-gui/tests` 只允许出现在 TODO 文档或注释解释中，不允许出现在运行时合同或业务分支中。
 - `uv run python -m pytest tests/desktop` 通过。
-

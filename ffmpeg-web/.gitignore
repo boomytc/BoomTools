@@ -1,0 +1,3 @@
+# FFmpeg Web 缓存文件
+data/
+*.log

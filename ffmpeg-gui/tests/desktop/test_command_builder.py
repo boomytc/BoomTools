@@ -5,17 +5,23 @@ from tempfile import TemporaryDirectory
 
 import pytest
 
-from desktop.app.runtime.ffmpeg import CommandError, build_command
+from desktop.app.runtime.ffmpeg import (
+    CommandError,
+    build_command,
+    build_media_info_command,
+)
 from shared.contracts import Operation
 
 
 def test_convert_uses_allowlisted_format_and_argument_array() -> None:
     with TemporaryDirectory() as tmp:
+        input_path = Path(tmp) / "input.mov"
+        input_path.write_bytes(b"\x00")
         spec = build_command(
             ffmpeg_bin="ffmpeg",
             operation=Operation.convert,
             options={"output_format": "mp4"},
-            input_path=Path(tmp) / "input.mov",
+            input_path=input_path,
             output_dir=Path(tmp) / "outputs",
         )
 
@@ -28,30 +34,36 @@ def test_convert_uses_allowlisted_format_and_argument_array() -> None:
 
 def test_rejects_unknown_operation() -> None:
     with TemporaryDirectory() as tmp:
+        input_path = Path(tmp) / "input.mp4"
+        input_path.write_bytes(b"\x00")
         with pytest.raises(CommandError):
             build_command(
                 ffmpeg_bin="ffmpeg",
                 operation="stack",
                 options={},
-                input_path=Path(tmp) / "input.mp4",
+                input_path=input_path,
                 output_dir=Path(tmp) / "outputs",
             )
 
 
 def test_rejects_unknown_format() -> None:
     with TemporaryDirectory() as tmp:
+        input_path = Path(tmp) / "input.mp4"
+        input_path.write_bytes(b"\x00")
         with pytest.raises(CommandError):
             build_command(
                 ffmpeg_bin="ffmpeg",
                 operation=Operation.convert,
                 options={"output_format": "exe"},
-                input_path=Path(tmp) / "input.mp4",
+                input_path=input_path,
                 output_dir=Path(tmp) / "outputs",
             )
 
 
 def test_build_single_input_operations() -> None:
     with TemporaryDirectory() as tmp:
+        input_path = Path(tmp) / "input.mp4"
+        input_path.write_bytes(b"\x00")
         cases = [
             (Operation.convert, {"output_format": "avi"}, ".avi", "-c:v"),
             (Operation.compress, {"output_format": "webm", "crf": 28, "preset": "veryfast", "width": 320}, ".webm", "libvpx-vp9"),
@@ -60,7 +72,8 @@ def test_build_single_input_operations() -> None:
             (Operation.mute, {"output_format": "mp4"}, ".mp4", "-an"),
             (Operation.rotate, {"mode": "hvflip", "output_format": "mp4"}, ".mp4", "hflip,vflip"),
             (Operation.crop, {"x": 0, "y": 0, "width": 320, "height": 180, "output_format": "mp4"}, ".mp4", "crop=320:180:0:0"),
-            (Operation.thumbnail, {"timestamp_seconds": 0.5, "image_format": "jpg"}, ".gif", "-frames:v"),
+            (Operation.thumbnail, {"timestamp_seconds": 0.5, "image_format": "jpg"}, ".jpg", "-frames:v"),
+            (Operation.thumbnail, {"timestamp_seconds": 0.5, "image_format": "png"}, ".png", "-frames:v"),
             (Operation.speed, {"factor": 2, "output_format": "mp4"}, ".mp4", "setpts=0.5*PTS"),
             (Operation.volume, {"multiplier": 0.5, "output_format": "mp4"}, ".mp4", "volume=0.5"),
             (Operation.strip_metadata, {"output_format": "mp4"}, ".mp4", "-map_metadata"),
@@ -82,7 +95,7 @@ def test_build_single_input_operations() -> None:
                 ffmpeg_bin="ffmpeg",
                 operation=operation,
                 options=options,
-                input_path=Path(tmp) / "input.mp4",
+                input_path=input_path,
                 output_dir=Path(tmp) / "outputs",
             )
             assert expected_arg in spec.args
@@ -91,6 +104,8 @@ def test_build_single_input_operations() -> None:
 
 def test_build_subtitle_operations() -> None:
     with TemporaryDirectory() as tmp:
+        input_path = Path(tmp) / "input.mp4"
+        input_path.write_bytes(b"\x00")
         soft_path = Path(tmp) / "cap.srt"
         soft_path.write_text("1\n00:00:00,000 --> 00:00:01,000\nHello\n", encoding="utf-8")
 
@@ -107,7 +122,7 @@ def test_build_subtitle_operations() -> None:
                 ffmpeg_bin="ffmpeg",
                 operation=operation,
                 options=options,
-                input_path=Path(tmp) / "input.mp4",
+                input_path=input_path,
                 output_dir=Path(tmp) / "outputs",
                 extra_inputs=extra_inputs,
             )
@@ -116,6 +131,8 @@ def test_build_subtitle_operations() -> None:
 
 def test_build_multi_input_operations() -> None:
     with TemporaryDirectory() as tmp:
+        input_path = Path(tmp) / "input.mp4"
+        input_path.write_bytes(b"\x00")
         secondary_image = Path(tmp) / "overlay.png"
         secondary_image.write_bytes(b"\x89PNG\r\n")
         secondary_audio = Path(tmp) / "music.mp3"
@@ -161,15 +178,17 @@ def test_build_multi_input_operations() -> None:
                 ffmpeg_bin="ffmpeg",
                 operation=operation,
                 options=options,
-                input_path=Path(tmp) / "input.mp4",
+                input_path=input_path,
                 output_dir=Path(tmp) / "outputs",
                 extra_inputs=extra_inputs,
             )
             assert expected_arg in spec.args
 
 
-def test_build_raw_and_media_info() -> None:
+def test_build_raw_and_media_info_command() -> None:
     with TemporaryDirectory() as tmp:
+        input_path = Path(tmp) / "input.mp4"
+        input_path.write_bytes(b"\x00")
         secondary_path = Path(tmp) / "audio.wav"
         secondary_path.write_bytes(b"")
 
@@ -177,22 +196,24 @@ def test_build_raw_and_media_info() -> None:
             ffmpeg_bin="ffmpeg",
             operation=Operation.raw,
             options={"raw_args": ["-vf", "scale=320:-2", "-c:v", "libx264", "-c:a", "aac"], "output_extension": "mp4"},
-            input_path=Path(tmp) / "input.mp4",
+            input_path=input_path,
             output_dir=Path(tmp) / "outputs",
             extra_inputs={"secondary_input": secondary_path},
         )
         assert "scale=320:-2" in raw_spec.args
         assert raw_spec.output_path.suffix == ".mp4"
 
-        info_spec = build_command(
+
+def test_build_media_info_command_uses_ffmpeg_binary() -> None:
+    with TemporaryDirectory() as tmp:
+        input_path = Path(tmp) / "input.mp4"
+        input_path.write_bytes(b"\x00")
+        info_spec = build_media_info_command(
             ffmpeg_bin="ffmpeg",
-            operation=Operation.media_info,
-            options={},
-            input_path=Path(tmp) / "input.mp4",
-            output_dir=Path(tmp) / "outputs",
+            input_path=input_path,
         )
         assert info_spec.output_path is None
-        assert info_spec.args == ["-hide_banner", "-i", str(Path(tmp) / "input.mp4"), "-f", "null", "-"]
+        assert info_spec.args == ["ffmpeg", "-hide_banner", "-i", str(input_path), "-f", "null", "-"]
 
 
 @pytest.mark.parametrize(
@@ -203,11 +224,11 @@ def test_build_raw_and_media_info() -> None:
     ),
     [
         (Operation.resize_compress, {"output_format": "mp4"}, {}),
-        (Operation.fade, {"fade_in_seconds": 1.0, "output_format": "mp4"}, {}),
         (Operation.adjust, {"brightness": 0.0, "contrast": 1.0, "saturation": 4.0}, {}),
         (Operation.loop, {"output_format": "mp4", "plays": 1}, {}),
         (Operation.loop, {"output_format": "mp4", "plays": 3, "start_seconds": 1}, {}),
         (Operation.fade, {"fade_out_seconds": 0.5, "output_format": "mp4"}, {}),
+        (Operation.fade, {"fade_in_seconds": 0.3, "fade_out_seconds": 0.5, "output_format": "mp4"}, {}),
         (Operation.subtitles, {"output_format": "mp4", "mode": "burn"}, {}),
         (Operation.overlay, {"output_format": "mp4"}, {"secondary_input": Path("/tmp/bad.txt")}),
         (Operation.mix_audio, {"output_format": "mp4"}, {"secondary_input": Path("/tmp/bad.txt")}),
@@ -221,12 +242,14 @@ def test_build_raw_and_media_info() -> None:
 )
 def test_rejects_invalid_options(operation: Operation, options: dict[str, object], extra_inputs: dict[str, Path]) -> None:
     with TemporaryDirectory() as tmp:
+        input_path = Path(tmp) / "input.mp4"
+        input_path.write_bytes(b"\x00")
         with pytest.raises(CommandError):
             build_command(
                 ffmpeg_bin="ffmpeg",
                 operation=operation,
                 options=options,
-                input_path=Path(tmp) / "input.mp4",
+                input_path=input_path,
                 output_dir=Path(tmp) / "outputs",
                 extra_inputs=extra_inputs,
             )

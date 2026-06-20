@@ -81,6 +81,7 @@ def build_stack_command(
 
     output_name = _output_name(input_path, final_operation, output_format)
     output_path = _unique_output_path(output_dir / output_name)
+    args.append(str(output_path))
     return CommandSpec(args=args, output_path=output_path, output_name=output_path.name)
 
 

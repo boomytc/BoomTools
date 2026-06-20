@@ -22,10 +22,12 @@ def test_crop_adjust_pad_keeps_filter_order() -> None:
             stack=stack,
         )
 
+        assert spec.args[-1] == str(spec.output_path)
         vf_index = spec.args.index("-vf")
         vf_expr = spec.args[vf_index + 1]
         assert vf_expr.index("crop=") < vf_expr.index("eq=") < vf_expr.index("pad=")
-        assert spec.args[-1].endswith(".mp4")
+        assert spec.output_path is not None
+        assert spec.output_path.suffix == ".mp4"
 
 
 def test_speed_fade_keeps_filter_order_and_separation() -> None:

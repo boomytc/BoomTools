@@ -108,9 +108,6 @@ def build_command(
 
     normalized = dict(options or {})
 
-    if op is Operation.media_info:
-        return CommandSpec(args=_media_info_args(input_path), output_path=None, output_name=None)
-
     output_ext = _output_extension(op, normalized)
     output_name = _output_name(input_path, op, output_ext)
     output_path = _unique_output_path(output_dir / output_name)
@@ -130,6 +127,12 @@ def build_command(
     args.extend(_operation_args(op, normalized, ffmpeg_bin=ffmpeg_bin))
     args.append(str(output_path))
     return CommandSpec(args=args, output_path=output_path, output_name=output_path.name)
+
+
+def build_media_info_command(*, ffmpeg_bin: str, input_path: Path) -> CommandSpec:
+    args = [ffmpeg_bin]
+    args.extend(_media_info_args(input_path))
+    return CommandSpec(args=args, output_path=None, output_name=None)
 
 
 def parse_progress_line(line: str, duration_seconds: float | None) -> float | None:
@@ -570,6 +573,8 @@ def _operation_args(
 
 
 def _output_extension(operation: Operation, options: dict[str, Any]) -> str:
+    if operation is Operation.thumbnail:
+        return _choice(options.get("image_format", "jpg"), {"jpg", "png"}, "image_format")
     if operation in {
         Operation.convert,
         Operation.resize_compress,
@@ -586,7 +591,6 @@ def _output_extension(operation: Operation, options: dict[str, Any]) -> str:
         Operation.denoise,
         Operation.boomerang,
         Operation.sharpen_blur,
-        Operation.thumbnail,
         Operation.volume,
         Operation.strip_metadata,
         Operation.normalize_audio,

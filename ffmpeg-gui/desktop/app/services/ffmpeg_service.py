@@ -4,7 +4,12 @@ import subprocess
 from pathlib import Path
 
 from desktop.app.runtime.binaries import RuntimeHealth, binary_available, resolve_binary_path
-from desktop.app.runtime.ffmpeg import CommandSpec, build_command, validate_subtitles_burn_support
+from desktop.app.runtime.ffmpeg import (
+    CommandSpec,
+    build_command,
+    build_media_info_command,
+    validate_subtitles_burn_support,
+)
 from desktop.app.runtime.probe import probe_media
 from shared.contracts import Operation
 from shared.contracts import MediaInfo, TaskRequest
@@ -46,6 +51,8 @@ class FfmpegService:
         return probe_media(ffprobe_bin, input_path)
 
     def build_command(self, ffmpeg_bin: str, request: TaskRequest) -> CommandSpec:
+        if request.operation is Operation.media_info:
+            return build_media_info_command(ffmpeg_bin=ffmpeg_bin, input_path=request.input_path)
         if request.operation is Operation.subtitles and str(request.options.get("mode", "soft")).strip().lower() == "burn":
             if not validate_subtitles_burn_support(ffmpeg_bin):
                 raise ValueError(

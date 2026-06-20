@@ -206,6 +206,20 @@ QLabel#totalProgressLabel {
   color: #91a0b8;
 }
 
+QLabel#operationSelectionLabel {
+  color: #edf4ff;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 1px 0 0 0;
+}
+
+QLabel#formSectionLabel {
+  color: #aeb9ce;
+  font-size: 12px;
+  font-weight: 800;
+  margin-top: 2px;
+}
+
 QLabel#mediaChip {
   color: #d8e6ff;
   background: #202638;
@@ -426,9 +440,11 @@ QPushButton[role="operationCard"] {
   background: #202435;
   border: 1px solid #4b5368;
   border-radius: 7px;
-  padding: 8px 6px;
-  min-width: 92px;
-  min-height: 58px;
+  padding: 4px 6px;
+  min-width: 76px;
+  min-height: 32px;
+  font-size: 12px;
+  font-weight: 800;
   text-align: center;
 }
 

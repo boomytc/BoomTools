@@ -44,20 +44,22 @@ class OperationFormWidget(QWidget):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(12)
+        layout.setSpacing(10)
 
-        operation_group = QGroupBox("操作")
+        operation_group = QGroupBox("处理动作")
+        operation_group.setObjectName("operationGroup")
         operation_layout = QVBoxLayout(operation_group)
-        operation_layout.setSpacing(10)
-        self.operation_hint = QLabel("选择一个处理动作，然后在下方确认参数。")
+        operation_layout.setSpacing(8)
+        self.operation_hint = QLabel("先选择一个处理动作，参数会在下方更新。")
         self.operation_hint.setObjectName("mutedLabel")
         operation_layout.addWidget(self.operation_hint)
 
         self.operation_button_group = QButtonGroup(self)
         self.operation_button_group.setExclusive(True)
         operation_grid = QGridLayout()
-        operation_grid.setHorizontalSpacing(8)
-        operation_grid.setVerticalSpacing(8)
+        operation_grid.setHorizontalSpacing(7)
+        operation_grid.setVerticalSpacing(7)
+        operation_columns = 6
         for index, operation in enumerate(OPERATION_LABELS):
             button = QPushButton(_operation_card_text(operation))
             button.setCheckable(True)
@@ -65,30 +67,51 @@ class OperationFormWidget(QWidget):
             button.setCursor(Qt.CursorShape.PointingHandCursor)
             button.setToolTip(OPERATION_LABELS[operation])
             button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-            button.setMinimumHeight(62)
+            button.setMinimumHeight(36)
             button.clicked.connect(lambda _checked=False, op=operation: self._select_operation(op))
             self.operation_button_group.addButton(button)
             self._operation_buttons[operation] = button
-            operation_grid.addWidget(button, index // 4, index % 4)
+            operation_grid.addWidget(button, index // operation_columns, index % operation_columns)
         operation_layout.addLayout(operation_grid)
         layout.addWidget(operation_group)
 
-        common_group = QGroupBox("通用裁剪时间")
-        common_layout = QFormLayout(common_group)
+        self.parameters_group = QGroupBox("参数")
+        self.parameters_group.setObjectName("parameterGroup")
+        parameters_layout = QVBoxLayout(self.parameters_group)
+        parameters_layout.setSpacing(8)
+
+        self.selected_operation_label = QLabel()
+        self.selected_operation_label.setObjectName("operationSelectionLabel")
+        parameters_layout.addWidget(self.selected_operation_label)
+
+        range_label = QLabel("处理范围（可选）")
+        range_label.setObjectName("formSectionLabel")
+        parameters_layout.addWidget(range_label)
+
+        common_layout = QFormLayout()
+        _configure_form_layout(common_layout)
         self.start_seconds_edit = QLineEdit()
-        self.start_seconds_edit.setPlaceholderText("可选，开始秒数")
+        self.start_seconds_edit.setPlaceholderText("留空则从开头开始")
         self.end_seconds_edit = QLineEdit()
-        self.end_seconds_edit.setPlaceholderText("可选，结束秒数")
+        self.end_seconds_edit.setPlaceholderText("留空则处理到结尾")
+        self.start_seconds_edit.setToolTip("可选。填写秒数后，从该时间点开始处理。")
+        self.end_seconds_edit.setToolTip("可选。填写秒数后，在该时间点结束处理。")
         self.start_seconds_edit.textChanged.connect(lambda _text: self.spec_changed.emit())
         self.end_seconds_edit.textChanged.connect(lambda _text: self.spec_changed.emit())
         common_layout.addRow("开始", self.start_seconds_edit)
         common_layout.addRow("结束", self.end_seconds_edit)
-        layout.addWidget(common_group)
+        parameters_layout.addLayout(common_layout)
 
-        self.fields_group = QGroupBox("参数")
-        self.fields_layout = QFormLayout(self.fields_group)
-        layout.addWidget(self.fields_group)
-        layout.addStretch(1)
+        self.fields_label = QLabel("动作参数")
+        self.fields_label.setObjectName("formSectionLabel")
+        parameters_layout.addWidget(self.fields_label)
+        self.fields_layout = QFormLayout()
+        _configure_form_layout(self.fields_layout)
+        parameters_layout.addLayout(self.fields_layout)
+        self.empty_fields_label = QLabel("当前动作无需额外参数。")
+        self.empty_fields_label.setObjectName("mutedLabel")
+        parameters_layout.addWidget(self.empty_fields_label)
+        layout.addWidget(self.parameters_group)
 
         self._select_operation(self._selected_operation, emit=False)
 
@@ -100,7 +123,7 @@ class OperationFormWidget(QWidget):
         self._sync_operation_button_states()
         self.start_seconds_edit.setEnabled(enabled)
         self.end_seconds_edit.setEnabled(enabled)
-        self.fields_group.setEnabled(enabled)
+        self.parameters_group.setEnabled(enabled)
 
     def set_batch_operation_support(self, enabled: bool, supported_operations: AbstractSet[Operation]) -> None:
         self._batch_mode = enabled
@@ -169,14 +192,19 @@ class OperationFormWidget(QWidget):
 
     def _render_fields(self) -> None:
         self._clear_fields()
+        self._sync_selected_operation_label()
         operation = self.selected_operation()
+        has_fields = False
         for spec in FIELD_SPECS.get(operation, []):
+            has_fields = True
             name = str(spec["name"])
             widget = self._create_widget(spec)
             control = self._controls.get(name, widget)
             self._controls.setdefault(name, widget)
             self.fields_layout.addRow(str(spec["label"]), widget)
             self._connect_change_signal(control)
+        self.fields_label.setVisible(has_fields)
+        self.empty_fields_label.setVisible(not has_fields)
 
     def _clear_fields(self) -> None:
         self._controls.clear()
@@ -343,7 +371,11 @@ class OperationFormWidget(QWidget):
         if self._batch_mode:
             self.operation_hint.setText("批量模式仅启用可对多个文件重复执行的动作。")
             return
-        self.operation_hint.setText("选择一个处理动作，然后在下方确认参数。")
+        self.operation_hint.setText("先选择一个处理动作，参数会在下方更新。")
+
+    def _sync_selected_operation_label(self) -> None:
+        title, category = _operation_title_and_category(self._selected_operation)
+        self.selected_operation_label.setText(f"{title} · {category}")
 
     def _sync_operation_button_states(self) -> None:
         for operation, button in self._operation_buttons.items():
@@ -417,8 +449,21 @@ _OPERATION_SHORT_LABELS: dict[Operation, str] = {
 }
 
 
-def _operation_card_text(operation: Operation) -> str:
+def _operation_title_and_category(operation: Operation) -> tuple[str, str]:
     label = OPERATION_LABELS[operation]
     category, _, fallback_title = label.partition(" - ")
     title = _OPERATION_SHORT_LABELS.get(operation, fallback_title or label)
-    return f"{title}\n{category}"
+    return title, category or "通用"
+
+
+def _operation_card_text(operation: Operation) -> str:
+    title, _category = _operation_title_and_category(operation)
+    return title
+
+
+def _configure_form_layout(layout: QFormLayout) -> None:
+    layout.setContentsMargins(0, 0, 0, 0)
+    layout.setHorizontalSpacing(10)
+    layout.setVerticalSpacing(8)
+    layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+    layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)

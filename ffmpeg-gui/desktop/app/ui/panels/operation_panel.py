@@ -52,7 +52,7 @@ class OperationPanel(QWidget):
         self.operation_form.file_browse_requested.connect(self.file_browse_requested.emit)
         self.operation_form.spec_changed.connect(self.refresh_stack_controls)
         self.operation_form.spec_changed.connect(self.command_preview_requested.emit)
-        layout.addWidget(self.operation_form, 1)
+        layout.addWidget(self.operation_form)
 
         button_row = QHBoxLayout()
         button_row.setSpacing(8)
@@ -83,6 +83,7 @@ class OperationPanel(QWidget):
         self.stack_panel.move_down_requested.connect(self.stack_move_down_requested.emit)
         self.stack_panel.remove_requested.connect(self.stack_remove_requested.emit)
         self.stack_panel.clear_requested.connect(self.stack_clear_requested.emit)
+        self.stack_panel.setVisible(False)
         layout.addWidget(self.stack_panel)
 
     def selected_operation_payload(self) -> tuple[Operation, dict[str, object], dict[str, Path]]:
@@ -126,6 +127,7 @@ class OperationPanel(QWidget):
     def set_stack_mode(self, enabled: bool) -> None:
         self.stack_mode_radio.setChecked(enabled)
         self.single_mode_radio.setChecked(not enabled)
+        self.stack_panel.setVisible(enabled)
         self.stack_panel.set_stack_mode(enabled)
         self.refresh_stack_controls()
 

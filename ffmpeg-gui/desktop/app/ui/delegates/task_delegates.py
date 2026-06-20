@@ -99,23 +99,32 @@ class ProgressBarDelegate(QStyledItemDelegate):
         QApplication.style().drawControl(QStyle.ControlElement.CE_ItemViewItem, opt, painter)
 
 
-class MediaSummaryDelegate(QStyledItemDelegate):
+class FileSummaryDelegate(QStyledItemDelegate):
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index) -> None:  # type: ignore[override]
         tags = index.data(MEDIA_SUMMARY_ROLE) or []
         if not isinstance(tags, list):
             tags = []
+        title = str(index.data() or "")
 
         painter.save()
         self._draw_item_background(painter, option, index)
+        self._draw_title(painter, option.rect, title)
         self._draw_tags(painter, option.rect, [str(tag) for tag in tags])
         painter.restore()
+
+    def _draw_title(self, painter: QPainter, rect: QRect, title: str) -> None:
+        text_rect = rect.adjusted(10, 6, -10, -26)
+        metrics = painter.fontMetrics()
+        text = metrics.elidedText(title, Qt.TextElideMode.ElideRight, max(24, text_rect.width()))
+        painter.setPen(QPen(QColor("#d7e2f5")))
+        painter.drawText(text_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, text)
 
     def _draw_tags(self, painter: QPainter, rect: QRect, tags: list[str]) -> None:
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         metrics = painter.fontMetrics()
-        x = rect.x() + 8
-        y = rect.y() + (rect.height() - 22) // 2
-        max_x = rect.right() - 8
+        x = rect.x() + 10
+        y = rect.bottom() - 24
+        max_x = rect.right() - 10
 
         for index, tag in enumerate(tags):
             chip_width = min(max(42, metrics.horizontalAdvance(tag) + 18), 88)
@@ -148,3 +157,6 @@ class MediaSummaryDelegate(QStyledItemDelegate):
         self.initStyleOption(opt, index)
         opt.text = ""
         QApplication.style().drawControl(QStyle.ControlElement.CE_ItemViewItem, opt, painter)
+
+
+MediaSummaryDelegate = FileSummaryDelegate

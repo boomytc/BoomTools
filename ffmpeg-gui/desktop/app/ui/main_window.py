@@ -157,8 +157,6 @@ class MainWindow(QMainWindow):
         self.operation_panel.set_busy(busy)
         self.settings_dialog.set_busy(busy)
         self.status_panel.set_busy(busy)
-        if busy:
-            self.status_panel.set_result_buttons_enabled(False)
 
     def set_start_enabled(self, enabled: bool) -> None:
         busy = self.operation_panel.is_busy()
@@ -189,11 +187,9 @@ class MainWindow(QMainWindow):
 
     def set_current_output(self, output_path: Path | None) -> None:
         self._last_output_path = output_path
-        self.status_panel.set_current_output(output_path)
-        self.status_panel.set_result_buttons_enabled(bool(output_path and output_path.exists()))
 
     def current_output_path(self) -> Path | None:
-        return self._last_output_path
+        return self._effective_output_path()
 
     def set_stack_mode(self, enabled: bool) -> None:
         self.operation_panel.set_stack_mode(enabled)
@@ -221,8 +217,8 @@ class MainWindow(QMainWindow):
     def set_command_preview(self, command: str) -> None:
         self.command_preview_panel.set_command(command)
 
-    def set_output_estimate(self, estimate: str) -> None:
-        self.status_panel.set_output_estimate(estimate)
+    def set_output_estimate(self, _estimate: str) -> None:
+        pass
 
     def selected_operation_payload(self):
         return self.operation_panel.selected_operation_payload()
@@ -271,23 +267,29 @@ class MainWindow(QMainWindow):
             self.operation_panel.set_subtitle_path(path)
 
     def open_output(self) -> None:
-        if self._last_output_path and self._last_output_path.exists():
-            QDesktopServices.openUrl(QUrl.fromLocalFile(str(self._last_output_path)))
+        output_path = self._effective_output_path()
+        if output_path and output_path.exists():
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(output_path)))
 
     def open_output_dir(self) -> None:
-        if self._last_output_path:
-            directory = self._last_output_path.parent
+        output_path = self._effective_output_path()
+        if output_path:
+            directory = output_path.parent
         else:
             directory = self.selected_output_dir()
         if directory and directory.exists():
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(directory)))
 
     def copy_output_path(self) -> None:
-        if not self._last_output_path:
+        output_path = self._effective_output_path()
+        if not output_path:
             self.show_status("当前无可复制的输出路径")
             return
-        QGuiApplication.clipboard().setText(str(self._last_output_path))
+        QGuiApplication.clipboard().setText(str(output_path))
         self.show_status("已复制输出路径到剪贴板")
+
+    def _effective_output_path(self) -> Path | None:
+        return self.task_panel.selected_output_path() or self._last_output_path
 
     def open_settings_dialog(self) -> None:
         self.settings_dialog.open()
@@ -326,9 +328,9 @@ class MainWindow(QMainWindow):
         self.operation_panel.stack_clear_requested.connect(self.stack_clear_requested.emit)
         self.operation_panel.command_preview_requested.connect(self.command_preview_requested.emit)
 
-        self.status_panel.open_output_requested.connect(self.open_output_requested.emit)
-        self.status_panel.open_output_dir_requested.connect(self.open_output_dir_requested.emit)
-        self.status_panel.copy_output_path_requested.connect(self.copy_output_path_requested.emit)
+        self.task_panel.open_output_requested.connect(self.open_output_requested.emit)
+        self.task_panel.open_output_dir_requested.connect(self.open_output_dir_requested.emit)
+        self.task_panel.copy_output_path_requested.connect(self.copy_output_path_requested.emit)
         self.command_preview_panel.command_copied.connect(lambda: self.show_status("已复制命令预览到剪贴板"))
         self.log_dialog.cleared.connect(self._mark_log_cleared)
 

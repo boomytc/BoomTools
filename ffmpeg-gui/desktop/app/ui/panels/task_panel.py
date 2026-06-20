@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QProgressBar, QTableView, QVBoxLayout
+from pathlib import Path
+
+from PySide6.QtCore import QModelIndex, QPoint, Qt, Signal
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenu, QProgressBar, QTableView, QVBoxLayout
 
 from desktop.app.ui.delegates import MediaSummaryDelegate, ProgressBarDelegate, StatusBadgeDelegate
 from desktop.app.ui.widgets.task_table_model import TaskTableModel
@@ -8,6 +11,10 @@ from shared.contracts import TERMINAL_STATUSES, TaskRecord, TaskStatus
 
 
 class TaskPanel(QFrame):
+    open_output_requested = Signal()
+    open_output_dir_requested = Signal()
+    copy_output_path_requested = Signal()
+
     def __init__(self, task_model: TaskTableModel) -> None:
         super().__init__()
         self._task_model = task_model
@@ -47,17 +54,22 @@ class TaskPanel(QFrame):
         self.task_table.setShowGrid(False)
         self.task_table.setSortingEnabled(False)
         self.task_table.setItemDelegateForColumn(0, StatusBadgeDelegate(self.task_table))
-        self.task_table.setItemDelegateForColumn(2, MediaSummaryDelegate(self.task_table))
-        self.task_table.setItemDelegateForColumn(5, ProgressBarDelegate(self.task_table))
+        file_delegate = MediaSummaryDelegate(self.task_table)
+        self.task_table.setItemDelegateForColumn(1, file_delegate)
+        self.task_table.setItemDelegateForColumn(3, file_delegate)
+        self.task_table.setItemDelegateForColumn(4, ProgressBarDelegate(self.task_table))
         self.task_table.resizeColumnsToContents()
         self.task_table.setColumnWidth(0, 86)
-        self.task_table.setColumnWidth(1, 170)
-        self.task_table.setColumnWidth(2, 280)
-        self.task_table.setColumnWidth(3, 130)
-        self.task_table.setColumnWidth(4, 130)
-        self.task_table.setColumnWidth(5, 120)
-        self.task_table.setMinimumHeight(112)
+        self.task_table.setColumnWidth(1, 300)
+        self.task_table.setColumnWidth(2, 150)
+        self.task_table.setColumnWidth(3, 240)
+        self.task_table.setColumnWidth(4, 120)
+        self.task_table.verticalHeader().setDefaultSectionSize(54)
+        self.task_table.setMinimumHeight(126)
+        self.task_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         layout.addWidget(self.task_table)
+        self.task_table.doubleClicked.connect(self._handle_table_double_clicked)
+        self.task_table.customContextMenuRequested.connect(self._open_context_menu)
 
         task_model.modelReset.connect(self.refresh_total_progress)
         task_model.rowsInserted.connect(lambda *_args: self.refresh_total_progress())
@@ -75,6 +87,45 @@ class TaskPanel(QFrame):
         self.total_progress_label.setText(summary.label)
         self.total_progress_label.setToolTip(summary.tooltip)
         self.total_progress_bar.setToolTip(summary.tooltip)
+
+    def selected_output_path(self) -> Path | None:
+        selection_model = self.task_table.selectionModel()
+        if selection_model is None:
+            return None
+        selected_rows = selection_model.selectedRows()
+        if not selected_rows:
+            return None
+        row = selected_rows[0].row()
+        records = self._task_model.records()
+        if row < 0 or row >= len(records):
+            return None
+        return records[row].output_path
+
+    def output_path_exists(self) -> bool:
+        output_path = self.selected_output_path()
+        return bool(output_path and output_path.exists())
+
+    def _handle_table_double_clicked(self, index: QModelIndex) -> None:
+        if index.column() == 3 and self.output_path_exists():
+            self.open_output_requested.emit()
+
+    def _open_context_menu(self, position: QPoint) -> None:
+        index = self.task_table.indexAt(position)
+        if index.isValid():
+            self.task_table.selectRow(index.row())
+
+        has_output = self.output_path_exists()
+        menu = QMenu(self.task_table)
+        open_file_action = menu.addAction("打开输出文件")
+        open_dir_action = menu.addAction("打开输出目录")
+        copy_path_action = menu.addAction("复制输出路径")
+        open_file_action.setEnabled(has_output)
+        open_dir_action.setEnabled(has_output)
+        copy_path_action.setEnabled(has_output)
+        open_file_action.triggered.connect(self.open_output_requested.emit)
+        open_dir_action.triggered.connect(self.open_output_dir_requested.emit)
+        copy_path_action.triggered.connect(self.copy_output_path_requested.emit)
+        menu.exec(self.task_table.viewport().mapToGlobal(position))
 
 
 class _TotalProgressSummary:

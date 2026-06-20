@@ -13,7 +13,7 @@ MEDIA_SUMMARY_ROLE = int(Qt.ItemDataRole.UserRole) + 3
 
 
 class TaskTableModel(QAbstractTableModel):
-    HEADERS = ["状态", "输入媒体", "媒体摘要", "操作", "输出", "进度", "消息"]
+    HEADERS = ["状态", "输入媒体", "操作", "输出", "进度", "消息"]
 
     def __init__(self) -> None:
         super().__init__()
@@ -35,8 +35,12 @@ class TaskTableModel(QAbstractTableModel):
         if role == PROGRESS_ROLE:
             return record.progress
         if role == MEDIA_SUMMARY_ROLE:
-            return self._media_summary_tags(record)
-        if role == Qt.ItemDataRole.TextAlignmentRole and column in {0, 5}:
+            if column == 1:
+                return self._input_summary_tags(record)
+            if column == 3:
+                return self._output_summary_tags(record)
+            return []
+        if role == Qt.ItemDataRole.TextAlignmentRole and column in {0, 4}:
             return int(Qt.AlignmentFlag.AlignCenter)
         if role not in {Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole}:
             return None
@@ -47,19 +51,16 @@ class TaskTableModel(QAbstractTableModel):
         if column == 1:
             return record.input_path.name if role == Qt.ItemDataRole.DisplayRole else str(record.input_path)
         if column == 2:
-            tags = self._media_summary_tags(record)
-            return " ".join(tags) if role == Qt.ItemDataRole.DisplayRole else " · ".join(tags)
-        if column == 3:
             return record.operation_text or operation_label(record.operation)
-        if column == 4:
+        if column == 3:
             if not record.output_path:
                 return "待生成" if role == Qt.ItemDataRole.DisplayRole else ""
             return record.output_path.name if role == Qt.ItemDataRole.DisplayRole else str(record.output_path)
-        if column == 5:
+        if column == 4:
             if record.progress is None:
                 return "运行中"
             return f"{int(record.progress * 100)}%"
-        if column == 6:
+        if column == 5:
             return record.message
         return None
 
@@ -119,7 +120,7 @@ class TaskTableModel(QAbstractTableModel):
             self.endRemoveRows()
         return len(rows_to_remove)
 
-    def _media_summary_tags(self, record: TaskRecord) -> list[str]:
+    def _input_summary_tags(self, record: TaskRecord) -> list[str]:
         tags: list[str] = []
         extension = record.input_path.suffix.lstrip(".").upper()
         if extension:
@@ -140,6 +141,18 @@ class TaskTableModel(QAbstractTableModel):
             tags.extend(_media_info_tags(media_info))
         return tags or ["等待读取"]
 
+    def _output_summary_tags(self, record: TaskRecord) -> list[str]:
+        if not record.output_path:
+            return ["待生成"]
+        tags: list[str] = []
+        extension = record.output_path.suffix.lstrip(".").upper()
+        if extension:
+            tags.append(extension)
+        size = self._file_size(record.output_path)
+        if size is not None:
+            tags.append(_format_bytes(size))
+        return tags or ["待生成"]
+
     def _file_size(self, path: Path) -> int | None:
         try:
             return path.stat().st_size
@@ -150,27 +163,26 @@ class TaskTableModel(QAbstractTableModel):
         if column == 0:
             return f"状态：{_status_label(record.status)}"
         if column == 1:
-            return f"文件名：{record.input_path.name}\n路径：{record.input_path}"
-        if column == 2:
-            tags = " · ".join(self._media_summary_tags(record))
+            tags = " · ".join(self._input_summary_tags(record))
             media_info = record.media_info if isinstance(record.media_info, MediaInfo) else None
             if media_info and media_info.has_error and media_info.error_message:
-                return f"媒体摘要：{tags}\n读取失败：{media_info.error_message}"
-            return f"媒体摘要：{tags}"
-        if column == 3:
+                return f"输入文件：{record.input_path.name}\n路径：{record.input_path}\n媒体摘要：{tags}\n读取失败：{media_info.error_message}"
+            return f"输入文件：{record.input_path.name}\n路径：{record.input_path}\n媒体摘要：{tags}"
+        if column == 2:
             operation = record.operation_text or operation_label(record.operation)
             if record.operation_text:
                 return f"操作：{operation}\n基础操作：{operation_label(record.operation)}"
             return f"操作：{operation}"
-        if column == 4:
+        if column == 3:
+            tags = " · ".join(self._output_summary_tags(record))
             if not record.output_path:
-                return "输出：待生成"
-            return f"输出文件：{record.output_path.name}\n路径：{record.output_path}"
-        if column == 5:
+                return f"输出：待生成\n摘要：{tags}"
+            return f"输出文件：{record.output_path.name}\n路径：{record.output_path}\n摘要：{tags}"
+        if column == 4:
             if record.progress is None:
                 return "进度：运行中"
             return f"进度：{int(record.progress * 100)}%"
-        if column == 6:
+        if column == 5:
             return record.message
         return ""
 

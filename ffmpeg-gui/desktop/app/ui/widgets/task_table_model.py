@@ -14,7 +14,7 @@ ACTION_ENABLED_ROLE = int(Qt.ItemDataRole.UserRole) + 4
 
 
 class TaskTableModel(QAbstractTableModel):
-    HEADERS = ["状态", "输入媒体", "处理动作", "输出", "进度", "消息", "操作"]
+    HEADERS = ["输入", "输出", "行为", "进度", "操作"]
 
     def __init__(self) -> None:
         super().__init__()
@@ -36,36 +36,30 @@ class TaskTableModel(QAbstractTableModel):
         if role == PROGRESS_ROLE:
             return record.progress
         if role == MEDIA_SUMMARY_ROLE:
-            if column == 1:
+            if column == 0:
                 return self._input_summary_tags(record)
-            if column == 3:
+            if column == 1:
                 return self._output_summary_tags(record)
             return []
         if role == ACTION_ENABLED_ROLE:
-            return column == 6 and _task_can_be_removed(record)
-        if role == Qt.ItemDataRole.TextAlignmentRole and column in {0, 4, 6}:
+            return column == 4 and _task_can_be_removed(record)
+        if role == Qt.ItemDataRole.TextAlignmentRole and column in {3, 4}:
             return int(Qt.AlignmentFlag.AlignCenter)
         if role not in {Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole}:
             return None
         if role == Qt.ItemDataRole.ToolTipRole:
             return self._tooltip_text(record, column)
         if column == 0:
-            return record.status.value
-        if column == 1:
             return record.input_path.name if role == Qt.ItemDataRole.DisplayRole else str(record.input_path)
-        if column == 2:
-            return record.operation_text or _operation_short_label(record.operation)
-        if column == 3:
+        if column == 1:
             if not record.output_path:
                 return "待生成" if role == Qt.ItemDataRole.DisplayRole else ""
             return record.output_path.name if role == Qt.ItemDataRole.DisplayRole else str(record.output_path)
+        if column == 2:
+            return record.operation_text or _operation_short_label(record.operation)
+        if column == 3:
+            return _progress_display_label(record)
         if column == 4:
-            if record.progress is None:
-                return "运行中"
-            return f"{int(record.progress * 100)}%"
-        if column == 5:
-            return record.message
-        if column == 6:
             return "移除"
         return None
 
@@ -107,6 +101,7 @@ class TaskTableModel(QAbstractTableModel):
                 STATUS_ROLE,
                 PROGRESS_ROLE,
                 MEDIA_SUMMARY_ROLE,
+                ACTION_ENABLED_ROLE,
             ],
         )
 
@@ -166,31 +161,28 @@ class TaskTableModel(QAbstractTableModel):
 
     def _tooltip_text(self, record: TaskRecord, column: int) -> str:
         if column == 0:
-            return f"状态：{_status_label(record.status)}"
-        if column == 1:
             tags = " · ".join(self._input_summary_tags(record))
             media_info = record.media_info if isinstance(record.media_info, MediaInfo) else None
             if media_info and media_info.has_error and media_info.error_message:
                 return f"输入文件：{record.input_path.name}\n路径：{record.input_path}\n媒体摘要：{tags}\n读取失败：{media_info.error_message}"
             return f"输入文件：{record.input_path.name}\n路径：{record.input_path}\n媒体摘要：{tags}"
-        if column == 2:
-            operation = record.operation_text or _operation_short_label(record.operation)
-            category = _operation_category_label(record.operation)
-            if record.operation_text:
-                return f"处理动作：{operation}\n首个动作：{_operation_short_label(record.operation)}\n分类：{category}"
-            return f"处理动作：{operation}\n分类：{category}"
-        if column == 3:
+        if column == 1:
             tags = " · ".join(self._output_summary_tags(record))
             if not record.output_path:
                 return f"输出：待生成\n摘要：{tags}"
             return f"输出文件：{record.output_path.name}\n路径：{record.output_path}\n摘要：{tags}"
+        if column == 2:
+            operation = record.operation_text or _operation_short_label(record.operation)
+            category = _operation_category_label(record.operation)
+            if record.operation_text:
+                return f"行为：{operation}\n首个动作：{_operation_short_label(record.operation)}\n分类：{category}"
+            return f"行为：{operation}\n分类：{category}"
+        if column == 3:
+            tooltip = f"状态：{_status_label(record.status)}\n进度：{_progress_display_label(record)}"
+            if record.message:
+                return f"{tooltip}\n消息：{record.message}"
+            return tooltip
         if column == 4:
-            if record.progress is None:
-                return "进度：运行中"
-            return f"进度：{int(record.progress * 100)}%"
-        if column == 5:
-            return record.message
-        if column == 6:
             if _task_can_be_removed(record):
                 return "从任务队列移除此任务"
             return "运行中或读取中的任务不可移除，请先取消"
@@ -280,6 +272,26 @@ def _operation_category_label(operation: Operation) -> str:
     if " - " not in label:
         return "未分类"
     return label.split(" - ", 1)[0]
+
+
+def _progress_display_label(record: TaskRecord) -> str:
+    if record.status is TaskStatus.probing:
+        return "读取中"
+    if record.status is TaskStatus.ready:
+        return "就绪"
+    if record.status is TaskStatus.pending:
+        return "待处理"
+    if record.status is TaskStatus.running:
+        if record.progress is None:
+            return "运行中"
+        return f"{int(max(0.0, min(record.progress, 1.0)) * 100)}%"
+    if record.status is TaskStatus.succeeded:
+        return "完成"
+    if record.status is TaskStatus.failed:
+        return "失败"
+    if record.status is TaskStatus.cancelled:
+        return "取消"
+    return _status_label(record.status)
 
 
 def _task_can_be_removed(record: TaskRecord) -> bool:

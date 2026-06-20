@@ -5,7 +5,7 @@ from pathlib import Path
 from PySide6.QtCore import QModelIndex, QPoint, Qt, Signal
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QHeaderView, QLabel, QMenu, QProgressBar, QTableView, QVBoxLayout
 
-from desktop.app.ui.delegates import MediaSummaryDelegate, ProgressBarDelegate, RemoveActionDelegate, StatusBadgeDelegate
+from desktop.app.ui.delegates import MediaSummaryDelegate, ProgressBarDelegate, RemoveActionDelegate
 from desktop.app.ui.widgets.task_table_model import ACTION_ENABLED_ROLE, TaskTableModel
 from shared.contracts import TERMINAL_STATUSES, TaskRecord, TaskStatus
 
@@ -55,20 +55,20 @@ class TaskPanel(QFrame):
         self.task_table.verticalHeader().setDefaultSectionSize(38)
         self.task_table.setShowGrid(False)
         self.task_table.setSortingEnabled(False)
-        self.task_table.setItemDelegateForColumn(0, StatusBadgeDelegate(self.task_table))
         file_delegate = MediaSummaryDelegate(self.task_table)
+        self.task_table.setItemDelegateForColumn(0, file_delegate)
         self.task_table.setItemDelegateForColumn(1, file_delegate)
-        self.task_table.setItemDelegateForColumn(3, file_delegate)
-        self.task_table.setItemDelegateForColumn(4, ProgressBarDelegate(self.task_table))
-        self.task_table.setItemDelegateForColumn(6, RemoveActionDelegate(self.task_table))
+        self.task_table.setItemDelegateForColumn(3, ProgressBarDelegate(self.task_table))
+        self.task_table.setItemDelegateForColumn(4, RemoveActionDelegate(self.task_table))
         self.task_table.resizeColumnsToContents()
-        self.task_table.setColumnWidth(0, 86)
-        self.task_table.setColumnWidth(1, 350)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
         self.task_table.setColumnWidth(2, 130)
-        self.task_table.setColumnWidth(3, 230)
-        self.task_table.setColumnWidth(4, 120)
-        self.task_table.setColumnWidth(6, 72)
-        header.setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
+        self.task_table.setColumnWidth(3, 120)
+        self.task_table.setColumnWidth(4, 72)
         self.task_table.verticalHeader().setDefaultSectionSize(54)
         self.task_table.setMinimumHeight(92)
         self.task_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -112,11 +112,11 @@ class TaskPanel(QFrame):
         return bool(output_path and output_path.exists())
 
     def _handle_table_double_clicked(self, index: QModelIndex) -> None:
-        if index.column() == 3 and self.output_path_exists():
+        if index.column() == 1 and self.output_path_exists():
             self.open_output_requested.emit()
 
     def _handle_table_clicked(self, index: QModelIndex) -> None:
-        if index.column() != 6:
+        if index.column() != 4:
             return
         if not bool(index.data(ACTION_ENABLED_ROLE)):
             return

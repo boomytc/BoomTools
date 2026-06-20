@@ -19,55 +19,31 @@ STATUS_STYLES: dict[str, tuple[str, str, str]] = {
 }
 
 
-class StatusBadgeDelegate(QStyledItemDelegate):
-    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index) -> None:  # type: ignore[override]
-        status = index.data(STATUS_ROLE)
-        status_value = status.value if isinstance(status, TaskStatus) else str(index.data() or "")
-        label, background, foreground = STATUS_STYLES.get(status_value, (status_value or "-", "#2b303d", "#a7b0c2"))
-
-        painter.save()
-        self._draw_item_background(painter, option, index)
-        self._draw_badge(painter, option.rect, label, QColor(background), QColor(foreground))
-        painter.restore()
-
-    def _draw_badge(self, painter: QPainter, rect: QRect, text: str, background: QColor, foreground: QColor) -> None:
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        metrics = painter.fontMetrics()
-        badge_width = min(max(56, metrics.horizontalAdvance(text) + 24), max(32, rect.width() - 12))
-        badge_height = min(24, max(18, rect.height() - 8))
-        badge_rect = QRect(
-            rect.x() + (rect.width() - badge_width) // 2,
-            rect.y() + (rect.height() - badge_height) // 2,
-            badge_width,
-            badge_height,
-        )
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(background)
-        painter.drawRoundedRect(badge_rect, 6, 6)
-        painter.setPen(QPen(foreground))
-        painter.drawText(badge_rect, Qt.AlignmentFlag.AlignCenter, text)
-
-    def _draw_item_background(self, painter: QPainter, option: QStyleOptionViewItem, index) -> None:
-        opt = QStyleOptionViewItem(option)
-        self.initStyleOption(opt, index)
-        opt.text = ""
-        QApplication.style().drawControl(QStyle.ControlElement.CE_ItemViewItem, opt, painter)
-
-
 class ProgressBarDelegate(QStyledItemDelegate):
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index) -> None:  # type: ignore[override]
         progress = index.data(PROGRESS_ROLE)
+        status = index.data(STATUS_ROLE)
 
         painter.save()
         self._draw_item_background(painter, option, index)
-        self._draw_progress(painter, option.rect, progress)
+        self._draw_progress(painter, option.rect, progress, status)
         painter.restore()
 
-    def _draw_progress(self, painter: QPainter, rect: QRect, progress: object) -> None:
+    def _draw_progress(self, painter: QPainter, rect: QRect, progress: object, status: object) -> None:
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         bar_rect = rect.adjusted(10, 8, -10, -8)
         bar_rect.setHeight(max(16, min(22, bar_rect.height())))
         bar_rect.moveTop(rect.y() + (rect.height() - bar_rect.height()) // 2)
+
+        status_value = status.value if isinstance(status, TaskStatus) else str(status or "")
+        if status_value and status_value != TaskStatus.running.value:
+            label, background, foreground = STATUS_STYLES.get(status_value, (status_value, "#2b303d", "#a7b0c2"))
+            painter.setPen(QPen(QColor("#4a536a")))
+            painter.setBrush(QColor(background))
+            painter.drawRoundedRect(bar_rect, 6, 6)
+            painter.setPen(QPen(QColor(foreground)))
+            painter.drawText(bar_rect, Qt.AlignmentFlag.AlignCenter, label)
+            return
 
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QColor("#22283a"))

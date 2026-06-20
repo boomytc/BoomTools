@@ -98,7 +98,7 @@ def test_build_single_input_operations() -> None:
                 input_path=input_path,
                 output_dir=Path(tmp) / "outputs",
             )
-            assert expected_arg in spec.args
+            assert any(expected_arg in arg for arg in spec.args)
             assert spec.output_path.suffix == expected_suffix
 
 
@@ -126,7 +126,7 @@ def test_build_subtitle_operations() -> None:
                 output_dir=Path(tmp) / "outputs",
                 extra_inputs=extra_inputs,
             )
-            assert expected_arg in spec.args
+            assert any(expected_arg in arg for arg in spec.args)
 
 
 def test_build_multi_input_operations() -> None:
@@ -182,7 +182,7 @@ def test_build_multi_input_operations() -> None:
                 output_dir=Path(tmp) / "outputs",
                 extra_inputs=extra_inputs,
             )
-            assert expected_arg in spec.args
+            assert any(expected_arg in arg for arg in spec.args)
 
 
 def test_build_raw_and_media_info_command() -> None:

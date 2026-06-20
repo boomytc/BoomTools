@@ -18,6 +18,7 @@ from .ffmpeg import (
     _bounded_int,
     _optional_int,
     _choice,
+    _pad_filter_for_aspect_ratio,
     _trim_input_args,
 )
 
@@ -181,14 +182,7 @@ def _build_filters_for_operation(
             "21:9": "21/9",
         }
         ratio = ratios[aspect_ratio]
-        return (
-            "scale='if(gte(iw/ih,{ratio}),trunc(ih*{ratio}),trunc(iw))':'if(gte(iw/ih,{ratio}),trunc(ih),trunc(iw/{ratio}))',"
-            "pad='if(gte(iw/ih,{ratio}),trunc(ih*{ratio}),trunc(iw))':'if(gte(iw/ih,{ratio}),trunc(iw/{ratio}),trunc(iw))':(ow-iw)/2:(oh-ih)/2:color={color}".format(
-                ratio=ratio,
-                color=color,
-            ),
-            None,
-        )
+        return _pad_filter_for_aspect_ratio(ratio, color), None
 
     if operation is Operation.volume:
         multiplier = _bounded_float(options.get("multiplier", 1), "multiplier", 0, 4)

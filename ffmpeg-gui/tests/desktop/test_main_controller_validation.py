@@ -3,8 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from desktop.app.controllers.main_controller import MainController
+from desktop.app.core.config import AppConfig
 from desktop.app.runtime.binaries import RuntimeHealth
-from shared.contracts import AppConfig, Operation
+from shared.contracts import Operation
 
 
 class _Signal:
@@ -70,6 +71,9 @@ class _FakeWindow:
         return self.stack_mode_enabled
 
     def set_start_enabled(self, _enabled: bool) -> None:
+        return None
+
+    def set_runtime_health(self, _health: RuntimeHealth) -> None:
         return None
 
     def show_error(self, message: str) -> None:
@@ -201,12 +205,12 @@ def test_start_task_catches_subtitle_missing_input_error(tmp_path: Path) -> None
     assert any("请选择字幕文件" in message for message in window.error_messages)
 
 
-def test_stack_add_catches_subtitle_missing_input_error(tmp_path: Path) -> None:
+def test_stack_add_reports_unsupported_subtitle_operation(tmp_path: Path) -> None:
     window = _FakeWindow()
     window.set_operation_payload(Operation.subtitles, {"mode": "soft"}, {})
     controller = _make_controller(window)
 
     controller._on_stack_add_requested()
 
-    assert any("请选择字幕文件" in message for message in window.error_messages)
+    assert any("当前操作不支持加入 Stack" in message for message in window.error_messages)
     assert controller._stack_items == []

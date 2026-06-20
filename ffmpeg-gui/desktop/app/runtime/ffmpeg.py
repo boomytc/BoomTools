@@ -124,7 +124,7 @@ def build_command(
     args.extend(_trim_input_args(op, normalized))
     args.extend(["-i", str(input_path)])
     args.extend(_operation_inputs(op, normalized, extra_inputs))
-    args.extend(_operation_args(op, normalized, ffmpeg_bin=ffmpeg_bin))
+    args.extend(_operation_args(op, normalized, extra_inputs=extra_inputs, ffmpeg_bin=ffmpeg_bin))
     args.append(str(output_path))
     return CommandSpec(args=args, output_path=output_path, output_name=output_path.name)
 
@@ -226,8 +226,14 @@ def _operation_inputs(op: Operation, options: dict[str, Any], extra_inputs: dict
 
 
 def _operation_args(
-    operation: Operation, options: dict[str, Any], ffmpeg_bin: str | None = None
+    operation: Operation,
+    options: dict[str, Any],
+    *,
+    extra_inputs: dict[str, Path] | None = None,
+    ffmpeg_bin: str | None = None,
 ) -> list[str]:
+    extra_inputs = extra_inputs or {}
+
     if operation is Operation.convert:
         fmt = _choice(options.get("output_format", "mp4"), VIDEO_FORMATS, "output_format")
         return _video_codec_args(fmt)
@@ -368,8 +374,8 @@ def _operation_args(
         if "start_seconds" in options or "end_seconds" in options:
             raise CommandError("loop does not support trim")
         fmt = _choice(options.get("output_format", "mp4"), {"mp4", "mkv", "mov"}, "output_format")
-        plays = _bounded_int(options.get("plays", 2), "plays", 2, 50)
-        return ["-stream_loop", str(plays - 1), "-c:v", "copy", "-c:a", "copy"]
+        _bounded_int(options.get("plays", 2), "plays", 2, 50)
+        return ["-c:v", "copy", "-c:a", "copy"]
 
     if operation is Operation.pad:
         fmt = _choice(options.get("output_format", "mp4"), VIDEO_FORMATS, "output_format")
@@ -378,11 +384,7 @@ def _operation_args(
         ratio = ASPECT_RATIOS[aspect_ratio]
         return [
             "-vf",
-            "scale='if(gte(iw/ih,{ratio}),trunc(ih*{ratio}),trunc(iw))':'if(gte(iw/ih,{ratio}),trunc(ih),trunc(iw/{ratio}))',"
-            "pad='if(gte(iw/ih,{ratio}),trunc(ih*{ratio}),trunc(iw))':'if(gte(iw/ih,{ratio}),trunc(iw/{ratio}),trunc(iw))':(ow-iw)/2:(oh-ih)/2:color={color}".format(
-                ratio=ratio,
-                color=color,
-            ),
+            _pad_filter_for_aspect_ratio(ratio, color),
             *_video_codec_args(fmt),
         ]
 
@@ -543,9 +545,10 @@ def _operation_args(
         position = _choice(options.get("position", "bottom_right"), set(PILOT_POSITIONS), "position")
         expr = PILOT_POSITIONS[position]
         ratio = _float_ratio(width_percent)
+        overlay_suffix = ":shortest=1" if _as_bool(options.get("loop_overlay", True), "loop_overlay") else ""
         return [
             "-filter_complex",
-            f"[1:v]scale=trunc(iw*{ratio}):trunc(ih*{ratio})[ovr];[0:v][ovr]overlay={expr}[v]",
+            f"[1:v]scale=trunc(iw*{ratio}):trunc(ih*{ratio})[ovr];[0:v][ovr]overlay={expr}{overlay_suffix}[v]",
             "-map",
             "[v]",
             "-map",
@@ -627,6 +630,9 @@ def _trim_input_args(operation: Operation, options: dict[str, Any]) -> list[str]
         raise CommandError("end_seconds must be greater than start_seconds")
 
     args: list[str] = []
+    if operation is Operation.loop:
+        plays = _bounded_int(options.get("plays", 2), "plays", 2, 50)
+        args.extend(["-stream_loop", str(plays - 1)])
     if start is not None:
         args.extend(["-ss", _format_number(start)])
     if end is not None:
@@ -686,6 +692,15 @@ def _audio_codec_args(fmt: str) -> list[str]:
     if fmt == "ogg":
         return ["-vn", "-c:a", "libvorbis", "-q:a", "4"]
     raise CommandError(f"Unsupported audio format: {fmt}")
+
+
+def _pad_filter_for_aspect_ratio(ratio: str, color: str) -> str:
+    return (
+        "pad="
+        "'ceil(max(iw,ih*({ratio}))/2)*2':"
+        "'ceil(max(ih,iw/({ratio}))/2)*2':"
+        "(ow-iw)/2:(oh-ih)/2:color={color}"
+    ).format(ratio=ratio, color=color)
 
 
 def _raw_args(args: list[Any]) -> list[str]:

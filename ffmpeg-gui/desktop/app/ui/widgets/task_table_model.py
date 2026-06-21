@@ -5,7 +5,7 @@ from typing import Any
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 
-from shared.contracts import MediaInfo, Operation, TaskRecord, TaskStatus, operation_label
+from shared.contracts import MediaInfo, Operation, TaskRecord, TaskStatus, operation_category_label, operation_short_label
 
 STATUS_ROLE = int(Qt.ItemDataRole.UserRole) + 1
 PROGRESS_ROLE = int(Qt.ItemDataRole.UserRole) + 2
@@ -14,7 +14,7 @@ ACTION_ENABLED_ROLE = int(Qt.ItemDataRole.UserRole) + 4
 
 
 class TaskTableModel(QAbstractTableModel):
-    HEADERS = ["输入", "输出", "行为", "进度", "操作"]
+    HEADERS = ["输入", "输出", "动作", "进度", "操作"]
 
     def __init__(self) -> None:
         super().__init__()
@@ -56,7 +56,7 @@ class TaskTableModel(QAbstractTableModel):
                 return "待生成" if role == Qt.ItemDataRole.DisplayRole else ""
             return record.output_path.name if role == Qt.ItemDataRole.DisplayRole else str(record.output_path)
         if column == 2:
-            return record.operation_text or _operation_short_label(record.operation)
+            return record.operation_text or operation_short_label(record.operation)
         if column == 3:
             return _progress_display_label(record)
         if column == 4:
@@ -172,11 +172,11 @@ class TaskTableModel(QAbstractTableModel):
                 return f"输出：待生成\n摘要：{tags}"
             return f"输出文件：{record.output_path.name}\n路径：{record.output_path}\n摘要：{tags}"
         if column == 2:
-            operation = record.operation_text or _operation_short_label(record.operation)
-            category = _operation_category_label(record.operation)
+            operation = record.operation_text or operation_short_label(record.operation)
+            category = operation_category_label(record.operation)
             if record.operation_text:
-                return f"行为：{operation}\n首个动作：{_operation_short_label(record.operation)}\n分类：{category}"
-            return f"行为：{operation}\n分类：{category}"
+                return f"动作：{operation}\n首个动作：{operation_short_label(record.operation)}\n分类：{category}"
+            return f"动作：{operation}\n分类：{category}"
         if column == 3:
             tooltip = f"状态：{_status_label(record.status)}\n进度：{_progress_display_label(record)}"
             if record.message:
@@ -258,20 +258,6 @@ def _format_resolution(height: int) -> str:
     if height >= 720:
         return "720p"
     return f"{height}p"
-
-
-def _operation_short_label(operation: Operation) -> str:
-    label = operation_label(operation)
-    if " - " not in label:
-        return label
-    return label.split(" - ", 1)[1]
-
-
-def _operation_category_label(operation: Operation) -> str:
-    label = operation_label(operation)
-    if " - " not in label:
-        return "未分类"
-    return label.split(" - ", 1)[0]
 
 
 def _progress_display_label(record: TaskRecord) -> str:

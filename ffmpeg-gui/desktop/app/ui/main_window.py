@@ -57,7 +57,7 @@ class MainWindow(QMainWindow):
         self._log_has_error = False
         self.setWindowTitle(WINDOW_TITLE)
         self.resize(1320, 920)
-        self.setMinimumSize(1080, 860)
+        self.setMinimumSize(1080, 900)
 
         central = QWidget()
         central.setObjectName("appRoot")

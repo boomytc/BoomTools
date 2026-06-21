@@ -19,10 +19,9 @@ from PySide6.QtWidgets import (
 
 from desktop.app.ui.components import FixedScrollArea, FormSection, PanelFrame
 from desktop.app.ui.widgets.operation_field_factory import OperationFieldFactory, configure_parameter_field
-from desktop.app.ui.widgets.operation_selector import operation_title_and_category
 from desktop.app.ui.widgets.operation_specs import FIELD_SPECS
 from desktop.app.ui.widgets.path_picker import PathPicker
-from shared.contracts import MediaInfo, Operation
+from shared.contracts import MediaInfo, Operation, operation_title_and_category
 
 
 PARAMETER_CONTENT_MAX_WIDTH = 680

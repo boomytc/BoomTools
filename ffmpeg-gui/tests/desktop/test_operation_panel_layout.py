@@ -8,7 +8,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import QPoint, QPointF, Qt
 from PySide6.QtGui import QWheelEvent
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QComboBox, QFrame, QListView
+from PySide6.QtWidgets import QApplication, QComboBox, QFrame, QListView, QPushButton
 
 from desktop.app.core.paths import QSS_PATH
 from desktop.app.ui.components import PanelFrame
@@ -30,13 +30,46 @@ def test_stack_mode_keeps_operation_form_readable() -> None:
 
     assert panel.stack_panel.isVisible()
     assert panel.stack_panel.height() <= panel.stack_panel.maximumHeight()
+    assert panel.minimumHeight() >= (
+        panel.operation_form.minimumHeight() + panel.layout().spacing() + panel.stack_panel.minimumHeight()
+    )
     assert panel.operation_form.height() >= panel.operation_form.minimumHeight()
+    assert panel.operation_form.operation_selector.geometry().bottom() < panel.command_preview_panel.geometry().top()
     selector = panel.operation_form.operation_selector
     assert min(button.height() for button in selector.operation_buttons().values()) >= 28
     assert selector.operation_scroll_area.verticalScrollBar().maximum() > 0
     assert selector.operation_scroll_area.horizontalScrollBar().maximum() == 0
 
     panel.close()
+
+
+def test_main_window_min_height_keeps_stack_mode_panels_separated() -> None:
+    app = _qt_app()
+    app.setStyleSheet(QSS_PATH.read_text(encoding="utf-8"))
+    window = MainWindow(TaskTableModel())
+    window.set_stack_mode(True)
+    window.set_stack_items(["锐化模糊"] * 6)
+    window.resize(1080, 860)
+    window.show()
+    app.processEvents()
+
+    operation_form = window.operation_panel.operation_form
+    selector = operation_form.operation_selector
+    command_preview = operation_form.command_preview_widget
+    stack_panel = window.operation_panel.stack_panel
+    stack_chain = stack_panel.stack_chain
+    chips = stack_chain.findChildren(QPushButton)
+
+    assert window.height() >= window.minimumHeight()
+    assert window.minimumHeight() >= 900
+    assert window.runtime_panel.geometry().bottom() < window.operation_panel.geometry().top()
+    assert window.operation_panel.geometry().bottom() < window.task_panel.geometry().top()
+    assert selector.geometry().bottom() < command_preview.geometry().top()
+    assert operation_form.geometry().bottom() < stack_panel.geometry().top()
+    assert stack_chain.geometry().bottom() <= stack_panel.body_widget.rect().bottom()
+    assert max(chip.geometry().bottom() for chip in chips) < stack_chain.height()
+
+    window.close()
 
 
 def test_stack_mode_double_click_operation_requests_stack_add() -> None:
@@ -219,7 +252,7 @@ def test_operation_and_parameter_panels_use_compact_internal_titles() -> None:
     assert isinstance(form.parameter_form, PanelFrame)
     assert form.operation_selector.objectName() == "operationFrame"
     assert form.parameter_form.objectName() == "parameterFrame"
-    assert form.operation_selector.title_label.text() == "处理动作"
+    assert form.operation_selector.title_label.text() == "动作"
     assert form.parameter_form.title_label.text() == "参数"
     assert form.operation_selector.description_label.parentWidget() is form.operation_selector.header_widget
     assert form.parameter_form.selected_operation_label.parentWidget() is form.parameter_form.header_widget

@@ -7,7 +7,7 @@ from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QButtonGroup, QGridLayout, QPushButton, QSizePolicy, QWidget
 
 from desktop.app.ui.components import FixedScrollArea, PanelFrame, SegmentOption, SegmentedToggle
-from shared.contracts import OPERATION_LABELS, STACK_FILTER_OPERATIONS, Operation
+from shared.contracts import OPERATION_LABELS, STACK_FILTER_OPERATIONS, Operation, operation_short_label
 
 
 STACK_MODE_FALLBACK_ORDER = (
@@ -30,7 +30,7 @@ class OperationSelector(PanelFrame):
     stack_mode_toggled = Signal(bool)
 
     def __init__(self) -> None:
-        super().__init__("处理动作", description="先选择一个处理动作，参数会在下方更新。")
+        super().__init__("动作", description="选择动作后配置参数。")
         self.setObjectName("operationFrame")
         self.setMinimumHeight(236)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -133,15 +133,15 @@ class OperationSelector(PanelFrame):
 
     def _sync_operation_hint(self) -> None:
         if self._stack_mode and self._batch_mode:
-            self.set_description("Stack + 批量仅启用可重复执行的链式滤镜动作。")
+            self.set_description("Stack + 批量仅启用可重复执行的链式动作。")
             return
         if self._stack_mode:
-            self.set_description("Stack 仅启用可链式的单输入滤镜动作。")
+            self.set_description("Stack 仅启用可链式的单输入动作。")
             return
         if self._batch_mode:
             self.set_description("多个文件仅启用可重复执行的动作。")
             return
-        self.set_description("先选择一个处理动作，参数会在下方更新。")
+        self.set_description("选择动作后配置参数。")
 
     def _sync_operation_button_states(self) -> None:
         for operation, button in self._operation_buttons.items():
@@ -193,7 +193,7 @@ class OperationSelector(PanelFrame):
     def _operation_mode_blockers(self, operation: Operation) -> list[str]:
         blockers: list[str] = []
         if self._stack_mode and operation not in STACK_FILTER_OPERATIONS:
-            blockers.append("Stack 仅支持可链式单输入滤镜。")
+            blockers.append("Stack 仅支持可链式单输入动作。")
         if self._batch_mode and operation not in self._batch_supported_operations:
             blockers.append("多个文件暂不支持此动作。")
         return blockers
@@ -214,46 +214,5 @@ class _OperationButton(QPushButton):
         super().mouseDoubleClickEvent(event)
 
 
-_OPERATION_SHORT_LABELS: dict[Operation, str] = {
-    Operation.convert: "转换格式",
-    Operation.resize_compress: "缩放压缩",
-    Operation.compress: "压缩视频",
-    Operation.extract_audio: "抽取音频",
-    Operation.gif: "生成 GIF",
-    Operation.mute: "静音",
-    Operation.rotate: "旋转翻转",
-    Operation.crop: "裁剪",
-    Operation.thumbnail: "提取封面",
-    Operation.reverse: "倒放",
-    Operation.fade: "淡入淡出",
-    Operation.adjust: "画面调整",
-    Operation.loop: "循环",
-    Operation.strip_metadata: "移除元数据",
-    Operation.pad: "画布补边",
-    Operation.denoise: "去噪",
-    Operation.boomerang: "倒放回放",
-    Operation.sharpen_blur: "锐化模糊",
-    Operation.speed: "速度调整",
-    Operation.volume: "音量调整",
-    Operation.normalize_audio: "响度标准化",
-    Operation.subtitles: "嵌入字幕",
-    Operation.media_info: "媒体探测",
-    Operation.raw: "Raw 参数",
-    Operation.overlay: "叠加",
-    Operation.mix_audio: "混音",
-    Operation.concat: "视频拼接",
-    Operation.side_by_side: "并排对比",
-    Operation.picture_in_picture: "画中画",
-}
-
-
-def operation_title_and_category(operation: Operation) -> tuple[str, str]:
-    label = OPERATION_LABELS[operation]
-    category, _, parsed_title = label.partition(" - ")
-    title = _OPERATION_SHORT_LABELS.get(operation, parsed_title or label)
-    return title, category or "通用"
-
-
 def operation_card_text(operation: Operation) -> str:
-    title, _category = operation_title_and_category(operation)
-    return title
+    return operation_short_label(operation)

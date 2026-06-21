@@ -95,10 +95,10 @@ tests/backend/
 - `PanelFrame` 是产品区域外壳的唯一默认方案，负责标题、说明、右侧 actions、density、`role="panel"` 和 body layout；不要再用 `QGroupBox` 或手写 header 结构表达主面板。
 - `SegmentedToggle` 只表达互斥模式选择，不内置 Stack、batch 或 operation 业务判断。
 - `PanelActionBar` 只负责按钮组布局和 role/density 接入，按钮启用状态仍由产品级 panel 或 controller 决定。
-- `FixedScrollArea` 用于处理动作列表、参数表单等固定高度内容；默认关闭水平滚动并保留右侧 gutter。
+- `FixedScrollArea` 用于动作列表、参数表单等固定高度内容；默认关闭水平滚动并保留右侧 gutter。
 - `FormSection` 负责小节标题、`QFormLayout` 对齐、字段宽度和空态说明；字段值解析留在产品级表单。
 - `desktop/app/ui/panels/` 放产品级区域组合，`desktop/app/ui/widgets/` 放产品级复合控件和模型，`desktop/app/ui/delegates/` 放 model/view 绘制委托，`desktop/app/ui/layouts/` 放主页面布局宿主。
-- `OperationFormWidget` 只作为组合入口；处理动作选择、参数表单、字段工厂分别由 `operation_selector.py`、`operation_parameter_form.py`、`operation_field_factory.py` 维护。
+- `OperationFormWidget` 只作为组合入口；动作选择、参数表单、字段工厂分别由 `operation_selector.py`、`operation_parameter_form.py`、`operation_field_factory.py` 维护。
 - 主窗口通过 `DashboardLayout` 组织主内容区域；可布局 panel 必须设置稳定 `panel_id`，但不要提前实现拖拽排序、布局预设或持久化。
 - QSS 继续集中在 `resources/qss/app.qss`，组件通过 `objectName`、`role`、`density`、`state` 等 dynamic property 接入样式；不要新增一次性 inline style。
 

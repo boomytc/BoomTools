@@ -253,11 +253,11 @@ def test_stack_add_reports_unsupported_subtitle_operation(tmp_path: Path) -> Non
 
     controller._on_stack_add_requested()
 
-    assert any("当前操作不支持加入 Stack" in message for message in window.error_messages)
+    assert any("当前动作不支持加入 Stack" in message for message in window.error_messages)
     assert controller._stack_items == []
 
 
-def test_stack_add_rejects_more_than_max_items() -> None:
+def test_stack_add_ignores_more_than_max_items_without_popup() -> None:
     window = _FakeWindow()
     window.stack_mode_enabled = True
     window.set_operation_payload(Operation.rotate, {"mode": "cw90", "output_format": "mp4"}, {})
@@ -269,7 +269,7 @@ def test_stack_add_rejects_more_than_max_items() -> None:
 
     assert len(controller._stack_items) == STACK_MAX_ITEMS
     assert len(window._stack_items) == STACK_MAX_ITEMS
-    assert any(f"Stack 最多支持 {STACK_MAX_ITEMS} 个动作" in message for message in window.error_messages)
+    assert window.error_messages == []
 
 
 def test_stack_item_selection_syncs_operation_payload() -> None:
@@ -287,6 +287,7 @@ def test_stack_item_selection_syncs_operation_payload() -> None:
     window.set_operation_payload(Operation.adjust, {"brightness": 0.2, "contrast": 1.0, "saturation": 1.1}, {})
     controller._on_stack_item_selected(0)
 
+    assert window._stack_items == ["旋转翻转", "裁剪"]
     operation, options, extra_inputs = window.selected_operation_payload()
     assert operation is Operation.rotate
     assert options == {"mode": "cw90", "output_format": "mp4"}

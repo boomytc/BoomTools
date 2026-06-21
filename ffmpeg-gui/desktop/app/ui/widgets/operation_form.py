@@ -19,7 +19,6 @@ class OperationFormWidget(QWidget):
 
     def __init__(self, command_preview_widget: QWidget | None = None) -> None:
         super().__init__()
-        self.setMinimumHeight(236)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         layout = QGridLayout(self)
@@ -40,10 +39,14 @@ class OperationFormWidget(QWidget):
         if command_preview_widget is not None:
             layout.addWidget(command_preview_widget, 1, 0)
             layout.addWidget(self.parameter_form, 0, 1, 2, 1)
+            layout.setRowMinimumHeight(0, self.operation_selector.minimumHeight())
+            layout.setRowMinimumHeight(1, command_preview_widget.minimumHeight())
         else:
             layout.addWidget(self.parameter_form, 0, 1)
+            layout.setRowMinimumHeight(0, self.operation_selector.minimumHeight())
         layout.setColumnStretch(0, 3)
         layout.setColumnStretch(1, 2)
+        self._sync_minimum_height()
 
     def selected_operation(self) -> Operation:
         return self.operation_selector.selected_operation()
@@ -95,3 +98,9 @@ class OperationFormWidget(QWidget):
             return
         self.parameter_form.set_operation(operation, emit=False)
         self.spec_changed.emit()
+
+    def _sync_minimum_height(self) -> None:
+        minimum_height = self.operation_selector.minimumHeight()
+        if self.command_preview_widget is not None:
+            minimum_height += self.layout().verticalSpacing() + self.command_preview_widget.minimumHeight()
+        self.setMinimumHeight(minimum_height)

@@ -29,6 +29,7 @@ from shared.contracts import (
     TaskResult,
     TaskStatus,
     operation_label,
+    operation_short_label,
 )
 
 
@@ -347,10 +348,9 @@ class MainController(QObject):
     def _on_stack_add_requested(self) -> None:
         operation, options, extra_inputs = self.window.selected_operation_payload()
         if operation not in STACK_FILTER_OPERATIONS:
-            self.window.show_error("当前操作不支持加入 Stack")
+            self.window.show_error("当前动作不支持加入 Stack")
             return
         if len(self._stack_items) >= STACK_MAX_ITEMS:
-            self.window.show_error(f"Stack 最多支持 {STACK_MAX_ITEMS} 个动作，请先移除或清空后再添加。")
             return
         try:
             self._validate_operation_inputs(operation, extra_inputs)
@@ -523,15 +523,8 @@ class MainController(QObject):
         self,
         item: tuple[Operation, dict[str, object], dict[str, Path]],
     ) -> str:
-        operation, options, _ = item
-
-        if operation is Operation.resize_compress:
-            extra = f"{options.get('width', 'auto')}x{options.get('height', 'auto')}"
-        else:
-            extra = ""
-        if extra:
-            return f"{operation_label(operation)} ({extra})"
-        return operation_label(operation)
+        operation, _options, _ = item
+        return operation_short_label(operation)
 
     def _set_prepared_inputs(self, input_paths: list[Path], *, status: TaskStatus, message: str) -> None:
         self._clear_prepared_records()

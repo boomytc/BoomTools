@@ -69,7 +69,7 @@ def test_stack_panel_renders_steps_as_arrow_chain() -> None:
     selected: list[int] = []
     panel.item_moved.connect(lambda from_index, to_index: moved.append((from_index, to_index)))
     panel.item_selected.connect(selected.append)
-    panel.set_items(["基础 - 旋转/翻转", "基础 - 缩放+压缩 (outoverwrite)", "视频编辑 - 画面调整"])
+    panel.set_items(["旋转翻转", "缩放压缩", "画面调整"])
     panel.resize(900, panel.maximumHeight())
     panel.show()
     app.processEvents()
@@ -79,7 +79,7 @@ def test_stack_panel_renders_steps_as_arrow_chain() -> None:
 
     assert len(chips) == 3
     assert len(arrows) == 2
-    assert [chip.text() for chip in chips] == ["1. 旋转/翻转", "2. 缩放+压缩", "3. 画面调整"]
+    assert [chip.text() for chip in chips] == ["1. 旋转翻转", "2. 缩放压缩", "3. 画面调整"]
     assert all(chip.property("role") == "stackChip" for chip in chips)
     assert all(chip.sizeHint().width() <= chip.width() for chip in chips)
     assert min(chip.height() for chip in chips) >= 26
@@ -90,9 +90,9 @@ def test_stack_panel_renders_steps_as_arrow_chain() -> None:
     assert panel.clear_button.parentWidget() is panel.header_widget
     assert panel.count_label.parentWidget() is panel.header_widget
     assert panel.count_label.text() == "3/6"
-    assert panel.description_label.text() == "双击动作加入 · 拖动排序 · 最多 6 步"
+    assert panel.description_label.text() == "双击加入 · 拖动排序 · 最多 6 步"
     assert panel.body_layout().count() == 1
-    assert panel.maximumHeight() <= 112
+    assert panel.maximumHeight() <= 118
     assert not hasattr(panel, "move_up_button")
     assert not hasattr(panel, "move_down_button")
     assert not hasattr(panel, "add_button")
@@ -117,12 +117,12 @@ def test_stack_chain_limits_six_steps_to_one_row_at_desktop_width() -> None:
     panel = StackPanel()
     panel.set_items(
         [
-            "视频编辑 - 画布补边",
-            "视频编辑 - 旋转/翻转",
-            "视频编辑 - 裁剪",
-            "视频编辑 - 画面调整",
-            "音频处理 - 音量调整",
-            "视频编辑 - 去噪",
+            "画布补边",
+            "旋转翻转",
+            "裁剪",
+            "画面调整",
+            "音量调整",
+            "去噪",
         ]
     )
     panel.resize(680, panel.maximumHeight())

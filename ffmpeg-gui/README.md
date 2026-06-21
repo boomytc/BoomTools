@@ -23,7 +23,7 @@
 ## UI 结构
 
 - `desktop/app/ui/components/`：通用 Qt Widgets 结构件，包含 `PanelFrame`、`SegmentedToggle`、`PanelActionBar`、`FixedScrollArea`、`FormSection`。
-- `desktop/app/ui/panels/`：产品级区域组合，如内容选择、处理动作宿主、命令预览、任务队列。
+- `desktop/app/ui/panels/`：产品级区域组合，如内容选择、动作选择宿主、命令预览、任务队列。
 - `desktop/app/ui/widgets/`：产品级复合控件、字段工厂和表格模型。
 - `desktop/app/ui/delegates/`：任务表 model/view 绘制委托，负责媒体摘要、文本列、进度和行操作渲染。
 - `desktop/app/ui/layouts/`：主窗口内容布局宿主；当前使用 `DashboardLayout` 设置稳定 `panel_id`，不实现拖拽或布局持久化。

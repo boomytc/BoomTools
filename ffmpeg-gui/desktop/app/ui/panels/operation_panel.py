@@ -27,10 +27,12 @@ class OperationPanel(QWidget):
         self.setObjectName("operationPanel")
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         self._busy = False
+        self._stack_mode_enabled = False
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
+        self._layout = layout
 
         self.command_preview_panel = command_preview_panel or CommandPreviewPanel()
         self.operation_form = OperationFormWidget(command_preview_widget=self.command_preview_panel)
@@ -49,6 +51,7 @@ class OperationPanel(QWidget):
         self.stack_panel.setVisible(False)
         layout.addWidget(self.stack_panel)
         layout.addStretch(1)
+        self._sync_minimum_height()
 
     def selected_operation_payload(self) -> tuple[Operation, dict[str, object], dict[str, Path]]:
         return self.operation_form.collect()
@@ -75,9 +78,11 @@ class OperationPanel(QWidget):
         self.refresh_stack_controls()
 
     def set_stack_mode(self, enabled: bool) -> None:
+        self._stack_mode_enabled = enabled
         self.operation_form.set_stack_mode(enabled)
         self.stack_panel.setVisible(enabled)
         self.stack_panel.set_stack_mode(enabled)
+        self._sync_minimum_height()
         self.refresh_stack_controls()
 
     def stack_mode(self) -> bool:
@@ -121,3 +126,10 @@ class OperationPanel(QWidget):
         if operation not in STACK_FILTER_OPERATIONS:
             return
         self.stack_add_requested.emit()
+
+    def _sync_minimum_height(self) -> None:
+        minimum_height = self.operation_form.minimumHeight()
+        if self._stack_mode_enabled:
+            minimum_height += self._layout.spacing() + self.stack_panel.minimumHeight()
+        self.setMinimumHeight(minimum_height)
+        self.updateGeometry()

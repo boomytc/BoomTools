@@ -16,7 +16,7 @@ from desktop.app.ui.components import PanelFrame
 from shared.contracts import STACK_MAX_ITEMS
 
 
-STACK_HINT = f"双击动作加入 · 拖动排序 · 最多 {STACK_MAX_ITEMS} 步"
+STACK_HINT = f"双击加入 · 拖动排序 · 最多 {STACK_MAX_ITEMS} 步"
 STACK_LIMITED_HINT = f"仅可双击可链式动作 · 最多 {STACK_MAX_ITEMS} 步"
 STACK_CHIP_MAX_WIDTH = 136
 STACK_CHIP_TEXT_LIMIT = 12
@@ -34,12 +34,12 @@ class StackPanel(PanelFrame):
         self._busy = False
         self.setObjectName("stackPanel")
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.setMinimumHeight(86)
-        self.setMaximumHeight(112)
+        self.setMinimumHeight(96)
+        self.setMaximumHeight(118)
 
         self.count_label = QLabel(f"0/{STACK_MAX_ITEMS}")
         self.count_label.setObjectName("stackCountLabel")
-        self.count_label.setToolTip(f"Stack 最多支持 {STACK_MAX_ITEMS} 个动作")
+        self.count_label.setToolTip(f"Stack 最多支持 {STACK_MAX_ITEMS} 个步骤")
         self.add_action(self.count_label)
 
         self.clear_button = QPushButton("清空")

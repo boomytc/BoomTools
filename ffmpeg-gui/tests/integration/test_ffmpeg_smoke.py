@@ -32,6 +32,8 @@ def test_ffmpeg_smoke_all_operations(tmp_path: Path) -> None:
     secondary_audio = tmp_path / "music.mp3"
     secondary_video = tmp_path / "second.mp4"
     secondary_image = tmp_path / "overlay.png"
+    no_audio_first = tmp_path / "no_audio_first.mp4"
+    no_audio_second = tmp_path / "no_audio_second.mp4"
     raw_secondary = tmp_path / "raw.wav"
 
     _ffmpeg_run(
@@ -82,6 +84,25 @@ def test_ffmpeg_smoke_all_operations(tmp_path: Path) -> None:
             str(secondary_video),
         ]
     )
+    for no_audio_path in (no_audio_first, no_audio_second):
+        _ffmpeg_run(
+            [
+                ffmpeg,
+                "-hide_banner",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc2=size=160x90:rate=24",
+                "-t",
+                "1",
+                "-c:v",
+                "libx264",
+                "-pix_fmt",
+                "yuv420p",
+                str(no_audio_path),
+            ]
+        )
     _ffmpeg_run(
         [
             ffmpeg,
@@ -148,6 +169,31 @@ def test_ffmpeg_smoke_all_operations(tmp_path: Path) -> None:
             options=options,
             input_path=input_path,
             output_dir=tmp_path / operation.value,
+            extra_inputs=extra_inputs,
+        )
+        _ffmpeg_run(spec.args)
+        if spec.output_path is not None:
+            assert spec.output_path.exists(), operation
+            assert spec.output_path.stat().st_size > 0, operation
+
+    targeted_cases = [
+        (input_path, Operation.volume, {"output_format": "webm", "multiplier": 0.5}, {}),
+        (input_path, Operation.normalize_audio, {"output_format": "webm", "target_lufs": "-16"}, {}),
+        (
+            input_path,
+            Operation.mix_audio,
+            {"output_format": "webm", "original_volume": 1.0, "music_volume": 1.0},
+            {"secondary_input": secondary_audio},
+        ),
+        (no_audio_first, Operation.concat, {"output_format": "mp4"}, {"secondary_input": no_audio_second}),
+    ]
+    for case_input_path, operation, options, extra_inputs in targeted_cases:
+        spec = build_command(
+            ffmpeg_bin=ffmpeg,
+            operation=operation,
+            options=options,
+            input_path=case_input_path,
+            output_dir=tmp_path / f"targeted_{operation.value}",
             extra_inputs=extra_inputs,
         )
         _ffmpeg_run(spec.args)

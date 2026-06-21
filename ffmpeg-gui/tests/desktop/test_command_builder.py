@@ -157,7 +157,7 @@ def test_build_multi_input_operations() -> None:
                 Operation.concat,
                 {"output_format": "mp4"},
                 {"secondary_input": secondary_video},
-                "concat=n=2:v=1:a=1",
+                "concat=n=2:v=1:a=0",
             ),
             (
                 Operation.side_by_side,
@@ -183,6 +183,59 @@ def test_build_multi_input_operations() -> None:
                 extra_inputs=extra_inputs,
             )
             assert any(expected_arg in arg for arg in spec.args)
+
+
+def test_concat_can_explicitly_include_audio_filter() -> None:
+    with TemporaryDirectory() as tmp:
+        input_path = Path(tmp) / "input.mp4"
+        input_path.write_bytes(b"\x00")
+        secondary_video = Path(tmp) / "second.mp4"
+        secondary_video.write_bytes(b"")
+
+        spec = build_command(
+            ffmpeg_bin="ffmpeg",
+            operation=Operation.concat,
+            options={"output_format": "mp4", "include_audio": True},
+            input_path=input_path,
+            output_dir=Path(tmp) / "outputs",
+            extra_inputs={"secondary_input": secondary_video},
+        )
+
+    assert any("concat=n=2:v=1:a=1" in arg for arg in spec.args)
+    assert "-map" in spec.args
+    assert "[a]" in spec.args
+
+
+def test_webm_audio_filter_operations_use_webm_compatible_codecs() -> None:
+    with TemporaryDirectory() as tmp:
+        input_path = Path(tmp) / "input.mp4"
+        input_path.write_bytes(b"\x00")
+        secondary_audio = Path(tmp) / "music.mp3"
+        secondary_audio.write_bytes(b"id3")
+
+        cases = [
+            (Operation.volume, {"output_format": "webm", "multiplier": 0.5}, {}),
+            (Operation.normalize_audio, {"output_format": "webm", "target_lufs": "-16"}, {}),
+            (
+                Operation.mix_audio,
+                {"output_format": "webm", "original_volume": 1.0, "music_volume": 0.8},
+                {"secondary_input": secondary_audio},
+            ),
+        ]
+
+        for operation, options, extra_inputs in cases:
+            spec = build_command(
+                ffmpeg_bin="ffmpeg",
+                operation=operation,
+                options=options,
+                input_path=input_path,
+                output_dir=Path(tmp) / "outputs",
+                extra_inputs=extra_inputs,
+            )
+
+            assert spec.output_path.suffix == ".webm"
+            assert "libvpx-vp9" in spec.args
+            assert "libopus" in spec.args
 
 
 def test_build_raw_and_media_info_command() -> None:

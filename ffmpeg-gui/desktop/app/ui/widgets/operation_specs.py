@@ -167,6 +167,7 @@ FIELD_SPECS: dict[Operation, list[dict[str, Any]]] = {
     Operation.concat: [
         {"name": "secondary_input", "label": "第二段视频", "kind": "file", "extensions": ["*.mp4", "*.mov", "*.mkv", "*.avi", "*.webm", "*.flv", "*.m4v", "*.mpg", "*.mpeg", "*.wmv", "*.ts", "*.m2ts"], "filter": "Videos (*.mp4 *.mov *.mkv *.avi *.webm *.flv *.m4v *.mpg *.mpeg *.wmv *.ts *.m2ts)"},
         {"name": "output_format", "label": "输出格式", "kind": "choice", "choices": VIDEO_FORMAT_CHOICES, "default": "mp4"},
+        {"name": "include_audio", "label": "拼接音频", "kind": "bool", "default": False},
     ],
     Operation.side_by_side: [
         {"name": "secondary_input", "label": "第二段视频", "kind": "file", "extensions": ["*.mp4", "*.mov", "*.mkv", "*.avi", "*.webm", "*.flv", "*.m4v", "*.mpg", "*.mpeg", "*.wmv", "*.ts", "*.m2ts"], "filter": "Videos (*.mp4 *.mov *.mkv *.avi *.webm *.flv *.m4v *.mpg *.mpeg *.wmv *.ts *.m2ts)"},

@@ -296,7 +296,7 @@ def _operation_args(
 
     if operation is Operation.mute:
         fmt = _choice(options.get("output_format", "mp4"), VIDEO_FORMATS, "output_format")
-        return ["-c:a", "copy", "-an"] if fmt == "webm" else _video_codec_args(fmt, include_audio=False)
+        return _video_codec_args(fmt, include_audio=False)
 
     if operation is Operation.rotate:
         fmt = _choice(options.get("output_format", "mp4"), VIDEO_FORMATS, "output_format")
@@ -496,14 +496,20 @@ def _operation_args(
             "0:v?",
             "-map",
             "[a]",
-            "-c:v",
-            "copy",
-            "-c:a",
-            "aac",
+            *_video_codec_args(fmt),
         ]
 
     if operation is Operation.concat:
         fmt = _choice(options.get("output_format", "mp4"), VIDEO_FORMATS, "output_format")
+        include_audio = _as_bool(options.get("include_audio", False), "include_audio")
+        if not include_audio:
+            return [
+                "-filter_complex",
+                "[0:v]setpts=PTS-STARTPTS[v0];[1:v]setpts=PTS-STARTPTS[v1];[v0][v1]concat=n=2:v=1:a=0[v]",
+                "-map",
+                "[v]",
+                *_video_codec_args(fmt, include_audio=False),
+            ]
         return [
             "-filter_complex",
             "[0:v]setpts=PTS-STARTPTS[v0];[1:v]setpts=PTS-STARTPTS[v1];[0:a]asetpts=PTS-STARTPTS[a0];[1:a]asetpts=PTS-STARTPTS[a1];[v0][a0][v1][a1]concat=n=2:v=1:a=1[v][a]",
@@ -659,7 +665,8 @@ def _required_path(extra_inputs: dict[str, Path], key: str, allow_ext: set[str],
 
 def _video_codec_args(fmt: str, *, include_audio: bool = True) -> list[str]:
     if fmt == "webm":
-        args = ["-c:v", "libvpx-vp9", "-crf", "23", "-b:v", "0", "-c:a", "libopus"]
+        args = ["-c:v", "libvpx-vp9", "-crf", "23", "-b:v", "0"]
+        args.extend(["-c:a", "libopus"] if include_audio else ["-an"])
         return args
     if fmt == "mp4":
         return ["-c:v", "libx264", "-preset", "medium", "-crf", "23", "-c:a", "aac", "-movflags", "+faststart"] if include_audio else ["-c:v", "libx264", "-preset", "medium", "-crf", "23", "-an"]
@@ -668,7 +675,7 @@ def _video_codec_args(fmt: str, *, include_audio: bool = True) -> list[str]:
 
 def _audio_filter_output_args(fmt: str) -> list[str]:
     if fmt == "webm":
-        return ["-c:v", "copy", "-c:a", "libopus"]
+        return _video_codec_args(fmt)
     return ["-c:v", "copy", "-c:a", "aac"]
 
 

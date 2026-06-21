@@ -7,12 +7,14 @@ from pathlib import Path
 from PySide6.QtCore import QObject, QThread, Slot
 
 from desktop.app.core.config import AppConfig
+from desktop.app.runtime.binaries import RuntimeHealth, runtime_health_snapshot
 from desktop.app.runtime.ffmpeg import CommandError, CommandSpec
 from desktop.app.runtime.filter_chain import build_stack_command
 from desktop.app.services.config_service import ConfigService
 from desktop.app.services.ffmpeg_service import FfmpegService
 from desktop.app.services.log_service import LogService
 from desktop.app.services.output_service import OutputService
+from desktop.app.tasks.health_worker import HealthWorker
 from desktop.app.tasks.probe_worker import ProbeWorker
 from desktop.app.tasks.task_manager import TaskManager
 from desktop.app.ui.main_window import MainWindow
@@ -60,6 +62,8 @@ class MainController(QObject):
 
         self.state = AppState()
         self.task_state = TaskState()
+        self._health_thread: QThread | None = None
+        self._health_worker: HealthWorker | None = None
         self._probe_thread: QThread | None = None
         self._probe_worker: ProbeWorker | None = None
 
@@ -93,17 +97,14 @@ class MainController(QObject):
         self.window.set_start_enabled(self.state.can_start())
         self.window.set_batch_buttons(pending_count=0, running=False)
 
-    def refresh_runtime_health(self) -> None:
+    def refresh_runtime_health(self, *, include_version: bool = True) -> None:
         self._save_current_config()
-        health = self.ffmpeg_service.check_health(self.window.selected_ffmpeg_bin(), self.window.selected_ffprobe_bin())
-        self.state.runtime_health = health
-        self.window.set_runtime_health(health)
-        self.window.set_start_enabled(self.state.can_start())
-        if self.state.is_batch_running:
-            self.window.set_batch_buttons(
-                pending_count=len(self._batch_queue),
-                running=health.ok and self.state.current_task is not None and self.state.current_task.status is TaskStatus.running,
-            )
+        ffmpeg_bin = self.window.selected_ffmpeg_bin()
+        ffprobe_bin = self.window.selected_ffprobe_bin()
+        self._stop_health_thread()
+        self._apply_runtime_health(runtime_health_snapshot(ffmpeg_bin, ffprobe_bin))
+        if include_version:
+            self._start_health_thread(ffmpeg_bin, ffprobe_bin)
 
     def on_input_file_selected(self, path_text: str) -> None:
         self.on_batch_files_selected([path_text])
@@ -169,7 +170,7 @@ class MainController(QObject):
         self._save_current_config()
 
     def start_task(self) -> None:
-        self.refresh_runtime_health()
+        self.refresh_runtime_health(include_version=False)
         try:
             output_dir = self.output_service.normalize_output_dir(self.window.selected_output_dir())
         except OSError as exc:
@@ -314,6 +315,7 @@ class MainController(QObject):
         self.cancel_current_task()
         self.cancel_batch()
         self.task_manager.cancel_current(preserve_batch_cancel=True, wait=True)
+        self._stop_health_thread()
         self._stop_probe_thread()
 
     def copy_output_path(self) -> None:
@@ -871,6 +873,60 @@ class MainController(QObject):
         self.window.set_batch_input_mode(len(input_paths) > 1)
         self.window.set_batch_input_paths(input_paths)
 
+    def _start_health_thread(self, ffmpeg_bin: str, ffprobe_bin: str) -> None:
+        thread = QThread()
+        worker = HealthWorker(ffmpeg_bin, ffprobe_bin)
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.health_ready.connect(self._on_runtime_health_ready)
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(
+            lambda health_thread=thread, health_worker=worker: self._clear_health_worker(
+                health_thread,
+                health_worker,
+            )
+        )
+        self._health_thread = thread
+        self._health_worker = worker
+        thread.start()
+
+    def _stop_health_thread(self, wait_msecs: int = 1500) -> None:
+        thread = self._health_thread
+        worker = self._health_worker
+        if not thread:
+            return
+        if worker is not None:
+            worker.cancel()
+        if thread.isRunning():
+            thread.quit()
+            thread.wait(wait_msecs)
+
+    def _clear_health_worker(self, thread: QThread, worker: HealthWorker) -> None:
+        if self._health_thread is not thread or self._health_worker is not worker:
+            return
+        self._health_thread = None
+        self._health_worker = None
+
+    @Slot(str, str, object)
+    def _on_runtime_health_ready(self, ffmpeg_bin: str, ffprobe_bin: str, health: RuntimeHealth) -> None:
+        if ffmpeg_bin != self.window.selected_ffmpeg_bin() or ffprobe_bin != self.window.selected_ffprobe_bin():
+            return
+        self._apply_runtime_health(health)
+
+    def _apply_runtime_health(self, health: RuntimeHealth) -> None:
+        self.state.runtime_health = health
+        self.window.set_runtime_health(health)
+        self.window.set_start_enabled(self.state.can_start())
+        if self.state.is_batch_running:
+            self.window.set_batch_buttons(
+                pending_count=len(self._batch_queue),
+                running=health.ok
+                and self.state.current_task is not None
+                and self.state.current_task.status is TaskStatus.running,
+            )
+
     def _on_probe_task_path(self, path: Path) -> bool:
         return self.state.input_path == path
 
@@ -887,20 +943,30 @@ class MainController(QObject):
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
         thread.finished.connect(thread.deleteLater)
-        thread.finished.connect(self._clear_probe_worker)
+        thread.finished.connect(
+            lambda probe_thread=thread, probe_worker=worker: self._clear_probe_worker(
+                probe_thread,
+                probe_worker,
+            )
+        )
         self._probe_thread = thread
         self._probe_worker = worker
         thread.start()
 
-    def _stop_probe_thread(self, wait_msecs: int = 500) -> None:
-        if not self._probe_thread:
+    def _stop_probe_thread(self, wait_msecs: int = 1500) -> None:
+        thread = self._probe_thread
+        worker = self._probe_worker
+        if not thread:
             return
-        if self._probe_thread.isRunning():
-            self._probe_thread.quit()
-            self._probe_thread.wait(wait_msecs)
+        if worker is not None:
+            worker.cancel()
+        if thread.isRunning():
+            thread.quit()
+            thread.wait(wait_msecs)
 
-    @Slot()
-    def _clear_probe_worker(self) -> None:
+    def _clear_probe_worker(self, thread: QThread, worker: ProbeWorker) -> None:
+        if self._probe_thread is not thread or self._probe_worker is not worker:
+            return
         self._probe_thread = None
         self._probe_worker = None
 

@@ -6,7 +6,21 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QButtonGroup, QGridLayout, QPushButton, QSizePolicy, QWidget
 
 from desktop.app.ui.components import FixedScrollArea, PanelFrame, SegmentOption, SegmentedToggle
-from shared.contracts import OPERATION_LABELS, Operation
+from shared.contracts import OPERATION_LABELS, STACK_FILTER_OPERATIONS, Operation
+
+
+STACK_MODE_FALLBACK_ORDER = (
+    Operation.rotate,
+    Operation.crop,
+    Operation.adjust,
+    Operation.denoise,
+    Operation.sharpen_blur,
+    Operation.pad,
+    Operation.speed,
+    Operation.volume,
+    Operation.fade,
+    Operation.resize_compress,
+)
 
 
 class OperationSelector(PanelFrame):
@@ -23,6 +37,7 @@ class OperationSelector(PanelFrame):
         self._form_enabled = True
         self._batch_mode = False
         self._batch_supported_operations: set[Operation] = set()
+        self._stack_mode = False
 
         self.mode_toggle = SegmentedToggle(
             [
@@ -30,7 +45,7 @@ class OperationSelector(PanelFrame):
                 SegmentOption("stack", "Stack 链式"),
             ]
         )
-        self.mode_toggle.value_changed.connect(lambda value: self.stack_mode_toggled.emit(value == "stack"))
+        self.mode_toggle.value_changed.connect(self._on_mode_value_changed)
         self.add_action(self.mode_toggle)
 
         self.operation_button_group = QButtonGroup(self)
@@ -71,9 +86,10 @@ class OperationSelector(PanelFrame):
 
     def set_stack_mode(self, enabled: bool) -> None:
         self.mode_toggle.set_value("stack" if enabled else "single", force=True)
+        self._apply_stack_mode(enabled)
 
     def stack_mode(self) -> bool:
-        return self.mode_toggle.value() == "stack"
+        return self._stack_mode
 
     def set_stack_mode_enabled(self, enabled: bool) -> None:
         self.mode_toggle.button("single").setEnabled(enabled)
@@ -86,15 +102,12 @@ class OperationSelector(PanelFrame):
     def set_batch_operation_support(self, enabled: bool, supported_operations: AbstractSet[Operation]) -> None:
         self._batch_mode = enabled
         self._batch_supported_operations = set(supported_operations)
-        if self._batch_mode and self._selected_operation not in self._batch_supported_operations:
-            replacement = self._first_available_operation()
-            if replacement is not None:
-                self.select_operation(replacement)
         self._sync_operation_hint()
+        self._ensure_selected_operation_available()
         self._sync_operation_button_states()
 
     def select_operation(self, operation: Operation, *, emit: bool = True) -> None:
-        if self._batch_mode and operation not in self._batch_supported_operations:
+        if not self._operation_allowed_by_modes(operation):
             return
         if operation == self._selected_operation and any(button.isChecked() for button in self._operation_buttons.values()):
             return
@@ -106,12 +119,22 @@ class OperationSelector(PanelFrame):
         self._sync_operation_button_states()
 
     def _first_available_operation(self) -> Operation | None:
+        if self._stack_mode:
+            for operation in STACK_MODE_FALLBACK_ORDER:
+                if self._operation_allowed_by_modes(operation):
+                    return operation
         for operation in OPERATION_LABELS:
-            if not self._batch_mode or operation in self._batch_supported_operations:
+            if self._operation_allowed_by_modes(operation):
                 return operation
         return None
 
     def _sync_operation_hint(self) -> None:
+        if self._stack_mode and self._batch_mode:
+            self.set_description("Stack + 批量仅启用可重复执行的链式滤镜动作。")
+            return
+        if self._stack_mode:
+            self.set_description("Stack 仅启用可链式的单输入滤镜动作。")
+            return
         if self._batch_mode:
             self.set_description("多个文件仅启用可重复执行的动作。")
             return
@@ -121,20 +144,49 @@ class OperationSelector(PanelFrame):
         for operation, button in self._operation_buttons.items():
             available = self._operation_is_available(operation)
             button.setEnabled(available)
+            button.setCursor(Qt.CursorShape.PointingHandCursor if available else Qt.CursorShape.ArrowCursor)
             button.setToolTip(self._operation_tooltip(operation))
 
     def _operation_is_available(self, operation: Operation) -> bool:
         if not self._form_enabled:
             return False
-        if self._batch_mode and operation not in self._batch_supported_operations:
-            return False
-        return True
+        return self._operation_allowed_by_modes(operation)
 
     def _operation_tooltip(self, operation: Operation) -> str:
         label = OPERATION_LABELS[operation]
-        if self._batch_mode and operation not in self._batch_supported_operations:
-            return f"{label}\n多个文件暂不支持此动作。"
+        blockers = self._operation_mode_blockers(operation)
+        if blockers:
+            return f"{label}\n" + "\n".join(blockers)
         return label
+
+    def _on_mode_value_changed(self, value: str) -> None:
+        stack_enabled = value == "stack"
+        self._apply_stack_mode(stack_enabled)
+        self.stack_mode_toggled.emit(stack_enabled)
+
+    def _apply_stack_mode(self, enabled: bool) -> None:
+        self._stack_mode = enabled
+        self._sync_operation_hint()
+        self._ensure_selected_operation_available()
+        self._sync_operation_button_states()
+
+    def _ensure_selected_operation_available(self) -> None:
+        if self._operation_allowed_by_modes(self._selected_operation):
+            return
+        replacement = self._first_available_operation()
+        if replacement is not None:
+            self.select_operation(replacement)
+
+    def _operation_allowed_by_modes(self, operation: Operation) -> bool:
+        return not self._operation_mode_blockers(operation)
+
+    def _operation_mode_blockers(self, operation: Operation) -> list[str]:
+        blockers: list[str] = []
+        if self._stack_mode and operation not in STACK_FILTER_OPERATIONS:
+            blockers.append("Stack 仅支持可链式单输入滤镜。")
+        if self._batch_mode and operation not in self._batch_supported_operations:
+            blockers.append("多个文件暂不支持此动作。")
+        return blockers
 
 
 _OPERATION_SHORT_LABELS: dict[Operation, str] = {

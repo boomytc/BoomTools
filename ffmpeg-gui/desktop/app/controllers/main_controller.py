@@ -72,6 +72,7 @@ class MainController(QObject):
         self._batch_options: dict[str, object] = {}
         self._batch_extra_inputs: dict[str, Path] = {}
         self._batch_stack_items: list[tuple[Operation, dict[str, object], dict[str, Path]]] = []
+        self._batch_records: list[TaskRecord] = []
         self._is_batch_stack_mode: bool = False
         self._pending_total: int = 0
         self._current_batch_total: int = 0
@@ -194,7 +195,6 @@ class MainController(QObject):
         use_stack = self.window.stack_mode()
         stack_specs = self._collect_stack_specs(operation, options, extra_inputs)
         input_paths = self._collect_input_paths()
-        effective_operation = stack_specs[0][0] if use_stack and stack_specs else operation
         if not input_paths:
             self.window.show_error("请先选择存在的本机媒体文件")
             return
@@ -202,9 +202,15 @@ class MainController(QObject):
             self.window.show_error("Stack 需要至少添加一个可链式操作")
             return
 
-        if len(input_paths) > 1 and effective_operation not in BATCH_SUPPORTED_OPERATIONS:
-            self.window.show_error("该操作不支持批处理")
-            return
+        if len(input_paths) > 1:
+            if use_stack:
+                unsupported_operation = _unsupported_batch_stack_operation(stack_specs)
+                if unsupported_operation is not None:
+                    self.window.show_error(f"Stack 批处理暂不支持「{operation_label(unsupported_operation)}」")
+                    return
+            elif operation not in BATCH_SUPPORTED_OPERATIONS:
+                self.window.show_error("该操作不支持批处理")
+                return
 
         try:
             self._validate_duration_requirements(stack_specs, input_paths)
@@ -448,11 +454,18 @@ class MainController(QObject):
                 batch_error = f"多个文件暂不支持「{operation_label(operation)}」。"
         if self.window.stack_mode():
             try:
-                can_stack = bool(self._collect_stack_specs(*self.window.selected_operation_payload()))
+                stack_specs = self._collect_stack_specs(*self.window.selected_operation_payload())
+                can_stack = bool(stack_specs)
             except (ValueError, OSError, CommandError):
+                stack_specs = []
                 can_stack = False
             can_start = can_start and can_stack
             batch_error = None
+            if can_stack and len(input_paths) > 1:
+                unsupported_operation = _unsupported_batch_stack_operation(stack_specs)
+                if unsupported_operation is not None:
+                    can_start = False
+                    batch_error = f"Stack 批处理暂不支持「{operation_label(unsupported_operation)}」。"
 
         if batch_error:
             self.window.show_status(batch_error)
@@ -499,6 +512,7 @@ class MainController(QObject):
                         options=options,
                         extra_inputs=extra_inputs,
                     ),
+                    validate_capabilities=False,
                 )
         except (CommandError, ValueError, OSError) as exc:
             self.window.set_command_preview(f"预览失败：{exc}")
@@ -519,7 +533,7 @@ class MainController(QObject):
         bitrate = self._estimate_bitrate(spec.output_path.suffix)
         if bitrate is None:
             return "输出大小保守估算：当前格式不支持估算"
-        size_bytes = int(self.state.media_info.duration_seconds * bitrate)
+        size_bytes = int(self.state.media_info.duration_seconds * bitrate / 8)
         return f"输出大小保守估算：{self._format_bytes(size_bytes)}"
 
     def _estimate_bitrate(self, suffix: str) -> int | None:
@@ -757,6 +771,7 @@ class MainController(QObject):
         self.state.is_batch_running = True
         self.task_manager.clear_batch_cancel_flag()
         self._batch_queue = []
+        self._batch_records = []
         display_operation = self._batch_stack_items[0][0] if self._is_batch_stack_mode else self._batch_operation
         operation_text = f"Stack x{len(self._batch_stack_items)}" if self._is_batch_stack_mode else None
 
@@ -771,6 +786,7 @@ class MainController(QObject):
                 progress=0.0,
             )
             self._batch_queue.append((task, input_path))
+            self._batch_records.append(task)
 
         self.window.set_progress(None)
         self.window.set_batch_progress(0, self._current_batch_total)
@@ -785,7 +801,7 @@ class MainController(QObject):
             return
         if self.state.batch_cancel_requested or self.task_manager.batch_cancel_requested():
             self._mark_batch_pending(TaskStatus.cancelled, "Cancelled")
-            self._finish_batch()
+            self._finish_batch(TaskStatus.cancelled)
             return
         if not self._batch_queue:
             self._finish_batch()
@@ -1046,7 +1062,7 @@ class MainController(QObject):
         if self.state.is_batch_running:
             if self.state.batch_cancel_requested or self.task_manager.batch_cancel_requested():
                 self._mark_batch_pending(TaskStatus.cancelled, "Cancelled")
-                self._finish_batch()
+                self._finish_batch(TaskStatus.cancelled)
                 return
             if self._batch_queue:
                 self._start_next_batch_task()
@@ -1063,7 +1079,11 @@ class MainController(QObject):
         else:
             self.window.show_status(task.message)
 
-    def _finish_batch(self) -> None:
+    def _finish_batch(self, final_status: TaskStatus | None = None) -> None:
+        final_status = final_status or self._batch_final_status()
+        display_current = self.state.batch_current_index
+        if final_status is not TaskStatus.cancelled:
+            display_current = self._current_batch_total
         self.state.current_task = None
         self.state.is_batch_running = False
         self.state.batch_cancel_requested = False
@@ -1072,8 +1092,20 @@ class MainController(QObject):
         self.window.set_busy(False)
         self.window.set_batch_buttons(pending_count=0, running=False)
         self.window.set_start_enabled(self.state.can_start())
-        self.window.set_batch_progress(self._current_batch_total, self._current_batch_total)
+        self.window.set_batch_progress(
+            display_current,
+            self._current_batch_total,
+            terminal_label=_batch_finish_label(final_status),
+        )
         self.window.set_progress(0.0)
+        self._batch_records = []
+
+    def _batch_final_status(self) -> TaskStatus:
+        if any(record.status is TaskStatus.cancelled for record in self._batch_records):
+            return TaskStatus.cancelled
+        if any(record.status is TaskStatus.failed for record in self._batch_records):
+            return TaskStatus.failed
+        return TaskStatus.succeeded
 
     def _complete_media_info_task(self, input_path: Path) -> None:
         media_info = self.state.media_info if self.state.input_path == input_path else None
@@ -1184,3 +1216,20 @@ def _operation_needs_media_duration(operation: Operation, options: dict[str, obj
     except (TypeError, ValueError):
         return False
     return fade_out > 0
+
+
+def _unsupported_batch_stack_operation(
+    stack_specs: list[tuple[Operation, dict[str, object], dict[str, Path]]],
+) -> Operation | None:
+    for operation, _options, _extra_inputs in stack_specs:
+        if operation not in BATCH_SUPPORTED_OPERATIONS:
+            return operation
+    return None
+
+
+def _batch_finish_label(status: TaskStatus) -> str:
+    if status is TaskStatus.cancelled:
+        return "处理已取消"
+    if status is TaskStatus.failed:
+        return "处理结束（有失败）"
+    return "处理完成"

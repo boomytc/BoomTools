@@ -61,3 +61,34 @@ def test_build_subtitle_burn_reports_clear_error_if_filter_unsupported(monkeypat
                 extra_inputs={"subtitle": subtitle_path},
             ),
         )
+
+
+def test_build_subtitle_burn_can_skip_capability_check_for_preview(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    service = FfmpegService()
+    input_path = tmp_path / "input.mp4"
+    output_dir = tmp_path / "outputs"
+    subtitle_path = tmp_path / "caption.srt"
+    input_path.write_bytes(b"\x00")
+    output_dir.mkdir()
+    subtitle_path.write_text("1\n00:00:00,000 --> 00:00:01,000\nHello\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "desktop.app.services.ffmpeg_service.validate_subtitles_burn_support",
+        lambda _ffmpeg_bin: False,
+    )
+
+    spec = service.build_command(
+        "ffmpeg",
+        TaskRequest(
+            input_path=input_path,
+            output_dir=output_dir,
+            operation=Operation.subtitles,
+            options={"mode": "burn", "output_format": "mp4", "font_size": "medium"},
+            extra_inputs={"subtitle": subtitle_path},
+        ),
+        validate_capabilities=False,
+    )
+
+    assert "subtitles=" in " ".join(spec.args)

@@ -162,7 +162,10 @@ class RuntimePanel(PanelFrame):
         summary = _media_info_summary(media_info)
         self._set_media_chip(f"媒体信息：{summary}", summary, "")
 
-    def set_batch_progress(self, current: int, total: int) -> None:
+    def set_batch_progress(self, current: int, total: int, *, terminal_label: str | None = None) -> None:
+        if terminal_label:
+            self.selection_summary.setText(f"{terminal_label}：{current}/{total}")
+            return
         if total == 0 or current == 0:
             self._sync_selection_summary()
             return

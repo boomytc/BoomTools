@@ -6,7 +6,7 @@ from desktop.app.controllers.main_controller import MainController
 from desktop.app.core.config import AppConfig
 from desktop.app.runtime.binaries import RuntimeHealth
 from desktop.app.runtime.ffmpeg import CommandSpec
-from shared.contracts import MediaInfo, Operation, STACK_MAX_ITEMS, TaskStatus
+from shared.contracts import MediaInfo, Operation, STACK_MAX_ITEMS, TaskRecord, TaskStatus
 
 
 class _Signal:
@@ -29,6 +29,8 @@ class _FakeWindow:
         self.log_lines: list[str] = []
         self.command_preview = ""
         self.output_estimate = ""
+        self.start_enabled_values: list[bool] = []
+        self.batch_progress_values: list[tuple[int, int, str | None]] = []
 
         self.input_file_selected = _Signal()
         self.input_mode_changed = _Signal()
@@ -97,8 +99,8 @@ class _FakeWindow:
     def stack_mode(self) -> bool:
         return self.stack_mode_enabled
 
-    def set_start_enabled(self, _enabled: bool) -> None:
-        return None
+    def set_start_enabled(self, enabled: bool) -> None:
+        self.start_enabled_values.append(enabled)
 
     def set_runtime_health(self, _health: RuntimeHealth) -> None:
         return None
@@ -115,8 +117,8 @@ class _FakeWindow:
     def set_stack_items(self, items: list[str]) -> None:
         self._stack_items = items
 
-    def set_batch_progress(self, *_: object) -> None:
-        return None
+    def set_batch_progress(self, current: int, total: int, *, terminal_label: str | None = None) -> None:
+        self.batch_progress_values.append((current, total, terminal_label))
 
     def set_progress(self, *_: object) -> None:
         return None
@@ -142,7 +144,7 @@ class _FakeWindow:
     def append_log(self, line: str) -> None:
         self.log_lines.append(line)
 
-    def set_batch_buttons(self, *_: object) -> None:
+    def set_batch_buttons(self, *_: object, **__: object) -> None:
         return None
 
     def set_stack_mode(self, *_: object) -> None:
@@ -163,11 +165,13 @@ class _ConfigService:
 class _FfmpegService:
     def __init__(self, health: RuntimeHealth) -> None:
         self._health = health
+        self.build_command_kwargs: list[dict[str, object]] = []
 
     def check_health(self, *_: str) -> RuntimeHealth:
         return self._health
 
-    def build_command(self, *_: object, **__: object) -> CommandSpec:
+    def build_command(self, *_: object, **kwargs: object) -> CommandSpec:
+        self.build_command_kwargs.append(kwargs)
         return CommandSpec(args=["ffmpeg", "-i", "input_placeholder", "out.mp4"], output_path=Path("/tmp/out.mp4"), output_name="out.mp4")
 
 
@@ -222,20 +226,25 @@ class _TaskManager:
         raise AssertionError("should not reach worker creation")
 
 
-def _make_controller(window: _FakeWindow, task_model: _TaskModel | None = None) -> MainController:
+def _make_controller(
+    window: _FakeWindow,
+    task_model: _TaskModel | None = None,
+    ffmpeg_service: _FfmpegService | None = None,
+) -> MainController:
+    ffmpeg_service = ffmpeg_service or _FfmpegService(
+        RuntimeHealth(
+            ok=True,
+            ffmpeg_available=True,
+            ffprobe_available=True,
+            ffmpeg_path="ffmpeg",
+            ffprobe_path="ffprobe",
+        )
+    )
     return MainController(
         window=window,
         task_model=task_model or _TaskModel(),
         config_service=_ConfigService(),
-        ffmpeg_service=_FfmpegService(
-            RuntimeHealth(
-                ok=True,
-                ffmpeg_available=True,
-                ffprobe_available=True,
-                ffmpeg_path="ffmpeg",
-                ffprobe_path="ffprobe",
-            )
-        ),
+        ffmpeg_service=ffmpeg_service,
         output_service=_OutputService(),
         log_service=_LogService(),
         task_manager=_TaskManager(),
@@ -337,6 +346,43 @@ def test_media_info_preview_uses_ffprobe_command() -> None:
     assert "不生成文件" in window.output_estimate
 
 
+def test_command_preview_skips_runtime_capability_validation(tmp_path: Path) -> None:
+    window = _FakeWindow()
+    subtitle_path = tmp_path / "caption.srt"
+    subtitle_path.write_text("1\n00:00:00,000 --> 00:00:01,000\nHello\n", encoding="utf-8")
+    window.set_operation_payload(
+        Operation.subtitles,
+        {"mode": "burn", "output_format": "mp4", "font_size": "medium"},
+        {"subtitle": subtitle_path},
+    )
+    service = _FfmpegService(
+        RuntimeHealth(
+            ok=True,
+            ffmpeg_available=True,
+            ffprobe_available=True,
+            ffmpeg_path="ffmpeg",
+            ffprobe_path="ffprobe",
+        )
+    )
+    controller = _make_controller(window, ffmpeg_service=service)
+
+    controller._refresh_command_preview()
+
+    assert service.build_command_kwargs[-1]["validate_capabilities"] is False
+
+
+def test_output_estimate_treats_bitrate_as_bits_per_second() -> None:
+    window = _FakeWindow()
+    controller = _make_controller(window)
+    controller.state.input_path = Path("/tmp/input.mp4")
+    controller.state.media_info = MediaInfo(raw={}, duration_seconds=8.0)
+    spec = CommandSpec(args=[], output_path=Path("/tmp/out.mp4"), output_name="out.mp4")
+
+    estimate = controller._format_output_estimate(spec)
+
+    assert "4.77 MB" in estimate
+
+
 def test_stack_add_reports_unsupported_subtitle_operation(tmp_path: Path) -> None:
     window = _FakeWindow()
     window.set_operation_payload(Operation.subtitles, {"mode": "soft"}, {})
@@ -361,6 +407,40 @@ def test_stack_add_ignores_more_than_max_items_without_popup() -> None:
     assert len(controller._stack_items) == STACK_MAX_ITEMS
     assert len(window._stack_items) == STACK_MAX_ITEMS
     assert window.error_messages == []
+
+
+def test_stack_batch_start_state_rejects_any_unsupported_stack_step(tmp_path: Path) -> None:
+    window = _FakeWindow()
+    window.stack_mode_enabled = True
+    first = tmp_path / "first.mp4"
+    second = tmp_path / "second.mp4"
+    first.write_bytes(b"\x00")
+    second.write_bytes(b"\x00")
+    window.set_operation_payload(
+        Operation.crop,
+        {"x": 0, "y": 0, "width": 320, "height": 180, "output_format": "mp4"},
+        {},
+    )
+    window.set_batch_paths([first, second])
+    task_model = _TaskModel()
+    controller = _make_controller(window, task_model=task_model)
+    controller._on_stack_add_requested()
+    controller.state.runtime_health = RuntimeHealth(
+        ok=True,
+        ffmpeg_available=True,
+        ffprobe_available=True,
+        ffmpeg_path="ffmpeg",
+        ffprobe_path="ffprobe",
+    )
+    controller.state.input_mode = "batch"
+    controller.state.batch_input_paths = [first, second]
+    controller.state.input_path = first
+    window.set_batch_input_mode(True)
+
+    controller._refresh_start_state()
+
+    assert window.start_enabled_values[-1] is False
+    assert any("Stack 批处理暂不支持" in message for message in window.status_messages)
 
 
 def test_stack_item_selection_syncs_operation_payload() -> None:
@@ -503,6 +583,61 @@ def test_multiple_files_reject_unsupported_operation(tmp_path: Path) -> None:
     controller.start_task()
 
     assert any("该操作不支持批处理" in message for message in window.error_messages)
+
+
+def test_multiple_files_reject_unsupported_stack_step(tmp_path: Path) -> None:
+    window = _FakeWindow()
+    window.stack_mode_enabled = True
+    first = tmp_path / "first.mp4"
+    second = tmp_path / "second.mp4"
+    first.write_bytes(b"\x00")
+    second.write_bytes(b"\x00")
+    window.set_operation_payload(
+        Operation.crop,
+        {"x": 0, "y": 0, "width": 320, "height": 180, "output_format": "mp4"},
+        {},
+    )
+    window.set_batch_paths([first, second])
+
+    controller = _make_controller(window)
+    controller._on_stack_add_requested()
+    controller.state.input_mode = "batch"
+    controller.state.batch_input_paths = [first, second]
+    controller.state.input_path = first
+    window.set_batch_input_mode(True)
+    controller.start_task()
+
+    assert any("Stack 批处理暂不支持" in message for message in window.error_messages)
+
+
+def test_finish_batch_reports_cancelled_terminal_label() -> None:
+    window = _FakeWindow()
+    controller = _make_controller(window)
+    controller.state.is_batch_running = True
+    controller.state.batch_current_index = 1
+    controller._current_batch_total = 3
+    controller._batch_records = [
+        TaskRecord(operation=Operation.convert, input_path=Path("/tmp/first.mp4"), status=TaskStatus.cancelled),
+    ]
+
+    controller._finish_batch(TaskStatus.cancelled)
+
+    assert window.batch_progress_values[-1] == (1, 3, "处理已取消")
+
+
+def test_finish_batch_reports_partial_failure_terminal_label() -> None:
+    window = _FakeWindow()
+    controller = _make_controller(window)
+    controller.state.is_batch_running = True
+    controller.state.batch_current_index = 3
+    controller._current_batch_total = 3
+    controller._batch_records = [
+        TaskRecord(operation=Operation.convert, input_path=Path("/tmp/failed.mp4"), status=TaskStatus.failed),
+    ]
+
+    controller._finish_batch(TaskStatus.failed)
+
+    assert window.batch_progress_values[-1] == (3, 3, "处理结束（有失败）")
 
 
 def test_batch_selection_creates_ready_queue_rows(tmp_path: Path) -> None:

@@ -5,7 +5,7 @@ from typing import Any
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 
-from shared.contracts import MediaInfo, Operation, TaskRecord, TaskStatus, operation_category_label, operation_short_label
+from shared.contracts import MediaInfo, TaskRecord, TaskStatus, operation_category_label, operation_short_label
 
 STATUS_ROLE = int(Qt.ItemDataRole.UserRole) + 1
 PROGRESS_ROLE = int(Qt.ItemDataRole.UserRole) + 2

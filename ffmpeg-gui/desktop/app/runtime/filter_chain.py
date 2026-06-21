@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 from shared.contracts import MediaInfo, Operation, STACK_FILTER_OPERATIONS
 

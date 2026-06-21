@@ -50,10 +50,20 @@ class FfmpegService:
     def probe(self, ffprobe_bin: str, input_path: Path) -> MediaInfo:
         return probe_media(ffprobe_bin, input_path)
 
-    def build_command(self, ffmpeg_bin: str, request: TaskRequest) -> CommandSpec:
+    def build_command(
+        self,
+        ffmpeg_bin: str,
+        request: TaskRequest,
+        *,
+        validate_capabilities: bool = True,
+    ) -> CommandSpec:
         if request.operation is Operation.media_info:
             return build_media_info_command(ffmpeg_bin=ffmpeg_bin, input_path=request.input_path)
-        if request.operation is Operation.subtitles and str(request.options.get("mode", "soft")).strip().lower() == "burn":
+        if (
+            validate_capabilities
+            and request.operation is Operation.subtitles
+            and str(request.options.get("mode", "soft")).strip().lower() == "burn"
+        ):
             if not validate_subtitles_burn_support(ffmpeg_bin):
                 raise ValueError(
                     "当前 ffmpeg 不支持 subtitles 过滤器，hard-burn 字幕需要带 libass 的构建。请安装或切换到 soft 字幕。"

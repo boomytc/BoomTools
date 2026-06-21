@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 from PySide6.QtCore import QThread, QTimer
@@ -31,9 +32,10 @@ def test_probe_worker_cancel_stops_running_ffprobe(tmp_path: Path) -> None:
     thread.start()
 
     QTimer.singleShot(100, lambda: worker.cancel())
-    worker.finished.connect(app.quit)
-    QTimer.singleShot(2000, app.quit)
-    app.exec()
+    deadline = time.monotonic() + 2
+    while thread.isRunning() and time.monotonic() < deadline:
+        app.processEvents()
+        time.sleep(0.01)
 
     if thread.isRunning():
         worker.cancel()

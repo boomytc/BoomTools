@@ -133,8 +133,8 @@ class MainWindow(QMainWindow):
         effective_enabled = enabled and not busy
         self.task_panel.set_start_enabled(effective_enabled)
 
-    def set_batch_progress(self, current: int, total: int) -> None:
-        self.runtime_panel.set_batch_progress(current, total)
+    def set_batch_progress(self, current: int, total: int, *, terminal_label: str | None = None) -> None:
+        self.runtime_panel.set_batch_progress(current, total, terminal_label=terminal_label)
 
     def set_batch_buttons(self, pending_count: int, running: bool) -> None:
         self.task_panel.set_batch_buttons(pending_count=pending_count, running=running)

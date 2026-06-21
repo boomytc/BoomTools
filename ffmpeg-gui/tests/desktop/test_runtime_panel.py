@@ -108,6 +108,15 @@ def test_runtime_panel_displays_media_info_error_state() -> None:
     assert panel.media_info_chip.property("state") == "error"
 
 
+def test_runtime_panel_displays_batch_terminal_label() -> None:
+    _qt_app()
+    panel = RuntimePanel()
+
+    panel.set_batch_progress(1, 3, terminal_label="处理已取消")
+
+    assert panel.selection_summary.text() == "处理已取消：1/3"
+
+
 def test_stack_panel_renders_steps_as_arrow_chain() -> None:
     app = _qt_app()
     app.setStyleSheet(QSS_PATH.read_text(encoding="utf-8"))

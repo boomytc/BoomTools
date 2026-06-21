@@ -69,6 +69,8 @@ class ProbeWorker(QObject):
         )
         with self._process_lock:
             self._process = process
+        if self._cancel_requested:
+            process.terminate()
         try:
             stdout, stderr = process.communicate(timeout=30)
         except subprocess.TimeoutExpired:

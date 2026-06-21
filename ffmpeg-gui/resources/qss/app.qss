@@ -126,8 +126,7 @@ QFrame#runtimePanel,
 QFrame#commandPreviewPanel,
 QFrame#taskPanel,
 QFrame#panelFrame,
-QFrame[role="panel"],
-QGroupBox {
+QFrame[role="panel"] {
   background: #151824;
   border: 1px solid #4a5065;
   border-radius: 8px;
@@ -181,20 +180,6 @@ QFrame#fileDropArea:disabled {
   background: #171b26;
 }
 
-QGroupBox {
-  margin-top: 16px;
-  padding: 13px 12px 12px 12px;
-}
-
-QGroupBox::title {
-  subcontrol-origin: margin;
-  left: 12px;
-  padding: 0 5px;
-  color: #aeb9ce;
-  font-size: 12px;
-  font-weight: 800;
-}
-
 QSplitter::handle {
   background: #111520;
   border: 1px solid #262c3b;
@@ -203,7 +188,6 @@ QSplitter::handle {
 
 QScrollArea#operationScroll,
 QScrollArea#parameterScroll,
-QScrollArea#mediaScroll,
 QScrollArea#fixedScrollArea {
   background: transparent;
   border: 0;
@@ -211,7 +195,6 @@ QScrollArea#fixedScrollArea {
 
 QScrollArea#operationScroll > QWidget > QWidget,
 QScrollArea#parameterScroll > QWidget > QWidget,
-QScrollArea#mediaScroll > QWidget > QWidget,
 QScrollArea#fixedScrollArea > QWidget > QWidget,
 QWidget#parameterScrollContent {
   background: transparent;
@@ -233,7 +216,6 @@ QLabel#dropTitle {
 
 QLabel#mutedLabel,
 QLabel#batchProgressLabel,
-QLabel#outputEstimateLabel,
 QLabel#totalProgressLabel {
   color: #91a0b8;
 }
@@ -435,11 +417,6 @@ QWidget#pathPicker {
 
 QWidget#pathPicker QLineEdit {
   min-height: 24px;
-}
-
-QLineEdit#outputPathEdit {
-  color: #cdd6e7;
-  background: #111827;
 }
 
 /* Buttons */

@@ -5,6 +5,8 @@ import sys
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PySide6.QtCore import QPoint, QPointF, Qt
+from PySide6.QtGui import QWheelEvent
 from PySide6.QtWidgets import QApplication, QFrame
 
 from desktop.app.core.paths import QSS_PATH
@@ -64,6 +66,55 @@ def test_parameter_area_scrolls_without_resizing_panel() -> None:
     panel.close()
 
 
+def test_parameter_fields_keep_gutter_from_scrollbar() -> None:
+    app = _qt_app()
+    app.setStyleSheet(QSS_PATH.read_text(encoding="utf-8"))
+    panel = OperationPanel()
+    panel.resize(1320, 640)
+    panel.show()
+    app.processEvents()
+
+    panel.operation_form._select_operation(Operation.resize_compress)
+    app.processEvents()
+
+    form = panel.operation_form
+    width_field = form._controls["width"]
+    content_margins = form.parameter_content_widget.layout().contentsMargins()
+
+    assert form.parameter_scroll_area.viewportMargins().right() >= 8
+    assert content_margins.right() >= 12
+    assert form.parameter_content_widget.width() <= 680
+    assert width_field.maximumWidth() <= 560
+    assert width_field.width() <= 560
+
+    panel.close()
+
+
+def test_parameter_spinboxes_ignore_wheel_events() -> None:
+    app = _qt_app()
+    app.setStyleSheet(QSS_PATH.read_text(encoding="utf-8"))
+    panel = OperationPanel()
+    panel.show()
+    app.processEvents()
+
+    panel.operation_form._select_operation(Operation.gif)
+    app.processEvents()
+    fps_spin = panel.operation_form._controls["fps"]
+    fps_value = fps_spin.value()  # type: ignore[attr-defined]
+    QApplication.sendEvent(fps_spin, _wheel_up_event())  # type: ignore[arg-type]
+
+    panel.operation_form._select_operation(Operation.fade)
+    app.processEvents()
+    fade_spin = panel.operation_form._controls["fade_in_seconds"]
+    fade_value = fade_spin.value()  # type: ignore[attr-defined]
+    QApplication.sendEvent(fade_spin, _wheel_up_event())  # type: ignore[arg-type]
+
+    assert fps_spin.value() == fps_value  # type: ignore[attr-defined]
+    assert fade_spin.value() == fade_value  # type: ignore[attr-defined]
+
+    panel.close()
+
+
 def test_operation_form_does_not_expand_into_extra_window_height() -> None:
     app = _qt_app()
     app.setStyleSheet(QSS_PATH.read_text(encoding="utf-8"))
@@ -105,3 +156,16 @@ def _qt_app() -> QApplication:
     if app is None:
         return QApplication(sys.argv)
     return app
+
+
+def _wheel_up_event() -> QWheelEvent:
+    return QWheelEvent(
+        QPointF(4, 4),
+        QPointF(4, 4),
+        QPoint(0, 0),
+        QPoint(0, 120),
+        Qt.MouseButton.NoButton,
+        Qt.KeyboardModifier.NoModifier,
+        Qt.ScrollPhase.ScrollUpdate,
+        False,
+    )

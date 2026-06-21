@@ -193,7 +193,8 @@ QScrollArea#mediaScroll {
 
 QScrollArea#operationScroll > QWidget > QWidget,
 QScrollArea#parameterScroll > QWidget > QWidget,
-QScrollArea#mediaScroll > QWidget > QWidget {
+QScrollArea#mediaScroll > QWidget > QWidget,
+QWidget#parameterScrollContent {
   background: transparent;
 }
 
@@ -333,6 +334,45 @@ QPlainTextEdit:disabled {
 QComboBox::drop-down {
   width: 26px;
   border-left: 1px solid #333a50;
+}
+
+QSpinBox::up-button,
+QDoubleSpinBox::up-button,
+QSpinBox::down-button,
+QDoubleSpinBox::down-button {
+  width: 28px;
+  background: #151a29;
+  border-left: 1px solid #333a50;
+}
+
+QSpinBox::up-button,
+QDoubleSpinBox::up-button {
+  subcontrol-origin: border;
+  subcontrol-position: top right;
+  border-bottom: 1px solid #333a50;
+  border-top-right-radius: 6px;
+}
+
+QSpinBox::down-button,
+QDoubleSpinBox::down-button {
+  subcontrol-origin: border;
+  subcontrol-position: bottom right;
+  border-bottom-right-radius: 6px;
+}
+
+QSpinBox::up-button:hover,
+QDoubleSpinBox::up-button:hover,
+QSpinBox::down-button:hover,
+QDoubleSpinBox::down-button:hover {
+  background: #20283d;
+}
+
+QSpinBox::up-arrow,
+QDoubleSpinBox::up-arrow,
+QSpinBox::down-arrow,
+QDoubleSpinBox::down-arrow {
+  width: 8px;
+  height: 8px;
 }
 
 QWidget#pathPicker {

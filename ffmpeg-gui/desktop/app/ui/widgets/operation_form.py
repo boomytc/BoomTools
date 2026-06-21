@@ -5,8 +5,10 @@ from collections.abc import Set as AbstractSet
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QRect, Qt, Signal
+from PySide6.QtGui import QColor, QPaintEvent, QPainter, QWheelEvent
 from PySide6.QtWidgets import (
+    QAbstractSpinBox,
     QButtonGroup,
     QCheckBox,
     QComboBox,
@@ -29,6 +31,12 @@ from PySide6.QtWidgets import (
 from desktop.app.ui.widgets.operation_specs import FIELD_SPECS, RAW_PRESET_OPTIONS
 from desktop.app.ui.widgets.path_picker import PathPicker
 from shared.contracts import MediaInfo, OPERATION_LABELS, Operation
+
+
+PARAMETER_CONTENT_MAX_WIDTH = 680
+PARAMETER_FIELD_MAX_WIDTH = 560
+PARAMETER_SCROLL_RIGHT_GUTTER = 8
+SPINBOX_BUTTON_WIDTH = 28
 
 
 class OperationFormWidget(QWidget):
@@ -136,11 +144,15 @@ class OperationFormWidget(QWidget):
         self.parameter_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.parameter_scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.parameter_scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)
+        self.parameter_scroll_area.setViewportMargins(0, 0, PARAMETER_SCROLL_RIGHT_GUTTER, 0)
         self.parameter_scroll_area.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.parameter_scroll_area.setFixedHeight(164)
-        parameter_content = QWidget()
-        parameter_content_layout = QVBoxLayout(parameter_content)
-        parameter_content_layout.setContentsMargins(0, 0, 0, 0)
+        self.parameter_content_widget = QWidget()
+        self.parameter_content_widget.setObjectName("parameterScrollContent")
+        self.parameter_content_widget.setMaximumWidth(PARAMETER_CONTENT_MAX_WIDTH)
+        self.parameter_content_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+        parameter_content_layout = QVBoxLayout(self.parameter_content_widget)
+        parameter_content_layout.setContentsMargins(2, 0, 14, 0)
         parameter_content_layout.setSpacing(6)
 
         range_label = QLabel("处理范围（可选）")
@@ -155,6 +167,8 @@ class OperationFormWidget(QWidget):
         self.end_seconds_edit.setPlaceholderText("留空则处理到结尾")
         self.start_seconds_edit.setToolTip("可选。填写秒数后，从该时间点开始处理。")
         self.end_seconds_edit.setToolTip("可选。填写秒数后，在该时间点结束处理。")
+        _configure_parameter_field(self.start_seconds_edit)
+        _configure_parameter_field(self.end_seconds_edit)
         self.start_seconds_edit.textChanged.connect(lambda _text: self.spec_changed.emit())
         self.end_seconds_edit.textChanged.connect(lambda _text: self.spec_changed.emit())
         common_layout.addRow("开始", self.start_seconds_edit)
@@ -170,7 +184,7 @@ class OperationFormWidget(QWidget):
         self.empty_fields_label = QLabel("当前动作无需额外参数。")
         self.empty_fields_label.setObjectName("mutedLabel")
         parameter_content_layout.addWidget(self.empty_fields_label)
-        self.parameter_scroll_area.setWidget(parameter_content)
+        self.parameter_scroll_area.setWidget(self.parameter_content_widget)
         parameters_layout.addWidget(self.parameter_scroll_area)
         parameters_layout.addStretch(1)
         layout.addWidget(operation_group, 3)
@@ -273,6 +287,7 @@ class OperationFormWidget(QWidget):
             has_fields = True
             name = str(spec["name"])
             widget = self._create_widget(spec)
+            _configure_parameter_field(widget)
             control = self._controls.get(name, widget)
             self._controls.setdefault(name, widget)
             self.fields_layout.addRow(str(spec["label"]), widget)
@@ -314,12 +329,12 @@ class OperationFormWidget(QWidget):
                 combo.setCurrentIndex(index)
             return combo
         if kind == "int":
-            spin = QSpinBox()
+            spin = _NoWheelSpinBox()
             spin.setRange(int(spec["min"]), int(spec["max"]))
             spin.setValue(int(spec["default"]))
             return spin
         if kind == "float":
-            spin = QDoubleSpinBox()
+            spin = _NoWheelDoubleSpinBox()
             spin.setRange(float(spec["min"]), float(spec["max"]))
             spin.setDecimals(3)
             spin.setSingleStep(0.1)
@@ -540,5 +555,58 @@ def _configure_form_layout(layout: QFormLayout) -> None:
     layout.setContentsMargins(0, 0, 0, 0)
     layout.setHorizontalSpacing(10)
     layout.setVerticalSpacing(6)
+    layout.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
     layout.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
     layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+
+
+def _configure_parameter_field(widget: QWidget) -> None:
+    if isinstance(widget, (QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QPlainTextEdit, PathPicker)):
+        widget.setMaximumWidth(PARAMETER_FIELD_MAX_WIDTH)
+
+
+class _NoWheelSpinBox(QSpinBox):
+    def __init__(self) -> None:
+        super().__init__()
+        self.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.PlusMinus)
+
+    def wheelEvent(self, event: QWheelEvent) -> None:  # noqa: N802 - Qt override name
+        event.ignore()
+
+    def paintEvent(self, event: QPaintEvent) -> None:  # noqa: N802 - Qt override name
+        super().paintEvent(event)
+        _draw_spinbox_symbols(self)
+
+
+class _NoWheelDoubleSpinBox(QDoubleSpinBox):
+    def __init__(self) -> None:
+        super().__init__()
+        self.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.PlusMinus)
+
+    def wheelEvent(self, event: QWheelEvent) -> None:  # noqa: N802 - Qt override name
+        event.ignore()
+
+    def paintEvent(self, event: QPaintEvent) -> None:  # noqa: N802 - Qt override name
+        super().paintEvent(event)
+        _draw_spinbox_symbols(self)
+
+
+def _draw_spinbox_symbols(widget: QSpinBox | QDoubleSpinBox) -> None:
+    button_rect = QRect(widget.width() - SPINBOX_BUTTON_WIDTH, 0, SPINBOX_BUTTON_WIDTH, widget.height())
+    top_rect = QRect(button_rect.left(), button_rect.top(), button_rect.width(), button_rect.height() // 2)
+    bottom_rect = QRect(
+        button_rect.left(),
+        top_rect.bottom() + 1,
+        button_rect.width(),
+        button_rect.height() - top_rect.height(),
+    )
+    painter = QPainter(widget)
+    painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+    font = painter.font()
+    font.setBold(True)
+    font.setPointSize(max(font.pointSize(), 10))
+    painter.setFont(font)
+    painter.setPen(QColor("#d8e0ef" if widget.isEnabled() else "#687386"))
+    painter.drawText(top_rect, Qt.AlignmentFlag.AlignCenter, "+")
+    painter.drawText(bottom_rect, Qt.AlignmentFlag.AlignCenter, "-")
+    painter.end()

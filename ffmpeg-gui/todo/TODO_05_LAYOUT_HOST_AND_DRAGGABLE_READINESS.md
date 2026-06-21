@@ -84,12 +84,12 @@ class PanelPlacement:
 
 ## 必做清单
 
-- [ ] 确认所有主要 panel 都有稳定 objectName。
-- [ ] 确认 panel 构造不依赖父 layout 的具体位置。
-- [ ] 确认 panel 对外 signal 不因迁移 layout host 改变。
-- [ ] 将主窗口中的布局组织从散落 `root.addWidget(...)` 收敛到单一方法或 layout host。
-- [ ] 评估是否使用 `QSplitter` 支持可调整比例。
-- [ ] 若引入 `QSplitter`，测试默认尺寸和最小尺寸。
+- [x] 确认所有主要 panel 都有稳定 objectName。
+- [x] 确认 panel 构造不依赖父 layout 的具体位置。
+- [x] 确认 panel 对外 signal 不因迁移 layout host 改变。
+- [x] 将主窗口中的布局组织从散落 `root.addWidget(...)` 收敛到单一方法或 layout host。
+- [x] 评估是否使用 `QSplitter` 支持可调整比例。本阶段未引入，避免提前实现比例调节和拖拽语义。
+- [x] 若引入 `QSplitter`，测试默认尺寸和最小尺寸。本阶段未引入，无需 QSplitter 专项测试。
 
 ## 不做事项
 
@@ -113,12 +113,12 @@ class PanelPlacement:
 
 覆盖：
 
-- [ ] 主窗口能构建所有 panel。
-- [ ] 关键 panel objectName 和 panel id 稳定。
-- [ ] 默认布局中内容选择在顶部。
-- [ ] 操作/参数区域同一行。
-- [ ] 任务队列在下方。
-- [ ] 窗口 resize 后没有 panel 高度异常膨胀。
+- [x] 主窗口能构建所有 panel。
+- [x] 关键 panel objectName 和 panel id 稳定。
+- [x] 默认布局中内容选择在顶部。
+- [x] 操作/参数区域同一行。
+- [x] 任务队列在下方。
+- [x] 窗口 resize 后没有 panel 高度异常膨胀。
 
 ## 验收标准
 
@@ -140,4 +140,4 @@ git diff --check
 
 - [ ] 未开始
 - [ ] 进行中
-- [ ] 已完成
+- [x] 已完成

@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 from desktop.app.core.constants import WINDOW_TITLE
 from desktop.app.runtime.binaries import RuntimeHealth
 from desktop.app.ui.dialogs import LogDialog, SettingsDialog
+from desktop.app.ui.layouts import DashboardLayout
 from desktop.app.ui.panels import CommandPreviewPanel, OperationPanel, RuntimePanel, TaskPanel
 from desktop.app.ui.widgets.task_table_model import TaskTableModel
 from shared.contracts import BATCH_SUPPORTED_OPERATIONS, MediaInfo, Operation
@@ -68,15 +69,18 @@ class MainWindow(QMainWindow):
         self.operation_panel = OperationPanel()
         self.command_preview_panel = CommandPreviewPanel()
         self.task_panel = TaskPanel(task_model)
+        self.dashboard_layout = DashboardLayout(
+            runtime_panel=self.runtime_panel,
+            operation_panel=self.operation_panel,
+            command_preview_panel=self.command_preview_panel,
+            task_panel=self.task_panel,
+        )
         self.settings_dialog = SettingsDialog(self)
         self.log_dialog = LogDialog(self)
         self._connect_panel_signals()
 
         root.addWidget(self._create_masthead())
-        root.addWidget(self.runtime_panel)
-        root.addWidget(self.operation_panel)
-        root.addWidget(self.command_preview_panel)
-        root.addWidget(self.task_panel, 1)
+        root.addWidget(self.dashboard_layout, 1)
         self.setCentralWidget(central)
         self.statusBar().showMessage("Ready")
 

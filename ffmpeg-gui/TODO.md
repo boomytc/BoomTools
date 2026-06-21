@@ -41,7 +41,7 @@ desktop/app/ui/
 | 02 | `todo/TODO_02_PANEL_MIGRATION.md` | 已完成 | 将现有区域迁移到统一 PanelFrame 结构 |
 | 03 | `todo/TODO_03_OPERATION_AND_PARAMETER_REBUILD.md` | 已完成 | 重建处理动作、参数区域的组件组合 |
 | 04 | `todo/TODO_04_TASK_QUEUE_REBUILD.md` | 已完成 | 收敛任务队列表格、header、actions、delegate 边界 |
-| 05 | `todo/TODO_05_LAYOUT_HOST_AND_DRAGGABLE_READINESS.md` | 待开始 | 为未来拖拽布局、布局预设建立可承载边界 |
+| 05 | `todo/TODO_05_LAYOUT_HOST_AND_DRAGGABLE_READINESS.md` | 已完成 | 为未来拖拽布局、布局预设建立可承载边界 |
 | 06 | `todo/TODO_06_DOCS_VALIDATION_AND_CLEANUP.md` | 待开始 | 补齐文档、测试、视觉验证并删除旧冗余 |
 
 ## 全局验收标准

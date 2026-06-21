@@ -19,6 +19,7 @@ class OperationPanel(QWidget):
     stack_move_down_requested = Signal(int)
     stack_remove_requested = Signal(int)
     stack_clear_requested = Signal()
+    stack_item_selected = Signal(int)
     command_preview_requested = Signal()
 
     def __init__(self) -> None:
@@ -44,6 +45,7 @@ class OperationPanel(QWidget):
         self.stack_panel.move_down_requested.connect(self.stack_move_down_requested.emit)
         self.stack_panel.remove_requested.connect(self.stack_remove_requested.emit)
         self.stack_panel.clear_requested.connect(self.stack_clear_requested.emit)
+        self.stack_panel.item_selected.connect(self.stack_item_selected.emit)
         self.stack_panel.setVisible(False)
         layout.addWidget(self.stack_panel)
         layout.addStretch(1)
@@ -86,6 +88,14 @@ class OperationPanel(QWidget):
     def set_stack_items(self, items: list[str]) -> None:
         self.stack_panel.set_items(items)
         self.refresh_stack_controls()
+
+    def set_operation_payload(
+        self,
+        operation: Operation,
+        options: dict[str, object],
+        extra_inputs: dict[str, Path],
+    ) -> None:
+        self.operation_form.set_operation_payload(operation, options, extra_inputs)
 
     def refresh_stack_controls(self) -> None:
         supported = self._is_stack_operation_supported()

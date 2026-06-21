@@ -44,6 +44,7 @@ class _FakeWindow:
         self.stack_move_down_requested = _Signal()
         self.stack_remove_requested = _Signal()
         self.stack_clear_requested = _Signal()
+        self.stack_item_selected = _Signal()
         self.command_preview_requested = _Signal()
         self.open_output_requested = _Signal()
         self.open_output_dir_requested = _Signal()
@@ -255,6 +256,27 @@ def test_stack_add_reports_unsupported_subtitle_operation(tmp_path: Path) -> Non
 
     assert any("当前操作不支持加入 Stack" in message for message in window.error_messages)
     assert controller._stack_items == []
+
+
+def test_stack_item_selection_syncs_operation_payload() -> None:
+    window = _FakeWindow()
+    window.stack_mode_enabled = True
+    controller = _make_controller(window)
+    window.set_operation_payload(Operation.rotate, {"mode": "cw90", "output_format": "mp4"}, {})
+    controller._on_stack_add_requested()
+    window.set_operation_payload(
+        Operation.crop,
+        {"x": 4, "y": 8, "width": 320, "height": 180, "output_format": "mp4"},
+        {},
+    )
+    controller._on_stack_add_requested()
+    window.set_operation_payload(Operation.adjust, {"brightness": 0.2, "contrast": 1.0, "saturation": 1.1}, {})
+    controller._on_stack_item_selected(0)
+
+    operation, options, extra_inputs = window.selected_operation_payload()
+    assert operation is Operation.rotate
+    assert options == {"mode": "cw90", "output_format": "mp4"}
+    assert extra_inputs == {}
 
 
 def test_collect_input_paths_respects_single_input_mode(tmp_path: Path) -> None:

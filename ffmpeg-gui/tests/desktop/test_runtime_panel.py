@@ -6,7 +6,7 @@ import sys
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QPoint
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QLabel, QPushButton
 
 from desktop.app.core.paths import QSS_PATH
 from desktop.app.ui.components import PanelFrame
@@ -57,6 +57,41 @@ def test_command_preview_keeps_input_bottom_border_visible() -> None:
 
     assert panel.height() >= 96
     assert panel.height() - edit_bottom >= 8
+    panel.close()
+
+
+def test_stack_panel_renders_steps_as_arrow_chain() -> None:
+    app = _qt_app()
+    app.setStyleSheet(QSS_PATH.read_text(encoding="utf-8"))
+    panel = StackPanel()
+    emitted: list[int] = []
+    selected: list[int] = []
+    panel.move_down_requested.connect(emitted.append)
+    panel.item_selected.connect(selected.append)
+    panel.set_items(["基础 - 旋转/翻转", "基础 - 缩放+压缩 (outoverwrite)", "视频编辑 - 画面调整"])
+    panel.resize(900, panel.maximumHeight())
+    panel.show()
+    app.processEvents()
+
+    chips = panel.stack_chain.findChildren(QPushButton)
+    arrows = panel.stack_chain.findChildren(QLabel, "stackArrow")
+
+    assert len(chips) == 3
+    assert len(arrows) == 2
+    assert all(chip.property("role") == "stackChip" for chip in chips)
+    assert min(chip.height() for chip in chips) >= 26
+    assert panel.stack_chain.height() >= max(chip.height() for chip in chips) + 10
+    assert panel.stack_chain.selected_index() == 2
+
+    chips[1].click()
+    assert selected == [1]
+    assert panel.stack_chain.selected_index() == 1
+
+    panel.stack_chain.select_index(0)
+    panel.move_down_button.click()
+
+    assert emitted == [0]
+    assert panel.stack_chain.selected_index() == 1
     panel.close()
 
 

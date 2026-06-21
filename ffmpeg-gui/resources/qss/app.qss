@@ -562,6 +562,53 @@ QPushButton[role="operationCard"]:checked {
   border-color: #5b8dff;
 }
 
+QFrame#stackChainView {
+  background: #0f1320;
+  border: 1px solid #3f475d;
+  border-radius: 6px;
+}
+
+QPushButton[role="stackChip"] {
+  color: #cfe0ff;
+  background: #182236;
+  border: 1px solid #465674;
+  border-radius: 13px;
+  padding: 4px 11px;
+  min-height: 20px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+QPushButton[role="stackChip"]:hover {
+  color: #ffffff;
+  background: #21304a;
+  border-color: #6d86b2;
+}
+
+QPushButton[role="stackChip"]:checked {
+  color: #ffffff;
+  background: #244977;
+  border-color: #67a2ff;
+}
+
+QPushButton[role="stackChip"]:disabled {
+  color: #6f7a8e;
+  background: #171b26;
+  border-color: #30364a;
+}
+
+QLabel#stackArrow {
+  color: #7b8aa4;
+  font-size: 15px;
+  font-weight: 900;
+  padding: 0 1px;
+}
+
+QLabel#stackChainEmpty {
+  color: #687386;
+  padding: 5px 4px;
+}
+
 /* Mode toggles */
 QRadioButton {
   color: #b8c4d8;

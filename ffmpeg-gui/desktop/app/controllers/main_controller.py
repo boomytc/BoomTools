@@ -327,6 +327,7 @@ class MainController(QObject):
         self.window.stack_move_down_requested.connect(self._on_stack_move_down_requested)
         self.window.stack_remove_requested.connect(self._on_stack_remove_requested)
         self.window.stack_clear_requested.connect(self._on_stack_clear_requested)
+        self.window.stack_item_selected.connect(self._on_stack_item_selected)
         self.window.command_preview_requested.connect(self._refresh_command_preview)
         self.window.open_output_requested.connect(self.open_output)
         self.window.open_output_dir_requested.connect(self.open_output_dir)
@@ -386,6 +387,14 @@ class MainController(QObject):
     def _on_stack_clear_requested(self) -> None:
         self._stack_items = []
         self.window.set_stack_items([])
+        self._refresh_command_preview()
+
+    def _on_stack_item_selected(self, index: int) -> None:
+        if index < 0 or index >= len(self._stack_items):
+            return
+        operation, options, extra_inputs = self._stack_items[index]
+        self.window.set_operation_payload(operation, dict(options), dict(extra_inputs))
+        self._refresh_start_state()
         self._refresh_command_preview()
 
     def _collect_stack_specs(

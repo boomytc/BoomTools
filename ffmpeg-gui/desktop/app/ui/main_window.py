@@ -46,6 +46,7 @@ class MainWindow(QMainWindow):
     stack_move_down_requested = Signal(int)
     stack_remove_requested = Signal(int)
     stack_clear_requested = Signal()
+    stack_item_selected = Signal(int)
     command_preview_requested = Signal()
     copy_output_path_requested = Signal()
     closing = Signal()
@@ -170,6 +171,14 @@ class MainWindow(QMainWindow):
     def set_stack_items(self, items: list[str]) -> None:
         self.operation_panel.set_stack_items(items)
 
+    def set_operation_payload(
+        self,
+        operation: Operation,
+        options: dict[str, object],
+        extra_inputs: dict[str, Path],
+    ) -> None:
+        self.operation_panel.set_operation_payload(operation, options, extra_inputs)
+
     def set_batch_input_mode(self, enabled: bool) -> None:
         self.runtime_panel.set_batch_input_mode(enabled, emit=False)
         self.operation_panel.set_batch_input_mode(enabled, BATCH_SUPPORTED_OPERATIONS)
@@ -286,6 +295,7 @@ class MainWindow(QMainWindow):
         self.operation_panel.stack_move_down_requested.connect(self.stack_move_down_requested.emit)
         self.operation_panel.stack_remove_requested.connect(self.stack_remove_requested.emit)
         self.operation_panel.stack_clear_requested.connect(self.stack_clear_requested.emit)
+        self.operation_panel.stack_item_selected.connect(self.stack_item_selected.emit)
         self.operation_panel.command_preview_requested.connect(self.command_preview_requested.emit)
 
         self.task_panel.open_output_requested.connect(self.open_output_requested.emit)

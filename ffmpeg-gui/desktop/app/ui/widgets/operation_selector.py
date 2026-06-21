@@ -106,8 +106,8 @@ class OperationSelector(PanelFrame):
         self._ensure_selected_operation_available()
         self._sync_operation_button_states()
 
-    def select_operation(self, operation: Operation, *, emit: bool = True) -> None:
-        if not self._operation_allowed_by_modes(operation):
+    def select_operation(self, operation: Operation, *, emit: bool = True, force: bool = False) -> None:
+        if not force and not self._operation_allowed_by_modes(operation):
             return
         if operation == self._selected_operation and any(button.isChecked() for button in self._operation_buttons.values()):
             return

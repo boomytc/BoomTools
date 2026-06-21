@@ -151,6 +151,36 @@ class OperationParameterForm(PanelFrame):
     def set_subtitle_path(self, path: str) -> None:
         self.set_file_path("subtitle", path)
 
+    def set_payload(self, options: dict[str, object], extra_inputs: dict[str, Path]) -> None:
+        self._set_line_text("start_seconds", _option_text(options.get("start_seconds")))
+        self._set_line_text("end_seconds", _option_text(options.get("end_seconds")))
+        for spec in FIELD_SPECS.get(self._operation, []):
+            name = str(spec["name"])
+            kind = str(spec["kind"])
+            widget = self._controls.get(name)
+            if widget is None:
+                continue
+            if kind == "choice" and isinstance(widget, QComboBox):
+                _set_combo_value(widget, options.get(name, spec.get("default", "")))
+            elif kind == "int" and isinstance(widget, QSpinBox):
+                widget.setValue(int(options.get(name, spec.get("default", widget.value()))))
+            elif kind == "float" and isinstance(widget, QDoubleSpinBox):
+                widget.setValue(float(options.get(name, spec.get("default", widget.value()))))
+            elif kind == "bool" and isinstance(widget, QCheckBox):
+                widget.setChecked(bool(options.get(name, spec.get("default", False))))
+            elif kind == "optional_int" and isinstance(widget, QLineEdit):
+                widget.setText(_option_text(options.get(name)))
+            elif kind == "file":
+                input_path = extra_inputs.get(name)
+                _set_path_widget_text(widget, "" if input_path is None else str(input_path))
+            elif kind == "raw" and isinstance(widget, QPlainTextEdit):
+                raw_args = options.get(name, [])
+                if isinstance(raw_args, list):
+                    widget.setPlainText(shlex.join(str(arg) for arg in raw_args))
+                else:
+                    widget.setPlainText(str(raw_args))
+        self._sync_content_minimum_height()
+
     def set_enabled(self, enabled: bool) -> None:
         super().setEnabled(enabled)
         self.start_seconds_edit.setEnabled(enabled)
@@ -265,7 +295,12 @@ class OperationParameterForm(PanelFrame):
         widget.setText(text)
 
     def _set_line_text(self, name: str, text: str) -> None:
-        widget = self._controls.get(name)
+        if name == "start_seconds":
+            widget = self.start_seconds_edit
+        elif name == "end_seconds":
+            widget = self.end_seconds_edit
+        else:
+            widget = self._controls.get(name)
         if not isinstance(widget, QLineEdit):
             return
         widget.setText(text)
@@ -281,6 +316,28 @@ def _to_int(value: object) -> int | None:
     except (TypeError, ValueError):
         return None
     return parsed
+
+
+def _option_text(value: object) -> str:
+    if value is None:
+        return ""
+    return str(value)
+
+
+def _set_combo_value(combo: QComboBox, value: object) -> None:
+    text = str(value)
+    index = combo.findData(text)
+    if index < 0:
+        index = combo.findText(text)
+    if index >= 0:
+        combo.setCurrentIndex(index)
+
+
+def _set_path_widget_text(widget: QWidget, text: str) -> None:
+    if isinstance(widget, PathPicker):
+        widget.set_text(text)
+    elif isinstance(widget, QLineEdit):
+        widget.setText(text)
 
 
 def _parse_float_text(text: str, label: str) -> float:

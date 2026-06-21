@@ -41,6 +41,17 @@ class OperationFormWidget(QWidget):
     def select_operation(self, operation: Operation) -> None:
         self.operation_selector.select_operation(operation)
 
+    def set_operation_payload(
+        self,
+        operation: Operation,
+        options: dict[str, object],
+        extra_inputs: dict[str, Path],
+    ) -> None:
+        self.operation_selector.select_operation(operation, emit=False, force=True)
+        self.parameter_form.set_operation(operation, emit=False)
+        self.parameter_form.set_payload(options, extra_inputs)
+        self.spec_changed.emit()
+
     def set_stack_mode(self, enabled: bool) -> None:
         self.operation_selector.set_stack_mode(enabled)
 

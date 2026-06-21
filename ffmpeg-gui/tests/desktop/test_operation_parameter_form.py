@@ -11,7 +11,7 @@ from PySide6.QtGui import QWheelEvent
 from PySide6.QtWidgets import QApplication, QComboBox, QListView
 
 from desktop.app.ui.widgets.operation_parameter_form import OperationParameterForm
-from shared.contracts import Operation
+from shared.contracts import MediaInfo, Operation
 
 
 def test_parameter_form_keeps_height_across_raw_and_empty_operations() -> None:
@@ -52,6 +52,37 @@ def test_parameter_form_collects_options_and_extra_inputs(tmp_path: Path) -> Non
     assert options["start_seconds"] == 1.5
     assert options["mode"] == "soft"
     assert extra_inputs["subtitle"] == subtitle_path
+
+
+def test_parameter_form_sets_payload_values() -> None:
+    form = OperationParameterForm()
+    form.set_operation(Operation.crop)
+
+    form.set_payload(
+        {"start_seconds": 2.5, "x": 4, "y": 8, "width": 320, "height": 180, "output_format": "mp4"},
+        {},
+    )
+
+    operation, options, extra_inputs = form.collect()
+    assert operation is Operation.crop
+    assert options["start_seconds"] == 2.5
+    assert options["x"] == 4
+    assert options["y"] == 8
+    assert options["width"] == 320
+    assert options["height"] == 180
+    assert options["output_format"] == "mp4"
+    assert extra_inputs == {}
+
+
+def test_parameter_form_applies_media_defaults_from_string_probe_size() -> None:
+    form = OperationParameterForm()
+    form.set_operation(Operation.resize_compress)
+
+    form.apply_media_defaults(MediaInfo(raw={"streams": [{"codec_type": "video", "width": "640", "height": "360"}]}))
+
+    _operation, options, _extra_inputs = form.collect()
+    assert options["width"] == 640
+    assert options["height"] == 360
 
 
 def test_parameter_form_spinboxes_ignore_wheel_events() -> None:

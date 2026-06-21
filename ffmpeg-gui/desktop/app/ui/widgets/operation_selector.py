@@ -172,8 +172,8 @@ _OPERATION_SHORT_LABELS: dict[Operation, str] = {
 
 def operation_title_and_category(operation: Operation) -> tuple[str, str]:
     label = OPERATION_LABELS[operation]
-    category, _, fallback_title = label.partition(" - ")
-    title = _OPERATION_SHORT_LABELS.get(operation, fallback_title or label)
+    category, _, parsed_title = label.partition(" - ")
+    title = _OPERATION_SHORT_LABELS.get(operation, parsed_title or label)
     return title, category or "通用"
 
 

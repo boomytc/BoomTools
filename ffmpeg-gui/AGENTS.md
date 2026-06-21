@@ -89,6 +89,19 @@ tests/backend/
 - 控件尺寸与布局必须可调整窗口大小，不使用绝对定位；长路径、日志、命令预览要能复制、滚动或使用 tooltip，不让文本挤压关键按钮。
 - 视觉增强不得牺牲跨平台稳定性；不依赖平台私有字体、不使用复杂动画、不引入 QML/Web 前端作为默认 GUI。
 
+## UI Components 分层规则
+
+- `desktop/app/ui/components/` 只放通用 GUI 结构件：`PanelFrame`、`SegmentedToggle`、`PanelActionBar`、`FixedScrollArea`、`FormSection`。组件不得引用 ffmpeg runtime、service、controller 或 operation contract。
+- `PanelFrame` 是产品区域外壳的唯一默认方案，负责标题、说明、右侧 actions、density、`role="panel"` 和 body layout；不要再用 `QGroupBox` 或手写 header 结构表达主面板。
+- `SegmentedToggle` 只表达互斥模式选择，不内置 Stack、batch 或 operation 业务判断。
+- `PanelActionBar` 只负责按钮组布局和 role/density 接入，按钮启用状态仍由产品级 panel 或 controller 决定。
+- `FixedScrollArea` 用于处理动作列表、参数表单等固定高度内容；默认关闭水平滚动并保留右侧 gutter。
+- `FormSection` 负责小节标题、`QFormLayout` 对齐、字段宽度和空态说明；字段值解析留在产品级表单。
+- `desktop/app/ui/panels/` 放产品级区域组合，`desktop/app/ui/widgets/` 放产品级复合控件和模型，`desktop/app/ui/delegates/` 放 model/view 绘制委托，`desktop/app/ui/layouts/` 放主页面布局宿主。
+- `OperationFormWidget` 只作为组合入口；处理动作选择、参数表单、字段工厂分别由 `operation_selector.py`、`operation_parameter_form.py`、`operation_field_factory.py` 维护。
+- 主窗口通过 `DashboardLayout` 组织主内容区域；可布局 panel 必须设置稳定 `panel_id`，但不要提前实现拖拽排序、布局预设或持久化。
+- QSS 继续集中在 `resources/qss/app.qss`，组件通过 `objectName`、`role`、`density`、`state` 等 dynamic property 接入样式；不要新增一次性 inline style。
+
 ## ffmpeg 任务规则
 
 - 默认从 `PATH` 查找 `ffmpeg` / `ffprobe`，支持配置覆盖。

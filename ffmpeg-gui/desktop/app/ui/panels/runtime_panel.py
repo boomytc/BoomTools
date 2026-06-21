@@ -8,10 +8,12 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QSizePolicy,
     QPushButton,
     QVBoxLayout,
 )
 
+from desktop.app.ui.components import PanelFrame
 from shared.contracts import MediaInfo
 
 
@@ -66,7 +68,7 @@ class MediaDropArea(QFrame):
         super().dropEvent(event)
 
 
-class RuntimePanel(QFrame):
+class RuntimePanel(PanelFrame):
     input_browse_requested = Signal()
     input_path_dropped = Signal(str)
     input_mode_changed = Signal(bool)
@@ -76,7 +78,7 @@ class RuntimePanel(QFrame):
     output_dir_requested = Signal()
 
     def __init__(self) -> None:
-        super().__init__()
+        super().__init__("内容选择", density="compact")
         self._batch_paths: list[Path] = []
         self._last_input_dir: Path | None = None
         self._output_dir_path: Path | None = None
@@ -84,20 +86,11 @@ class RuntimePanel(QFrame):
         self._busy = False
         self.setObjectName("runtimePanel")
         self.setAcceptDrops(True)
-        self.setMinimumHeight(136)
-        self.setMaximumHeight(158)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.setMinimumHeight(154)
+        self.setMaximumHeight(184)
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 10, 12, 10)
-        layout.setSpacing(8)
-
-        header_row = QHBoxLayout()
-        header_row.setSpacing(10)
-        title_label = QLabel("内容选择")
-        title_label.setObjectName("sectionTitle")
-        header_row.addWidget(title_label)
-        header_row.addStretch(1)
-        layout.addLayout(header_row)
+        layout = self.body_layout()
 
         self.drop_area = self._create_input_area()
         layout.addWidget(self.drop_area)

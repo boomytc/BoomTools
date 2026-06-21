@@ -3,18 +3,17 @@ from __future__ import annotations
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QGroupBox,
     QHBoxLayout,
     QLabel,
     QListWidget,
     QListWidgetItem,
-    QPushButton,
     QSizePolicy,
-    QVBoxLayout,
 )
 
+from desktop.app.ui.components import PanelActionBar, PanelFrame
 
-class StackPanel(QGroupBox):
+
+class StackPanel(PanelFrame):
     add_requested = Signal()
     move_up_requested = Signal(int)
     move_down_requested = Signal(int)
@@ -22,16 +21,15 @@ class StackPanel(QGroupBox):
     clear_requested = Signal()
 
     def __init__(self) -> None:
-        super().__init__("Stack 队列")
+        super().__init__("Stack 队列", density="compact")
         self._items: list[str] = []
         self._busy = False
+        self.setObjectName("stackPanel")
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.setMinimumHeight(118)
-        self.setMaximumHeight(128)
+        self.setMinimumHeight(148)
+        self.setMaximumHeight(168)
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 10)
-        layout.setSpacing(6)
+        layout = self.body_layout()
 
         status_row = QHBoxLayout()
         status_row.setSpacing(8)
@@ -48,36 +46,20 @@ class StackPanel(QGroupBox):
         self.stack_list.setMinimumHeight(28)
         self.stack_list.setMaximumHeight(32)
 
-        button_row = QHBoxLayout()
-        button_row.setSpacing(8)
-        self.add_button = QPushButton("添加当前操作到 Stack")
-        self.add_button.setProperty("role", "result")
-        self.add_button.setProperty("density", "compact")
-        self.move_up_button = QPushButton("上移")
-        self.move_up_button.setProperty("role", "quiet")
-        self.move_up_button.setProperty("density", "compact")
-        self.move_down_button = QPushButton("下移")
-        self.move_down_button.setProperty("role", "quiet")
-        self.move_down_button.setProperty("density", "compact")
-        self.remove_button = QPushButton("移除")
-        self.remove_button.setProperty("role", "quiet")
-        self.remove_button.setProperty("density", "compact")
-        self.clear_button = QPushButton("清空")
-        self.clear_button.setProperty("role", "danger")
-        self.clear_button.setProperty("density", "compact")
+        button_row = PanelActionBar()
+        self.add_button = button_row.add_button("添加当前操作到 Stack", role="result")
+        self.move_up_button = button_row.add_button("上移", role="quiet")
+        self.move_down_button = button_row.add_button("下移", role="quiet")
+        self.remove_button = button_row.add_button("移除", role="quiet")
+        self.clear_button = button_row.add_button("清空", role="danger")
         self.add_button.clicked.connect(lambda _checked=False: self.add_requested.emit())
         self.move_up_button.clicked.connect(self._emit_move_up)
         self.move_down_button.clicked.connect(self._emit_move_down)
         self.remove_button.clicked.connect(self._emit_remove)
         self.clear_button.clicked.connect(lambda _checked=False: self.clear_requested.emit())
-        button_row.addWidget(self.add_button)
-        button_row.addWidget(self.move_up_button)
-        button_row.addWidget(self.move_down_button)
-        button_row.addWidget(self.remove_button)
-        button_row.addWidget(self.clear_button)
 
         layout.addWidget(self.stack_list)
-        layout.addLayout(button_row)
+        layout.addWidget(button_row)
 
         self.setVisible(False)
         self.set_busy(False)

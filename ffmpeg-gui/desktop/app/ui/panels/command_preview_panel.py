@@ -2,38 +2,39 @@ from __future__ import annotations
 
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QGuiApplication
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QLineEdit, QPushButton
+from PySide6.QtWidgets import QHBoxLayout, QLineEdit, QPushButton, QWidget
+
+from desktop.app.ui.components import PanelFrame
 
 
-class CommandPreviewPanel(QFrame):
+class CommandPreviewPanel(PanelFrame):
     command_copied = Signal()
 
     def __init__(self) -> None:
-        super().__init__()
+        super().__init__("命令预览", density="compact")
         self._command = ""
         self.setObjectName("commandPreviewPanel")
-        self.setMinimumHeight(50)
-        self.setMaximumHeight(58)
+        self.setMinimumHeight(82)
+        self.setMaximumHeight(96)
 
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(12, 8, 12, 8)
-        layout.setSpacing(10)
-
-        self.title_label = QLabel("命令预览")
-        self.title_label.setObjectName("subsectionTitle")
-        self.preview_edit = QLineEdit()
-        self.preview_edit.setObjectName("commandPreview")
-        self.preview_edit.setReadOnly(True)
-        self.preview_edit.setPlaceholderText("参数确认后显示 ffmpeg 命令预览")
         self.copy_button = QPushButton("复制")
         self.copy_button.setProperty("role", "quiet")
         self.copy_button.setToolTip("复制命令预览")
         self.copy_button.setEnabled(False)
         self.copy_button.clicked.connect(lambda _checked=False: self.copy_command())
+        self.add_action(self.copy_button)
 
-        layout.addWidget(self.title_label)
+        row = QWidget()
+        layout = QHBoxLayout(row)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(10)
+
+        self.preview_edit = QLineEdit()
+        self.preview_edit.setObjectName("commandPreview")
+        self.preview_edit.setReadOnly(True)
+        self.preview_edit.setPlaceholderText("参数确认后显示 ffmpeg 命令预览")
         layout.addWidget(self.preview_edit, 1)
-        layout.addWidget(self.copy_button)
+        self.body_layout().addWidget(row)
 
     def set_command(self, command: str) -> None:
         self._command = command

@@ -14,7 +14,6 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
     QFormLayout,
-    QGroupBox,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -29,6 +28,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from desktop.app.ui.components import PanelFrame
 from desktop.app.ui.widgets.operation_specs import FIELD_SPECS, RAW_PRESET_OPTIONS
 from desktop.app.ui.widgets.path_picker import PathPicker
 from shared.contracts import MediaInfo, OPERATION_LABELS, Operation
@@ -60,19 +60,13 @@ class OperationFormWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
 
-        self.operation_group = QGroupBox()
-        self.operation_group.setObjectName("operationGroup")
+        self.operation_group = PanelFrame("处理动作", description="先选择一个处理动作，参数会在下方更新。")
+        self.operation_group.setObjectName("operationFrame")
         self.operation_group.setMinimumHeight(236)
         self.operation_group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        operation_layout = QVBoxLayout(self.operation_group)
-        operation_layout.setContentsMargins(12, 10, 12, 10)
-        operation_layout.setSpacing(8)
-        operation_header = QHBoxLayout()
-        operation_header.setSpacing(8)
-        self.operation_title_label = QLabel("处理动作")
-        self.operation_title_label.setObjectName("sectionTitle")
-        operation_header.addWidget(self.operation_title_label)
-        operation_header.addStretch(1)
+        operation_layout = self.operation_group.body_layout()
+        self.operation_title_label = self.operation_group.title_label
+        self.operation_hint = self.operation_group.description_label
         self.single_mode_button = QPushButton("单操作")
         self.stack_mode_button = QPushButton("Stack 链式")
         for button in (self.single_mode_button, self.stack_mode_button):
@@ -86,12 +80,8 @@ class OperationFormWidget(QWidget):
         self.mode_button_group.addButton(self.stack_mode_button)
         self.single_mode_button.clicked.connect(lambda _checked=False: self.stack_mode_toggled.emit(False))
         self.stack_mode_button.clicked.connect(lambda _checked=False: self.stack_mode_toggled.emit(True))
-        operation_header.addWidget(self.single_mode_button)
-        operation_header.addWidget(self.stack_mode_button)
-        operation_layout.addLayout(operation_header)
-        self.operation_hint = QLabel("先选择一个处理动作，参数会在下方更新。")
-        self.operation_hint.setObjectName("mutedLabel")
-        operation_layout.addWidget(self.operation_hint)
+        self.operation_group.add_action(self.single_mode_button)
+        self.operation_group.add_action(self.stack_mode_button)
 
         self.operation_button_group = QButtonGroup(self)
         self.operation_button_group.setExclusive(True)
@@ -126,18 +116,13 @@ class OperationFormWidget(QWidget):
         operation_layout.addWidget(self.operation_scroll_area)
         operation_layout.addStretch(1)
 
-        self.parameters_group = QGroupBox()
-        self.parameters_group.setObjectName("parameterGroup")
+        self.parameters_group = PanelFrame("参数")
+        self.parameters_group.setObjectName("parameterFrame")
         self.parameters_group.setMinimumWidth(320)
         self.parameters_group.setMinimumHeight(236)
         self.parameters_group.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-        parameters_layout = QVBoxLayout(self.parameters_group)
-        parameters_layout.setContentsMargins(12, 10, 12, 10)
-        parameters_layout.setSpacing(6)
-
-        self.parameter_title_label = QLabel("参数")
-        self.parameter_title_label.setObjectName("sectionTitle")
-        parameters_layout.addWidget(self.parameter_title_label)
+        parameters_layout = self.parameters_group.body_layout()
+        self.parameter_title_label = self.parameters_group.title_label
 
         self.selected_operation_label = QLabel()
         self.selected_operation_label.setObjectName("operationSelectionLabel")

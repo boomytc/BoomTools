@@ -126,6 +126,7 @@ QFrame#runtimePanel,
 QFrame#commandPreviewPanel,
 QFrame#taskPanel,
 QFrame#panelFrame,
+QFrame[role="panel"],
 QGroupBox {
   background: #151824;
   border: 1px solid #4a5065;
@@ -135,11 +136,13 @@ QGroupBox {
 QFrame#runtimePanel,
 QFrame#commandPreviewPanel,
 QFrame#taskPanel,
-QFrame#panelFrame {
+QFrame#panelFrame,
+QFrame[role="panel"] {
   padding: 0;
 }
 
-QFrame#panelFrame[density="standard"] {
+QFrame#panelFrame[density="standard"],
+QFrame[role="panel"][density="standard"] {
   border-color: #535b72;
 }
 
@@ -181,12 +184,6 @@ QFrame#fileDropArea:disabled {
 QGroupBox {
   margin-top: 16px;
   padding: 13px 12px 12px 12px;
-}
-
-QGroupBox#operationGroup,
-QGroupBox#parameterGroup {
-  margin-top: 0;
-  padding: 0;
 }
 
 QGroupBox::title {

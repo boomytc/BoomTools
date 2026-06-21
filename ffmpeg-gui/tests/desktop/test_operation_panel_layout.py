@@ -10,6 +10,7 @@ from PySide6.QtGui import QWheelEvent
 from PySide6.QtWidgets import QApplication, QComboBox, QFrame, QListView
 
 from desktop.app.core.paths import QSS_PATH
+from desktop.app.ui.components import PanelFrame
 from desktop.app.ui.main_window import MainWindow
 from desktop.app.ui.panels.operation_panel import OperationPanel
 from desktop.app.ui.widgets.task_table_model import TaskTableModel
@@ -151,8 +152,10 @@ def test_operation_and_parameter_panels_use_compact_internal_titles() -> None:
     operation_margins = form.operation_group.layout().contentsMargins()
     parameter_margins = form.parameters_group.layout().contentsMargins()
 
-    assert form.operation_group.title() == ""
-    assert form.parameters_group.title() == ""
+    assert isinstance(form.operation_group, PanelFrame)
+    assert isinstance(form.parameters_group, PanelFrame)
+    assert form.operation_group.objectName() == "operationFrame"
+    assert form.parameters_group.objectName() == "parameterFrame"
     assert form.operation_title_label.text() == "处理动作"
     assert form.parameter_title_label.text() == "参数"
     assert operation_margins.top() <= 10
@@ -160,6 +163,16 @@ def test_operation_and_parameter_panels_use_compact_internal_titles() -> None:
     assert operation_margins.left() == parameter_margins.left()
     assert operation_margins.right() == parameter_margins.right()
 
+    panel.close()
+
+
+def test_operation_form_uses_panel_frame_selectors() -> None:
+    _qt_app()
+    panel = OperationPanel()
+    form = panel.operation_form
+
+    assert form.operation_group.objectName() == "operationFrame"
+    assert form.parameters_group.objectName() == "parameterFrame"
     panel.close()
 
 

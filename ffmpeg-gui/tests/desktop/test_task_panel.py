@@ -6,6 +6,7 @@ from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PySide6.QtCore import QPoint
 from PySide6.QtWidgets import QApplication
 
 from desktop.app.core.paths import QSS_PATH
@@ -93,9 +94,16 @@ def test_task_panel_places_total_progress_under_title() -> None:
     panel.show()
     app.processEvents()
 
-    assert panel.total_progress_label.geometry().top() > panel.title_label.geometry().top()
+    progress_top = panel.total_progress_label.mapTo(panel, QPoint(0, 0)).y()
+    title_top = panel.title_label.mapTo(panel, QPoint(0, 0)).y()
+    title_right = panel.title_label.mapTo(panel, QPoint(panel.title_label.width(), 0)).x()
+    start_left = panel.start_button.mapTo(panel, QPoint(0, 0)).x()
+    start_top = panel.start_button.mapTo(panel, QPoint(0, 0)).y()
+
+    assert progress_top > title_top
     assert panel.total_progress_bar.geometry().top() >= panel.total_progress_label.geometry().top() - 2
-    assert panel.start_button.geometry().left() > panel.total_progress_bar.geometry().right()
+    assert start_left > title_right
+    assert start_top <= title_top + panel.title_label.height() + 4
 
     panel.close()
 

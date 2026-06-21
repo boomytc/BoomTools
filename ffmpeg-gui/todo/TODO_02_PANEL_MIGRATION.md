@@ -18,15 +18,15 @@
 
 目标：
 
-- 使用 `PanelFrame(title="内容选择")`。
-- 保留 `MediaDropArea` 为产品级拖拽控件。
-- 输出目录行作为 body 内部内容。
+- [x] 使用 `PanelFrame(title="内容选择")`。
+- [x] 保留 `MediaDropArea` 为产品级拖拽控件。
+- [x] 输出目录行作为 body 内部内容。
 
 删除：
 
-- 手写 `header_row`。
-- 重复 `sectionTitle` label 创建代码。
-- 只服务旧 layout 的 spacing/margin 分支。
+- [x] 手写 `header_row`。
+- [x] 重复 `sectionTitle` label 创建代码。
+- [x] 只服务旧 layout 的 spacing/margin 分支。
 
 验收：
 
@@ -38,15 +38,15 @@
 
 目标：
 
-- 处理动作区域使用 `PanelFrame`。
-- 参数区域使用 `PanelFrame`。
-- 面板标题不再靠 `QGroupBox` 或手写重复结构。
+- [x] 处理动作区域使用 `PanelFrame`。
+- [x] 参数区域使用 `PanelFrame`。
+- [x] 面板标题不再靠 `QGroupBox` 或手写重复结构。
 
 删除：
 
-- `operation_group = QGroupBox()` 旧面板外壳。
-- `parameters_group = QGroupBox()` 旧面板外壳。
-- `QGroupBox#operationGroup`、`QGroupBox#parameterGroup` 特例 QSS。
+- [x] `operation_group = QGroupBox()` 旧面板外壳。
+- [x] `parameters_group = QGroupBox()` 旧面板外壳。
+- [x] `QGroupBox#operationGroup`、`QGroupBox#parameterGroup` 特例 QSS。
 
 验收：
 
@@ -58,15 +58,15 @@
 
 目标：
 
-- 使用 `PanelFrame(title="任务队列")`。
-- header actions 使用 `PanelActionBar`。
-- 总进度使用 `PanelFrame` 的 description 或 body header 子行。
+- [x] 使用 `PanelFrame(title="任务队列")`。
+- [x] header actions 使用 `PanelActionBar`。
+- [x] 总进度使用 `PanelFrame` 的 description 或 body header 子行。
 
 删除：
 
-- 手写 `title_block`。
-- 手写 `button_row`。
-- 重复按钮间距。
+- [x] 手写 `title_block`。
+- [x] 手写 `button_row`。
+- [x] 重复按钮间距。
 
 验收：
 
@@ -78,13 +78,13 @@
 
 目标：
 
-- 使用 `PanelFrame(title="命令预览")`。
-- 复制按钮作为 action。
-- 输入框作为 body 内容。
+- [x] 使用 `PanelFrame(title="命令预览")`。
+- [x] 复制按钮作为 action。
+- [x] 输入框作为 body 内容。
 
 删除：
 
-- 重复外层 QFrame header 结构。
+- [x] 重复外层 QFrame header 结构。
 
 验收：
 
@@ -95,12 +95,12 @@
 
 目标：
 
-- 使用 `PanelFrame(title="Stack 队列")`。
-- Stack 操作按钮使用 `PanelActionBar`。
+- [x] 使用 `PanelFrame(title="Stack 队列")`。
+- [x] Stack 操作按钮使用 `PanelActionBar`。
 
 删除：
 
-- 旧 QGroupBox 标题结构。
+- [x] 旧 QGroupBox 标题结构。
 
 验收：
 
@@ -124,10 +124,10 @@
 
 覆盖：
 
-- [ ] 每个 panel 使用新组件。
-- [ ] 各区域标题和 actions 存在。
-- [ ] 核心信号仍可触发。
-- [ ] 旧 `QGroupBox` 特例不再存在。
+- [x] 每个 panel 使用新组件。
+- [x] 各区域标题和 actions 存在。
+- [x] 核心信号仍可触发。
+- [x] 旧 `QGroupBox` 特例不再存在。
 
 ## 验收标准
 
@@ -149,4 +149,4 @@ git diff --check
 
 - [ ] 未开始
 - [ ] 进行中
-- [ ] 已完成
+- [x] 已完成

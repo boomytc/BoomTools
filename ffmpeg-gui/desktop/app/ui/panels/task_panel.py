@@ -4,24 +4,23 @@ from pathlib import Path
 
 from PySide6.QtCore import QModelIndex, QPoint, Qt, Signal
 from PySide6.QtWidgets import (
-    QFrame,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QMenu,
     QProgressBar,
-    QPushButton,
     QSizePolicy,
     QTableView,
-    QVBoxLayout,
+    QWidget,
 )
 
+from desktop.app.ui.components import PanelActionBar, PanelFrame
 from desktop.app.ui.delegates import MediaSummaryDelegate, ProgressBarDelegate, RemoveActionDelegate, TextCellDelegate
 from desktop.app.ui.widgets.task_table_model import ACTION_ENABLED_ROLE, TaskTableModel
 from shared.contracts import TERMINAL_STATUSES, TaskRecord, TaskStatus
 
 
-class TaskPanel(QFrame):
+class TaskPanel(PanelFrame):
     start_requested = Signal()
     cancel_requested = Signal()
     cancel_queue_requested = Signal()
@@ -32,7 +31,7 @@ class TaskPanel(QFrame):
     remove_task_requested = Signal(str)
 
     def __init__(self, task_model: TaskTableModel) -> None:
-        super().__init__()
+        super().__init__("任务队列", density="compact")
         self._task_model = task_model
         self._busy = False
         self._start_enabled = False
@@ -42,16 +41,20 @@ class TaskPanel(QFrame):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setMinimumHeight(158)
         self.setMaximumHeight(420)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 10, 12, 12)
-        layout.setSpacing(8)
 
-        header_row = QHBoxLayout()
-        header_row.setSpacing(12)
-        title_block = QVBoxLayout()
-        title_block.setSpacing(4)
-        self.title_label = QLabel("任务队列")
-        self.title_label.setObjectName("sectionTitle")
+        action_bar = PanelActionBar()
+        self.start_button = action_bar.add_button("开始处理", role="primary")
+        self.cancel_button = action_bar.add_button("取消当前", role="danger")
+        self.cancel_queue_button = action_bar.add_button("取消队列", role="danger")
+        self.remove_pending_button = action_bar.add_button("移除未运行", role="quiet")
+        self.add_action(action_bar)
+
+        layout = self.body_layout()
+
+        progress_row_container = QWidget()
+        progress_row = QHBoxLayout(progress_row_container)
+        progress_row.setContentsMargins(0, 0, 0, 0)
+        progress_row.setSpacing(8)
         self.total_progress_label = QLabel("无任务")
         self.total_progress_label.setObjectName("totalProgressLabel")
         self.total_progress_bar = QProgressBar()
@@ -60,34 +63,14 @@ class TaskPanel(QFrame):
         self.total_progress_bar.setValue(0)
         self.total_progress_bar.setTextVisible(False)
         self.total_progress_bar.setFixedWidth(132)
-        progress_row = QHBoxLayout()
-        progress_row.setSpacing(8)
         progress_row.addWidget(self.total_progress_label)
         progress_row.addWidget(self.total_progress_bar)
         progress_row.addStretch(1)
-        title_block.addWidget(self.title_label)
-        title_block.addLayout(progress_row)
-        header_row.addLayout(title_block, 1)
-        self.start_button = QPushButton("开始处理")
-        self.start_button.setObjectName("primaryButton")
-        self.cancel_button = QPushButton("取消当前")
-        self.cancel_button.setProperty("role", "danger")
-        self.cancel_queue_button = QPushButton("取消队列")
-        self.cancel_queue_button.setProperty("role", "danger")
-        self.remove_pending_button = QPushButton("移除未运行")
-        self.remove_pending_button.setProperty("role", "quiet")
         self.start_button.clicked.connect(lambda _checked=False: self.start_requested.emit())
         self.cancel_button.clicked.connect(lambda _checked=False: self.cancel_requested.emit())
         self.cancel_queue_button.clicked.connect(lambda _checked=False: self.cancel_queue_requested.emit())
         self.remove_pending_button.clicked.connect(lambda _checked=False: self.remove_pending_requested.emit())
-        button_row = QHBoxLayout()
-        button_row.setSpacing(8)
-        button_row.addWidget(self.start_button)
-        button_row.addWidget(self.cancel_button)
-        button_row.addWidget(self.cancel_queue_button)
-        button_row.addWidget(self.remove_pending_button)
-        header_row.addLayout(button_row)
-        layout.addLayout(header_row)
+        layout.addWidget(progress_row_container)
 
         self.task_table = QTableView()
         self.task_table.setObjectName("taskTable")

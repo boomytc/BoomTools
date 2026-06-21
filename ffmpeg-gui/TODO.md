@@ -36,7 +36,7 @@ desktop/app/ui/
 
 | 阶段 | 文件 | 状态 | 目标 |
 | --- | --- | --- | --- |
-| 00 | `todo/TODO_00_BASELINE_AND_SCOPE.md` | 待开始 | 固化当前基线、定义唯一终态和删除策略 |
+| 00 | `todo/TODO_00_BASELINE_AND_SCOPE.md` | 已完成 | 固化当前基线、定义唯一终态和删除策略 |
 | 01 | `todo/TODO_01_COMPONENT_SYSTEM.md` | 待开始 | 提取基础 UI 组件层 |
 | 02 | `todo/TODO_02_PANEL_MIGRATION.md` | 待开始 | 将现有区域迁移到统一 PanelFrame 结构 |
 | 03 | `todo/TODO_03_OPERATION_AND_PARAMETER_REBUILD.md` | 待开始 | 重建处理动作、参数区域的组件组合 |

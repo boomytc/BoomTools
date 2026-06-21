@@ -5,6 +5,7 @@ from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import (
     QApplication,
     QFrame,
+    QGraphicsOpacityEffect,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -112,6 +113,8 @@ class _StackChainView(QFrame):
         self._selected_index: int | None = None
         self._chip_buttons: list[_StackChipButton] = []
         self._drop_target_index: int | None = None
+        self._drop_slot: int | None = None
+        self._drag_hot_spot = QPoint()
         self.setObjectName("stackChainView")
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setFixedHeight(44)
@@ -119,6 +122,17 @@ class _StackChainView(QFrame):
         self._layout = QHBoxLayout(self)
         self._layout.setContentsMargins(8, 5, 8, 5)
         self._layout.setSpacing(6)
+        self._drop_marker = QFrame(self)
+        self._drop_marker.setObjectName("stackDropMarker")
+        self._drop_marker.setFixedSize(18, 28)
+        self._drop_marker.hide()
+        self._drag_ghost = QLabel(self)
+        self._drag_ghost.setObjectName("stackDragGhost")
+        self._drag_ghost.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        ghost_opacity = QGraphicsOpacityEffect(self._drag_ghost)
+        ghost_opacity.setOpacity(0.72)
+        self._drag_ghost.setGraphicsEffect(ghost_opacity)
+        self._drag_ghost.hide()
         self.set_items([])
 
     def set_items(self, items: list[str]) -> None:
@@ -146,6 +160,7 @@ class _StackChainView(QFrame):
             chip.setMaximumWidth(260)
             chip.setMinimumWidth(min(chip.sizeHint().width(), 260))
             chip.clicked.connect(lambda _checked=False, chip_index=index: self.select_index(chip_index, emit=True))
+            chip.drag_started.connect(self._on_chip_drag_started)
             chip.drag_moved.connect(self._on_chip_drag_moved)
             chip.drag_finished.connect(self._on_chip_drag_finished)
             self._chip_buttons.append(chip)
@@ -191,21 +206,77 @@ class _StackChainView(QFrame):
         for chip in self._chip_buttons:
             chip.setEnabled(not busy)
 
-    def _on_chip_drag_moved(self, _from_index: int, position: QPoint) -> None:
-        self._set_drop_target(self._target_index_from_position(position))
+    def _on_chip_drag_started(self, from_index: int, position: QPoint, hot_spot: QPoint) -> None:
+        self._show_drag_ghost(from_index, position, hot_spot)
+        self._set_drop_slot(self._drop_slot_from_position(position))
+
+    def _on_chip_drag_moved(self, from_index: int, position: QPoint) -> None:
+        self._move_drag_ghost(position)
+        slot = self._drop_slot_from_position(position)
+        self._set_drop_slot(slot)
+        self._set_drop_target(self._target_index_from_slot(from_index, slot))
 
     def _on_chip_drag_finished(self, from_index: int, position: QPoint) -> None:
-        to_index = self._target_index_from_position(position)
-        self._set_drop_target(None)
+        to_index = self._target_index_from_slot(from_index, self._drop_slot_from_position(position))
+        self._clear_drag_feedback()
         self.move_item(from_index, to_index)
 
-    def _target_index_from_position(self, position: QPoint) -> int:
+    def _drop_slot_from_position(self, position: QPoint) -> int:
         if not self._chip_buttons:
             return 0
         for index, chip in enumerate(self._chip_buttons):
             if position.x() < chip.geometry().center().x():
                 return index
-        return len(self._chip_buttons) - 1
+        return len(self._chip_buttons)
+
+    def _target_index_from_slot(self, from_index: int, slot: int) -> int:
+        if not self._chip_buttons:
+            return 0
+        target_slot = slot
+        if target_slot > from_index:
+            target_slot -= 1
+        return max(0, min(target_slot, len(self._chip_buttons) - 1))
+
+    def _set_drop_slot(self, slot: int | None) -> None:
+        if slot == self._drop_slot:
+            return
+        self._drop_slot = slot
+        if slot is None:
+            self._hide_drop_marker()
+            return
+        self._show_drop_marker(slot)
+
+    def _show_drop_marker(self, slot: int) -> None:
+        self._remove_drop_marker_from_layout()
+        insert_at = self._layout_index_for_slot(slot)
+        self._layout.insertWidget(insert_at, self._drop_marker)
+        self._drop_marker.show()
+        self._layout.activate()
+
+    def _hide_drop_marker(self) -> None:
+        self._remove_drop_marker_from_layout()
+        self._drop_marker.hide()
+        self._drop_slot = None
+
+    def _remove_drop_marker_from_layout(self) -> None:
+        for index in range(self._layout.count()):
+            item = self._layout.itemAt(index)
+            if item is not None and item.widget() is self._drop_marker:
+                self._layout.takeAt(index)
+                break
+        self._drop_marker.setParent(self)
+
+    def _layout_index_for_slot(self, slot: int) -> int:
+        if slot < len(self._chip_buttons):
+            return self._layout_index_of_widget(self._chip_buttons[slot])
+        return max(self._layout.count() - 1, 0)
+
+    def _layout_index_of_widget(self, widget: QPushButton) -> int:
+        for index in range(self._layout.count()):
+            item = self._layout.itemAt(index)
+            if item is not None and item.widget() is widget:
+                return index
+        return self._layout.count()
 
     def _set_drop_target(self, index: int | None) -> None:
         if index == self._drop_target_index:
@@ -214,7 +285,35 @@ class _StackChainView(QFrame):
         for chip_index, chip in enumerate(self._chip_buttons):
             _set_dynamic_property(chip, "dropTarget", chip_index == index)
 
+    def _show_drag_ghost(self, from_index: int, position: QPoint, hot_spot: QPoint) -> None:
+        if from_index < 0 or from_index >= len(self._chip_buttons):
+            return
+        chip = self._chip_buttons[from_index]
+        self._drag_ghost.setPixmap(chip.grab())
+        self._drag_ghost.setFixedSize(chip.size())
+        self._drag_hot_spot = hot_spot
+        self._drag_ghost.move(position - hot_spot)
+        self._drag_ghost.show()
+        self._drag_ghost.raise_()
+
+    def _move_drag_ghost(self, position: QPoint) -> None:
+        if not self._drag_ghost.isVisible():
+            return
+        self._drag_ghost.move(position - self._drag_hot_spot)
+        self._drag_ghost.raise_()
+
+    def _clear_drag_feedback(self) -> None:
+        self._hide_drop_marker()
+        self._hide_drag_ghost()
+        self._set_drop_target(None)
+
+    def _hide_drag_ghost(self) -> None:
+        self._drag_ghost.hide()
+        self._drag_ghost.clear()
+        self._drag_hot_spot = QPoint()
+
     def _clear(self) -> None:
+        self._clear_drag_feedback()
         while self._layout.count():
             item = self._layout.takeAt(0)
             widget = item.widget()
@@ -222,9 +321,13 @@ class _StackChainView(QFrame):
                 widget.setParent(None)
         self._chip_buttons.clear()
         self._drop_target_index = None
+        self._drop_slot = None
+        self._drop_marker.setParent(self)
+        self._drag_ghost.setParent(self)
 
 
 class _StackChipButton(QPushButton):
+    drag_started = Signal(int, QPoint, QPoint)
     drag_moved = Signal(int, QPoint)
     drag_finished = Signal(int, QPoint)
 
@@ -247,6 +350,7 @@ class _StackChipButton(QPushButton):
         distance = (event.position().toPoint() - self._press_position).manhattanLength()
         if not self._dragging and distance >= QApplication.startDragDistance():
             self._dragging = True
+            self.drag_started.emit(self._index, self.mapToParent(event.position().toPoint()), self._press_position)
             self.setCursor(Qt.CursorShape.ClosedHandCursor)
             _set_dynamic_property(self, "dragging", True)
         if self._dragging:

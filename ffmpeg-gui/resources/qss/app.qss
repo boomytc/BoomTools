@@ -598,8 +598,9 @@ QPushButton[role="stackChip"][dropTarget="true"] {
 }
 
 QPushButton[role="stackChip"][dragging="true"] {
-  color: #ffffff;
-  background: #2c4268;
+  color: #91a0b8;
+  background: #101522;
+  border-style: dashed;
   border-color: #a7c5ff;
 }
 
@@ -614,6 +615,16 @@ QLabel#stackArrow {
   font-size: 15px;
   font-weight: 900;
   padding: 0 1px;
+}
+
+QFrame#stackDropMarker {
+  background: #243a5c;
+  border: 1px solid #8fb7ff;
+  border-radius: 8px;
+}
+
+QLabel#stackDragGhost {
+  background: transparent;
 }
 
 QLabel#stackChainEmpty {

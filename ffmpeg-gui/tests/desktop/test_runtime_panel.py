@@ -7,7 +7,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QLabel, QPushButton
+from PySide6.QtWidgets import QApplication, QFrame, QLabel, QPushButton
 
 from desktop.app.core.paths import QSS_PATH
 from desktop.app.ui.components import PanelFrame
@@ -122,11 +122,25 @@ def test_stack_chip_drag_emits_move_request() -> None:
         source_chip.rect().center(),
     )
     QTest.mouseMove(source_chip, target_position, delay=20)
+    app.processEvents()
+
+    ghost = panel.stack_chain.findChild(QLabel, "stackDragGhost")
+    marker = panel.stack_chain.findChild(QFrame, "stackDropMarker")
+    assert ghost is not None
+    assert marker is not None
+    assert ghost.isVisible()
+    assert marker.isVisible()
+    assert marker.width() == 18
+    assert source_chip.property("dragging") is True
+
     QTest.mouseRelease(source_chip, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, target_position)
     app.processEvents()
 
     assert moved == [(0, 2)]
     assert panel.stack_chain.selected_index() == 2
+    assert not ghost.isVisible()
+    assert not marker.isVisible()
+    assert source_chip.property("dragging") is False
     panel.close()
 
 

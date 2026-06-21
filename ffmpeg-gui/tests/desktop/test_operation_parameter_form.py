@@ -17,7 +17,7 @@ from shared.contracts import MediaInfo, Operation
 def test_parameter_form_keeps_height_across_raw_and_empty_operations() -> None:
     app = _qt_app()
     form = OperationParameterForm()
-    form.resize(520, 360)
+    form.resize(520, form.minimumHeight())
     form.show()
     app.processEvents()
     initial_height = form.height()
@@ -83,6 +83,29 @@ def test_parameter_form_applies_media_defaults_from_string_probe_size() -> None:
     _operation, options, _extra_inputs = form.collect()
     assert options["width"] == 640
     assert options["height"] == 360
+
+
+def test_parameter_form_applies_media_defaults_to_spinboxes_and_fade_duration() -> None:
+    form = OperationParameterForm()
+    media_info = MediaInfo(
+        raw={"streams": [{"codec_type": "video", "width": "640", "height": "360"}]},
+        duration_seconds=8.0,
+    )
+
+    form.set_operation(Operation.crop)
+    form.apply_media_defaults(media_info)
+    _operation, options, _extra_inputs = form.collect()
+    assert options["width"] == 640
+    assert options["height"] == 360
+
+    form.set_operation(Operation.thumbnail)
+    _operation, options, _extra_inputs = form.collect()
+    assert options["timestamp_seconds"] == 4.0
+
+    form.set_operation(Operation.fade)
+    form.controls()["fade_out_seconds"].setValue(0.5)  # type: ignore[attr-defined]
+    _operation, options, _extra_inputs = form.collect()
+    assert options["duration_seconds"] == 8.0
 
 
 def test_parameter_form_spinboxes_ignore_wheel_events() -> None:

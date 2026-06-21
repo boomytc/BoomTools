@@ -16,6 +16,7 @@ from desktop.app.ui.panels.runtime_panel import RuntimePanel
 from desktop.app.ui.panels.stack_panel import StackPanel
 from desktop.app.ui.panels.task_panel import TaskPanel
 from desktop.app.ui.widgets.task_table_model import TaskTableModel
+from shared.contracts import MediaInfo
 
 
 def test_runtime_panel_uses_panel_frame_and_keeps_output_action() -> None:
@@ -59,6 +60,52 @@ def test_command_preview_keeps_input_bottom_border_visible() -> None:
     assert panel.height() >= 96
     assert panel.height() - edit_bottom >= 8
     panel.close()
+
+
+def test_command_preview_displays_output_estimate_in_header() -> None:
+    app = _qt_app()
+    panel = CommandPreviewPanel()
+    panel.show()
+    app.processEvents()
+
+    panel.set_output_estimate("输出大小保守估算：12.3 MB")
+    app.processEvents()
+
+    assert panel.description_label.text() == "输出大小保守估算：12.3 MB"
+    assert panel.description_label.isVisible()
+    panel.close()
+
+
+def test_runtime_panel_displays_media_info_summary() -> None:
+    _qt_app()
+    panel = RuntimePanel()
+    media_info = MediaInfo(
+        raw={
+            "streams": [
+                {"codec_type": "video", "width": 1920, "height": 1080, "codec_name": "h264"},
+                {"codec_type": "audio", "codec_name": "aac"},
+            ]
+        },
+        duration_seconds=125.0,
+    )
+
+    panel.set_media_info(media_info)
+
+    assert "2:05" in panel.media_info_chip.text()
+    assert "1920x1080" in panel.media_info_chip.text()
+    assert "H.264" in panel.media_info_chip.text()
+    assert "AAC" in panel.media_info_chip.text()
+    assert panel.media_info_chip.property("state") == ""
+
+
+def test_runtime_panel_displays_media_info_error_state() -> None:
+    _qt_app()
+    panel = RuntimePanel()
+
+    panel.set_media_info(MediaInfo(raw={"error": "bad media"}, duration_seconds=None))
+
+    assert panel.media_info_chip.text() == "媒体信息：读取失败"
+    assert panel.media_info_chip.property("state") == "error"
 
 
 def test_stack_panel_renders_steps_as_arrow_chain() -> None:

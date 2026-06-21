@@ -6,7 +6,7 @@ from desktop.app.controllers.main_controller import MainController
 from desktop.app.core.config import AppConfig
 from desktop.app.runtime.binaries import RuntimeHealth
 from desktop.app.runtime.ffmpeg import CommandSpec
-from shared.contracts import Operation, STACK_MAX_ITEMS, TaskStatus
+from shared.contracts import MediaInfo, Operation, STACK_MAX_ITEMS, TaskStatus
 
 
 class _Signal:
@@ -26,6 +26,9 @@ class _FakeWindow:
         self.batch_input_mode_enabled = False
         self.error_messages: list[str] = []
         self.status_messages: list[str] = []
+        self.log_lines: list[str] = []
+        self.command_preview = ""
+        self.output_estimate = ""
 
         self.input_file_selected = _Signal()
         self.input_mode_changed = _Signal()
@@ -115,6 +118,9 @@ class _FakeWindow:
     def set_batch_progress(self, *_: object) -> None:
         return None
 
+    def set_progress(self, *_: object) -> None:
+        return None
+
     def reset_progress(self) -> None:
         return None
 
@@ -124,17 +130,17 @@ class _FakeWindow:
     def set_current_output(self, _path: Path | None) -> None:
         return None
 
-    def set_command_preview(self, _command: str) -> None:
-        return None
+    def set_command_preview(self, command: str) -> None:
+        self.command_preview = command
 
-    def set_output_estimate(self, _estimate: str) -> None:
-        return None
+    def set_output_estimate(self, estimate: str) -> None:
+        self.output_estimate = estimate
 
     def clear_log(self) -> None:
         return None
 
-    def append_log(self, _line: str) -> None:
-        return None
+    def append_log(self, line: str) -> None:
+        self.log_lines.append(line)
 
     def set_batch_buttons(self, *_: object) -> None:
         return None
@@ -209,6 +215,9 @@ class _TaskManager:
     def clear_current(self, *_: object) -> None:
         return None
 
+    def cancel_current(self, *_: object, **__: object) -> None:
+        return None
+
     def create_worker(self, *_: object, **__: object) -> object:
         raise AssertionError("should not reach worker creation")
 
@@ -244,6 +253,88 @@ def test_start_task_catches_subtitle_missing_input_error(tmp_path: Path) -> None
     controller.start_task()
 
     assert any("请选择字幕文件" in message for message in window.error_messages)
+
+
+def test_start_task_rejects_fade_out_before_media_duration(tmp_path: Path) -> None:
+    window = _FakeWindow()
+    input_path = tmp_path / "input.mp4"
+    input_path.write_bytes(b"\x00")
+    window.set_operation_payload(Operation.fade, {"fade_out_seconds": 0.5, "output_format": "mp4"}, {})
+    window.set_input_path(input_path)
+
+    controller = _make_controller(window)
+    controller.state.input_path = input_path
+    controller.start_task()
+
+    assert any("淡出需要先读取媒体时长" in message for message in window.error_messages)
+
+
+def test_fade_out_options_use_media_duration(tmp_path: Path) -> None:
+    window = _FakeWindow()
+    input_path = tmp_path / "input.mp4"
+    input_path.write_bytes(b"\x00")
+    controller = _make_controller(window)
+    controller.state.input_path = input_path
+    controller.state.media_info = MediaInfo(raw={}, duration_seconds=7.5)
+
+    options = controller._options_with_media_duration(
+        Operation.fade,
+        {"fade_out_seconds": 0.5, "output_format": "mp4"},
+        input_path,
+    )
+
+    assert options["duration_seconds"] == 7.5
+
+
+def test_batch_fade_out_is_rejected_before_queue_start(tmp_path: Path) -> None:
+    window = _FakeWindow()
+    first = tmp_path / "first.mp4"
+    second = tmp_path / "second.mp4"
+    first.write_bytes(b"\x00")
+    second.write_bytes(b"\x00")
+    window.set_operation_payload(Operation.fade, {"fade_out_seconds": 0.5, "output_format": "mp4"}, {})
+    window.set_batch_paths([first, second])
+
+    controller = _make_controller(window)
+    controller.state.input_mode = "batch"
+    controller.state.batch_input_paths = [first, second]
+    controller.state.input_path = first
+    controller.state.media_info = MediaInfo(raw={}, duration_seconds=5.0)
+    window.set_batch_input_mode(True)
+    controller.start_task()
+
+    assert any("批处理淡出需要逐文件媒体时长" in message for message in window.error_messages)
+
+
+def test_media_info_operation_writes_probe_json_to_log(tmp_path: Path) -> None:
+    window = _FakeWindow()
+    input_path = tmp_path / "input.mp4"
+    input_path.write_bytes(b"\x00")
+    window.set_operation_payload(Operation.media_info, {}, {})
+    window.set_input_path(input_path)
+    task_model = _TaskModel()
+
+    controller = _make_controller(window, task_model=task_model)
+    controller.state.input_path = input_path
+    controller.state.media_info = MediaInfo(raw={"format": {"duration": "1.0"}}, duration_seconds=1.0)
+    controller.start_task()
+
+    assert task_model.records()[0].status is TaskStatus.succeeded
+    assert task_model.records()[0].operation is Operation.media_info
+    assert any("ffprobe" in line for line in window.log_lines)
+    assert any('"duration": "1.0"' in line for line in window.log_lines)
+    assert any("媒体信息已写入日志" in message for message in window.status_messages)
+
+
+def test_media_info_preview_uses_ffprobe_command() -> None:
+    window = _FakeWindow()
+    window.set_operation_payload(Operation.media_info, {}, {})
+    controller = _make_controller(window)
+
+    controller._refresh_command_preview()
+
+    assert window.command_preview.startswith("$ ffprobe -v error")
+    assert "不生成文件" in window.output_estimate
 
 
 def test_stack_add_reports_unsupported_subtitle_operation(tmp_path: Path) -> None:

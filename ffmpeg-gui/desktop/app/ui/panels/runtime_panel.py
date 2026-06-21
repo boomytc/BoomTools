@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QDragEnterEvent, QDropEvent, QKeyEvent, QMouseEvent
@@ -95,6 +96,16 @@ class RuntimePanel(PanelFrame):
         self.drop_area = self._create_input_area()
         layout.addWidget(self.drop_area)
 
+        media_row = QHBoxLayout()
+        media_row.setSpacing(8)
+        self.media_info_chip = QLabel("媒体信息：未读取")
+        self.media_info_chip.setObjectName("mediaChip")
+        self.media_info_chip.setProperty("state", "muted")
+        self.media_info_chip.setToolTip("选择单个文件后自动读取媒体信息")
+        media_row.addWidget(self.media_info_chip)
+        media_row.addStretch(1)
+        layout.addLayout(media_row)
+
         output_row = QHBoxLayout()
         output_row.setSpacing(8)
         self.output_dir_value = QLabel("目标目录：未选择输出目录")
@@ -138,7 +149,18 @@ class RuntimePanel(PanelFrame):
         self.output_dir_value.setToolTip(normalized or "未选择输出目录")
 
     def set_media_info(self, media_info: MediaInfo | None) -> None:
-        return
+        if media_info is None:
+            self._set_media_chip("媒体信息：未读取", "选择单个文件后自动读取媒体信息", "muted")
+            return
+        if media_info.has_error:
+            self._set_media_chip(
+                "媒体信息：读取失败",
+                media_info.error_message or "ffprobe failed",
+                "error",
+            )
+            return
+        summary = _media_info_summary(media_info)
+        self._set_media_chip(f"媒体信息：{summary}", summary, "")
 
     def set_batch_progress(self, current: int, total: int) -> None:
         if total == 0 or current == 0:
@@ -257,3 +279,75 @@ class RuntimePanel(PanelFrame):
             self.selection_summary.setText("已添加 1 个文件")
         else:
             self.selection_summary.setText(f"已添加 {count} 个文件")
+
+    def _set_media_chip(self, text: str, tooltip: str, state: str) -> None:
+        self.media_info_chip.setText(text)
+        self.media_info_chip.setToolTip(tooltip)
+        self.media_info_chip.setProperty("state", state)
+        self.media_info_chip.style().unpolish(self.media_info_chip)
+        self.media_info_chip.style().polish(self.media_info_chip)
+
+
+def _media_info_summary(media_info: MediaInfo) -> str:
+    tags: list[str] = []
+    if media_info.duration_seconds:
+        tags.append(_format_duration(media_info.duration_seconds))
+
+    raw = media_info.raw
+    streams = raw.get("streams", []) if isinstance(raw.get("streams"), list) else []
+    video = _first_stream(streams, "video")
+    audio = _first_stream(streams, "audio")
+    if video:
+        width = _to_int(video.get("width"))
+        height = _to_int(video.get("height"))
+        if width and height:
+            tags.append(f"{width}x{height}")
+        codec = _codec_label(video.get("codec_name"))
+        if codec:
+            tags.append(codec)
+    if audio:
+        codec = _codec_label(audio.get("codec_name"))
+        if codec:
+            tags.append(codec)
+    return " · ".join(tags) if tags else "已读取"
+
+
+def _first_stream(streams: list[Any], codec_type: str) -> dict[str, Any]:
+    for stream in streams:
+        if isinstance(stream, dict) and stream.get("codec_type") == codec_type:
+            return stream
+    return {}
+
+
+def _to_int(value: object) -> int | None:
+    try:
+        parsed = int(float(value))  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
+
+
+def _format_duration(duration_seconds: float) -> str:
+    total = int(round(duration_seconds))
+    hours, remainder = divmod(total, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    if hours:
+        return f"{hours}:{minutes:02d}:{seconds:02d}"
+    return f"{minutes}:{seconds:02d}"
+
+
+def _codec_label(value: object) -> str:
+    codec = str(value or "").strip().lower()
+    return {
+        "h264": "H.264",
+        "hevc": "HEVC",
+        "h265": "HEVC",
+        "av1": "AV1",
+        "vp9": "VP9",
+        "vp8": "VP8",
+        "aac": "AAC",
+        "mp3": "MP3",
+        "opus": "Opus",
+        "flac": "FLAC",
+        "pcm_s16le": "PCM",
+    }.get(codec, codec.upper())

@@ -49,6 +49,9 @@ class CommandPreviewPanel(PanelFrame):
             "参数确认后显示批量任务命令模板" if enabled else "参数确认后显示 ffmpeg 命令预览"
         )
 
+    def set_output_estimate(self, estimate: str) -> None:
+        self.set_description(estimate)
+
     def copy_command(self) -> None:
         command = self._command.strip()
         if not command:

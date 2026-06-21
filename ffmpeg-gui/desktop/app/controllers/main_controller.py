@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shlex
 from pathlib import Path
 
@@ -204,6 +205,16 @@ class MainController(QObject):
             self.window.show_error("该操作不支持批处理")
             return
 
+        try:
+            self._validate_duration_requirements(stack_specs, input_paths)
+        except ValueError as exc:
+            self.window.show_error(str(exc))
+            return
+
+        if not use_stack and operation is Operation.media_info:
+            self._complete_media_info_task(input_paths[0])
+            return
+
         if use_stack:
             self._batch_stack_items = stack_specs
             self._is_batch_stack_mode = True
@@ -242,7 +253,6 @@ class MainController(QObject):
             return
         self.state.batch_cancel_requested = True
         self.task_manager.request_cancel_batch()
-        self.task_manager.cancel_current()
         if self._batch_queue:
             self._mark_batch_pending(TaskStatus.cancelled, "Cancelled")
 
@@ -303,6 +313,8 @@ class MainController(QObject):
     def close(self) -> None:
         self.cancel_current_task()
         self.cancel_batch()
+        self.task_manager.cancel_current(preserve_batch_cancel=True, wait=True)
+        self._stop_probe_thread()
 
     def copy_output_path(self) -> None:
         current_output = self.window.current_output_path()
@@ -448,6 +460,20 @@ class MainController(QObject):
         try:
             operation, options, extra_inputs = self.window.selected_operation_payload()
             self._refresh_prepared_operation()
+            if operation is Operation.media_info:
+                args = [
+                    self.window.selected_ffprobe_bin(),
+                    "-v",
+                    "error",
+                    "-print_format",
+                    "json",
+                    "-show_format",
+                    "-show_streams",
+                    "input_placeholder",
+                ]
+                self.window.set_command_preview("$ " + " ".join(shlex.quote(arg) for arg in args))
+                self.window.set_output_estimate("输出大小保守估算：此操作只展示媒体信息，不生成文件")
+                return
             if self.window.stack_mode():
                 stack_specs = self._collect_stack_specs(operation, options, extra_inputs)
                 if not stack_specs:
@@ -630,6 +656,7 @@ class MainController(QObject):
         input_path: Path,
     ) -> None:
         try:
+            options = self._options_with_media_duration(operation, options, input_path)
             spec = self.ffmpeg_service.build_command(
                 self.window.selected_ffmpeg_bin(),
                 TaskRequest(
@@ -783,7 +810,7 @@ class MainController(QObject):
                         input_path=input_path,
                         output_dir=self.state.output_dir,
                         operation=self._batch_operation,
-                        options=self._batch_options,
+                        options=self._options_with_media_duration(self._batch_operation, self._batch_options, input_path),
                         extra_inputs=self._batch_extra_inputs,
                     ),
                 )
@@ -849,8 +876,7 @@ class MainController(QObject):
 
     def _start_probe(self, path: Path) -> None:
         if self._probe_thread and self._probe_thread.isRunning():
-            self._probe_thread.quit()
-            self._probe_thread.wait(500)
+            self._stop_probe_thread()
         self.window.show_status("正在读取媒体信息...")
         thread = QThread()
         worker = ProbeWorker(self.ffmpeg_service, self.window.selected_ffprobe_bin(), path)
@@ -865,6 +891,13 @@ class MainController(QObject):
         self._probe_thread = thread
         self._probe_worker = worker
         thread.start()
+
+    def _stop_probe_thread(self, wait_msecs: int = 500) -> None:
+        if not self._probe_thread:
+            return
+        if self._probe_thread.isRunning():
+            self._probe_thread.quit()
+            self._probe_thread.wait(wait_msecs)
 
     @Slot()
     def _clear_probe_worker(self) -> None:
@@ -902,6 +935,7 @@ class MainController(QObject):
         else:
             self.window.show_status("媒体信息读取完成")
         self.window.set_start_enabled(self.state.can_start())
+        self._refresh_command_preview()
 
     def _on_task_status(self, task: TaskRecord, status: TaskStatus) -> None:
         task.status = status
@@ -975,6 +1009,65 @@ class MainController(QObject):
         self.window.set_batch_progress(self._current_batch_total, self._current_batch_total)
         self.window.set_progress(0.0)
 
+    def _complete_media_info_task(self, input_path: Path) -> None:
+        media_info = self.state.media_info if self.state.input_path == input_path else None
+        if media_info is None:
+            self._start_probe(input_path)
+            self.window.show_error("媒体信息还未读取完成，请稍后再查看。")
+            return
+        if media_info.has_error:
+            self.window.show_error(media_info.error_message or "媒体信息读取失败")
+            return
+
+        task = self._start_record_for_path(
+            input_path,
+            operation=Operation.media_info,
+            operation_text=None,
+            output_path=None,
+            status=TaskStatus.succeeded,
+            message="已读取媒体信息",
+            progress=1.0,
+        )
+        self.state.current_task = task
+        self.state.logs = []
+        self.window.clear_log()
+        self.window.set_current_output(None)
+        self.window.set_progress(1.0)
+        self._append_log("$ ffprobe -v error -print_format json -show_format -show_streams " + shlex.quote(str(input_path)))
+        self._append_log(json.dumps(media_info.raw, ensure_ascii=False, indent=2))
+        self.log_service.save_task_log(task, self.state.logs)
+        self.window.show_status("媒体信息已写入日志")
+        self.window.set_start_enabled(self.state.can_start())
+
+    def _validate_duration_requirements(
+        self,
+        specs: list[tuple[Operation, dict[str, object], dict[str, Path]]],
+        input_paths: list[Path],
+    ) -> None:
+        if not input_paths:
+            return
+        if not any(_operation_needs_media_duration(operation, options) for operation, options, _ in specs):
+            return
+        if len(input_paths) > 1:
+            raise ValueError("批处理淡出需要逐文件媒体时长，当前请单文件处理或只设置淡入。")
+        if not self._duration_seconds_for_path(input_paths[0]):
+            raise ValueError("淡出需要先读取媒体时长，请等待媒体信息读取完成后再开始。")
+
+    def _options_with_media_duration(
+        self,
+        operation: Operation,
+        options: dict[str, object],
+        input_path: Path,
+    ) -> dict[str, object]:
+        if not _operation_needs_media_duration(operation, options):
+            return options
+        duration = self._duration_seconds_for_path(input_path)
+        if not duration:
+            raise ValueError("淡出需要先读取媒体时长，请等待媒体信息读取完成后再开始。")
+        adjusted = dict(options)
+        adjusted["duration_seconds"] = duration
+        return adjusted
+
     def _mark_batch_pending(self, status: TaskStatus, message: str) -> None:
         for record, _ in self._batch_queue:
             record.status = status
@@ -1015,3 +1108,13 @@ class MainController(QObject):
             output_dir=output_dir,
         )
         self.config_service.save(config)
+
+
+def _operation_needs_media_duration(operation: Operation, options: dict[str, object]) -> bool:
+    if operation is not Operation.fade:
+        return False
+    try:
+        fade_out = float(options.get("fade_out_seconds", 0) or 0)
+    except (TypeError, ValueError):
+        return False
+    return fade_out > 0

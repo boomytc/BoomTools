@@ -192,8 +192,8 @@ class MainWindow(QMainWindow):
     def set_command_preview(self, command: str) -> None:
         self.command_preview_panel.set_command(command)
 
-    def set_output_estimate(self, _estimate: str) -> None:
-        pass
+    def set_output_estimate(self, estimate: str) -> None:
+        self.command_preview_panel.set_output_estimate(estimate)
 
     def selected_operation_payload(self):
         return self.operation_panel.selected_operation_payload()

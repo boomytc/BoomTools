@@ -40,6 +40,7 @@ class OperationParameterForm(PanelFrame):
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
         self._controls: dict[str, QWidget] = {}
         self._operation = Operation.convert
+        self._media_info: MediaInfo | None = None
         self._field_factory = OperationFieldFactory(
             file_browse_requested=lambda field_name, file_filter: self.file_browse_requested.emit(field_name, file_filter),
             raw_preset_selected=self._apply_raw_preset,
@@ -88,6 +89,8 @@ class OperationParameterForm(PanelFrame):
     def set_operation(self, operation: Operation, *, emit: bool = True) -> None:
         self._operation = operation
         self._render_fields()
+        if self._media_info is not None:
+            self.apply_media_defaults(self._media_info)
         if emit:
             self.spec_changed.emit()
 
@@ -132,6 +135,9 @@ class OperationParameterForm(PanelFrame):
                     raise ValueError(f"Raw 参数解析失败: {exc}") from exc
             elif kind == "raw_preset":
                 pass
+
+        if self._operation is Operation.fade and self._media_info and self._media_info.duration_seconds:
+            options["duration_seconds"] = self._media_info.duration_seconds
 
         return self._operation, options, extra_inputs
 
@@ -181,19 +187,18 @@ class OperationParameterForm(PanelFrame):
         self.end_seconds_edit.setEnabled(enabled)
 
     def apply_media_defaults(self, media_info: MediaInfo) -> None:
+        self._media_info = media_info
         video_width, video_height = self._video_size(media_info.raw)
-        if not video_width or not video_height:
-            return
+        if video_width and video_height:
+            if self._operation == Operation.crop:
+                self._set_line_text("x", "0")
+                self._set_line_text("y", "0")
+                self._set_line_text("width", str(video_width))
+                self._set_line_text("height", str(video_height))
 
-        if self._operation == Operation.crop:
-            self._set_line_text("x", "0")
-            self._set_line_text("y", "0")
-            self._set_optional_line("width", str(video_width))
-            self._set_optional_line("height", str(video_height))
-
-        if self._operation == Operation.resize_compress:
-            self._set_optional_line("width", str(video_width))
-            self._set_optional_line("height", str(video_height))
+            if self._operation == Operation.resize_compress:
+                self._set_optional_line("width", str(video_width))
+                self._set_optional_line("height", str(video_height))
 
         if self._operation == Operation.thumbnail and media_info.duration_seconds:
             midpoint = max(media_info.duration_seconds / 2, 0.0)
@@ -281,12 +286,9 @@ class OperationParameterForm(PanelFrame):
 
     def _set_optional_line(self, name: str, text: str) -> None:
         widget = self._controls.get(name)
-        if not isinstance(widget, QLineEdit):
+        if _control_has_user_value(widget):
             return
-        current = widget.text().strip()
-        if current:
-            return
-        widget.setText(text)
+        _set_control_text(widget, text)
 
     def _set_line_text(self, name: str, text: str) -> None:
         if name == "start_seconds":
@@ -295,9 +297,34 @@ class OperationParameterForm(PanelFrame):
             widget = self.end_seconds_edit
         else:
             widget = self._controls.get(name)
-        if not isinstance(widget, QLineEdit):
-            return
+        _set_control_text(widget, text)
+
+
+def _control_has_user_value(widget: QWidget | None) -> bool:
+    if isinstance(widget, QLineEdit):
+        return bool(widget.text().strip())
+    if isinstance(widget, QSpinBox):
+        return widget.value() != widget.minimum()
+    if isinstance(widget, QDoubleSpinBox):
+        return abs(widget.value() - widget.minimum()) > 0.000001
+    return True
+
+
+def _set_control_text(widget: QWidget | None, text: str) -> None:
+    if isinstance(widget, QLineEdit):
         widget.setText(text)
+        return
+    if isinstance(widget, QSpinBox):
+        try:
+            widget.setValue(int(float(text)))
+        except ValueError:
+            return
+        return
+    if isinstance(widget, QDoubleSpinBox):
+        try:
+            widget.setValue(float(text))
+        except ValueError:
+            return
 
 
 def _to_int(value: object) -> int | None:

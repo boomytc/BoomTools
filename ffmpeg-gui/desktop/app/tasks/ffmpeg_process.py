@@ -49,6 +49,20 @@ class FfmpegProcessWorker(QObject):
         self._process.terminate()
         QTimer.singleShot(3000, self._kill_if_still_running)
 
+    def cancel_and_wait(self, wait_msecs: int = 1500) -> None:
+        self._cancel_requested = True
+        if not self._process:
+            return
+        if self._process.state() == QProcess.ProcessState.NotRunning:
+            return
+        self.log_received.emit("Cancelling ffmpeg process...")
+        self._process.terminate()
+        if self._process.waitForFinished(wait_msecs):
+            return
+        self.log_received.emit("ffmpeg did not exit after terminate; killing process.")
+        self._process.kill()
+        self._process.waitForFinished(wait_msecs)
+
     def _read_stdout(self) -> None:
         if not self._process:
             return

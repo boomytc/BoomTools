@@ -13,10 +13,14 @@ class TaskManager:
         self.current_worker = FfmpegProcessWorker(spec, duration_seconds)
         return self.current_worker
 
-    def cancel_current(self) -> None:
-        self._cancel_batch_queue = False
+    def cancel_current(self, *, preserve_batch_cancel: bool = False, wait: bool = False) -> None:
+        if not preserve_batch_cancel:
+            self._cancel_batch_queue = False
         if self.current_worker:
-            self.current_worker.cancel()
+            if wait:
+                self.current_worker.cancel_and_wait()
+            else:
+                self.current_worker.cancel()
             return
         self.current_worker = None
 

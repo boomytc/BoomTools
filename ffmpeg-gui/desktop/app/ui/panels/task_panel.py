@@ -4,18 +4,15 @@ from pathlib import Path
 
 from PySide6.QtCore import QModelIndex, QPoint, Qt, Signal
 from PySide6.QtWidgets import (
-    QHBoxLayout,
     QHeaderView,
-    QLabel,
     QMenu,
-    QProgressBar,
     QSizePolicy,
     QTableView,
-    QWidget,
 )
 
 from desktop.app.ui.components import PanelActionBar, PanelFrame
 from desktop.app.ui.delegates import MediaSummaryDelegate, ProgressBarDelegate, RemoveActionDelegate, TextCellDelegate
+from desktop.app.ui.widgets.progress import ProgressSummaryWidget
 from desktop.app.ui.widgets.task_table_model import ACTION_ENABLED_ROLE, TaskTableModel
 from shared.contracts import TERMINAL_STATUSES, TaskRecord, TaskStatus
 
@@ -51,26 +48,14 @@ class TaskPanel(PanelFrame):
 
         layout = self.body_layout()
 
-        progress_row_container = QWidget()
-        progress_row = QHBoxLayout(progress_row_container)
-        progress_row.setContentsMargins(0, 0, 0, 0)
-        progress_row.setSpacing(8)
-        self.total_progress_label = QLabel("无任务")
-        self.total_progress_label.setObjectName("totalProgressLabel")
-        self.total_progress_bar = QProgressBar()
-        self.total_progress_bar.setObjectName("totalProgressBar")
-        self.total_progress_bar.setRange(0, 100)
-        self.total_progress_bar.setValue(0)
-        self.total_progress_bar.setTextVisible(False)
-        self.total_progress_bar.setFixedWidth(132)
-        progress_row.addWidget(self.total_progress_label)
-        progress_row.addWidget(self.total_progress_bar)
-        progress_row.addStretch(1)
+        self.total_progress = ProgressSummaryWidget()
+        self.total_progress_label = self.total_progress.label
+        self.total_progress_bar = self.total_progress.progress_bar
         self.start_button.clicked.connect(lambda _checked=False: self.start_requested.emit())
         self.cancel_button.clicked.connect(lambda _checked=False: self.cancel_requested.emit())
         self.cancel_queue_button.clicked.connect(lambda _checked=False: self.cancel_queue_requested.emit())
         self.remove_pending_button.clicked.connect(lambda _checked=False: self.remove_pending_requested.emit())
-        layout.addWidget(progress_row_container)
+        layout.addWidget(self.total_progress)
 
         self.task_table = QTableView()
         self.task_table.setObjectName("taskTable")
@@ -128,14 +113,13 @@ class TaskPanel(PanelFrame):
 
     def refresh_total_progress(self) -> None:
         summary = _total_progress_summary(self._task_model.records())
-        if summary.indeterminate:
-            self.total_progress_bar.setRange(0, 0)
-        else:
-            self.total_progress_bar.setRange(0, 100)
-            self.total_progress_bar.setValue(summary.percent)
-        self.total_progress_label.setText(summary.label)
-        self.total_progress_label.setToolTip(summary.tooltip)
-        self.total_progress_bar.setToolTip(summary.tooltip)
+        self.total_progress.set_summary(
+            label=summary.label,
+            tooltip=summary.tooltip,
+            percent=summary.percent,
+            indeterminate=summary.indeterminate,
+            state=summary.state,
+        )
 
     def selected_output_path(self) -> Path | None:
         selection_model = self.task_table.selectionModel()
@@ -194,17 +178,26 @@ class TaskPanel(PanelFrame):
 
 
 class _TotalProgressSummary:
-    def __init__(self, *, label: str, tooltip: str, percent: int, indeterminate: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        label: str,
+        tooltip: str,
+        percent: int,
+        indeterminate: bool = False,
+        state: str = "active",
+    ) -> None:
         self.label = label
         self.tooltip = tooltip
         self.percent = percent
         self.indeterminate = indeterminate
+        self.state = state
 
 
 def _total_progress_summary(records: list[TaskRecord]) -> _TotalProgressSummary:
     total = len(records)
     if total == 0:
-        return _TotalProgressSummary(label="无任务", tooltip="当前没有任务", percent=0)
+        return _TotalProgressSummary(label="无任务", tooltip="当前没有任务", percent=0, state="empty")
 
     done = sum(1 for record in records if record.status in TERMINAL_STATUSES)
     if any(record.status is TaskStatus.running and record.progress is None for record in records):
@@ -213,13 +206,19 @@ def _total_progress_summary(records: list[TaskRecord]) -> _TotalProgressSummary:
             tooltip=f"总进度：{done}/{total}，当前任务无法估算精确百分比",
             percent=0,
             indeterminate=True,
+            state="running",
         )
 
     progress_total = sum(_record_progress_value(record) for record in records)
     percent = max(0, min(100, int(round(progress_total / total * 100))))
     label = f"总进度 {done}/{total} · {percent}%"
     tooltip = f"总进度：{done}/{total}，{percent}%"
-    return _TotalProgressSummary(label=label, tooltip=tooltip, percent=percent)
+    return _TotalProgressSummary(
+        label=label,
+        tooltip=tooltip,
+        percent=percent,
+        state=_total_progress_state(records, percent),
+    )
 
 
 def _record_progress_value(record: TaskRecord) -> float:
@@ -228,3 +227,15 @@ def _record_progress_value(record: TaskRecord) -> float:
     if isinstance(record.progress, (int, float)):
         return max(0.0, min(float(record.progress), 1.0))
     return 0.0
+
+
+def _total_progress_state(records: list[TaskRecord], percent: int) -> str:
+    if any(record.status is TaskStatus.running for record in records):
+        return "running"
+    if any(record.status is TaskStatus.failed for record in records):
+        return "failure"
+    if any(record.status is TaskStatus.cancelled for record in records):
+        return "cancelled"
+    if percent >= 100:
+        return "success"
+    return "active"

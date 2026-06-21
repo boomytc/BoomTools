@@ -4,19 +4,8 @@ from PySide6.QtCore import QRect, Qt
 from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import QApplication, QStyle, QStyleOptionViewItem, QStyledItemDelegate
 
+from desktop.app.ui.widgets.progress import DEFAULT_PROGRESS_SPEC, progress_bar_rect, status_progress_visual
 from desktop.app.ui.widgets.task_table_model import ACTION_ENABLED_ROLE, MEDIA_SUMMARY_ROLE, PROGRESS_ROLE, STATUS_ROLE
-from shared.contracts import TaskStatus
-
-
-STATUS_STYLES: dict[str, tuple[str, str, str]] = {
-    TaskStatus.probing.value: ("读取中", "#3b3218", "#ffd166"),
-    TaskStatus.ready.value: ("就绪", "#173527", "#73e0a3"),
-    TaskStatus.pending.value: ("待处理", "#3b3218", "#ffd166"),
-    TaskStatus.running.value: ("运行中", "#17365f", "#8fbdff"),
-    TaskStatus.succeeded.value: ("完成", "#153b2a", "#64d691"),
-    TaskStatus.failed.value: ("失败", "#4a1f28", "#ff8a9a"),
-    TaskStatus.cancelled.value: ("取消", "#2b303d", "#a7b0c2"),
-}
 
 
 class ProgressBarDelegate(QStyledItemDelegate):
@@ -30,40 +19,38 @@ class ProgressBarDelegate(QStyledItemDelegate):
         painter.restore()
 
     def _draw_progress(self, painter: QPainter, rect: QRect, progress: object, status: object) -> None:
+        spec = DEFAULT_PROGRESS_SPEC
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        bar_rect = rect.adjusted(10, 8, -10, -8)
-        bar_rect.setHeight(max(16, min(22, bar_rect.height())))
-        bar_rect.moveTop(rect.y() + (rect.height() - bar_rect.height()) // 2)
+        bar_rect = progress_bar_rect(rect, spec)
 
-        status_value = status.value if isinstance(status, TaskStatus) else str(status or "")
-        if status_value and status_value != TaskStatus.running.value:
-            label, background, foreground = STATUS_STYLES.get(status_value, (status_value, "#2b303d", "#a7b0c2"))
-            painter.setPen(QPen(QColor("#4a536a")))
-            painter.setBrush(QColor(background))
-            painter.drawRoundedRect(bar_rect, 6, 6)
-            painter.setPen(QPen(QColor(foreground)))
-            painter.drawText(bar_rect, Qt.AlignmentFlag.AlignCenter, label)
+        status_visual = status_progress_visual(status, spec)
+        if status_visual is not None:
+            painter.setPen(QPen(QColor(status_visual.border)))
+            painter.setBrush(QColor(status_visual.background))
+            painter.drawRoundedRect(bar_rect, spec.radius, spec.radius)
+            painter.setPen(QPen(QColor(status_visual.foreground)))
+            painter.drawText(bar_rect, Qt.AlignmentFlag.AlignCenter, status_visual.label)
             return
 
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor("#22283a"))
-        painter.drawRoundedRect(bar_rect, 6, 6)
+        painter.setBrush(QColor(spec.track))
+        painter.drawRoundedRect(bar_rect, spec.radius, spec.radius)
 
         if isinstance(progress, (int, float)):
             bounded = max(0.0, min(float(progress), 1.0))
             fill_rect = QRect(bar_rect)
-            fill_rect.setWidth(max(4, int(bar_rect.width() * bounded)))
-            painter.setBrush(QColor("#4f83ff"))
-            painter.drawRoundedRect(fill_rect, 6, 6)
+            fill_rect.setWidth(max(spec.min_fill_width, int(bar_rect.width() * bounded)))
+            painter.setBrush(QColor(spec.fill))
+            painter.drawRoundedRect(fill_rect, spec.radius, spec.radius)
             text = f"{int(bounded * 100)}%"
-            text_color = QColor("#dbe7ff")
+            text_color = QColor(spec.text)
         else:
-            painter.setBrush(QColor("#2c518b"))
-            marker_width = max(28, bar_rect.width() // 3)
+            painter.setBrush(QColor(spec.indeterminate_fill))
+            marker_width = max(spec.min_marker_width, bar_rect.width() // spec.marker_divisor)
             marker_rect = QRect(bar_rect.x(), bar_rect.y(), marker_width, bar_rect.height())
-            painter.drawRoundedRect(marker_rect, 6, 6)
+            painter.drawRoundedRect(marker_rect, spec.radius, spec.radius)
             text = "运行中"
-            text_color = QColor("#8fbdff")
+            text_color = QColor(spec.indeterminate_text)
 
         painter.setPen(QPen(text_color))
         painter.drawText(bar_rect, Qt.AlignmentFlag.AlignCenter, text)

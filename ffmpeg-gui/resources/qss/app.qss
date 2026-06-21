@@ -597,6 +597,56 @@ QProgressBar::chunk {
   border-radius: 5px;
 }
 
+QWidget[role="progressSummary"] {
+  background: transparent;
+}
+
+QLabel#totalProgressLabel[state="empty"] {
+  color: #768299;
+}
+
+QLabel#totalProgressLabel[state="running"] {
+  color: #aecdff;
+}
+
+QLabel#totalProgressLabel[state="success"] {
+  color: #9be6b8;
+}
+
+QLabel#totalProgressLabel[state="failure"] {
+  color: #ffacb7;
+}
+
+QLabel#totalProgressLabel[state="cancelled"] {
+  color: #a7b0c2;
+}
+
+QProgressBar[variant="compact"] {
+  min-height: 18px;
+  max-height: 22px;
+}
+
+QProgressBar[variant="compact"][state="empty"] {
+  background: #0b0f19;
+  border-color: #30364a;
+}
+
+QProgressBar[variant="compact"][state="running"]::chunk {
+  background: #5b8dff;
+}
+
+QProgressBar[variant="compact"][state="success"]::chunk {
+  background: #64d691;
+}
+
+QProgressBar[variant="compact"][state="failure"]::chunk {
+  background: #ff8a9a;
+}
+
+QProgressBar[variant="compact"][state="cancelled"]::chunk {
+  background: #687386;
+}
+
 /* Text surfaces */
 QPlainTextEdit {
   font-family: "Menlo", "Consolas", monospace;

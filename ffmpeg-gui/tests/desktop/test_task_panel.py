@@ -13,6 +13,7 @@ from desktop.app.core.paths import QSS_PATH
 from desktop.app.ui.delegates import MediaSummaryDelegate, ProgressBarDelegate, RemoveActionDelegate, TextCellDelegate
 from desktop.app.ui.panels.task_panel import _total_progress_summary
 from desktop.app.ui.panels.task_panel import TaskPanel
+from desktop.app.ui.widgets.progress import ProgressSummaryWidget
 from desktop.app.ui.widgets.task_table_model import TaskTableModel
 from shared.contracts import Operation, TaskRecord, TaskStatus
 
@@ -23,13 +24,29 @@ def test_total_progress_summary_for_empty_queue() -> None:
     assert summary.label == "无任务"
     assert summary.percent == 0
     assert not summary.indeterminate
+    assert summary.state == "empty"
 
 
 def test_total_progress_summary_uses_queue_average() -> None:
     records = [
-        TaskRecord(operation=Operation.convert, input_path=Path("done.mp4"), status=TaskStatus.succeeded, progress=1.0),
-        TaskRecord(operation=Operation.convert, input_path=Path("running.mp4"), status=TaskStatus.running, progress=0.5),
-        TaskRecord(operation=Operation.convert, input_path=Path("pending.mp4"), status=TaskStatus.pending, progress=0.0),
+        TaskRecord(
+            operation=Operation.convert,
+            input_path=Path("done.mp4"),
+            status=TaskStatus.succeeded,
+            progress=1.0,
+        ),
+        TaskRecord(
+            operation=Operation.convert,
+            input_path=Path("running.mp4"),
+            status=TaskStatus.running,
+            progress=0.5,
+        ),
+        TaskRecord(
+            operation=Operation.convert,
+            input_path=Path("pending.mp4"),
+            status=TaskStatus.pending,
+            progress=0.0,
+        ),
     ]
 
     summary = _total_progress_summary(records)
@@ -37,18 +54,42 @@ def test_total_progress_summary_uses_queue_average() -> None:
     assert summary.label == "总进度 1/3 · 50%"
     assert summary.percent == 50
     assert not summary.indeterminate
+    assert summary.state == "running"
 
 
 def test_total_progress_summary_handles_indeterminate_running_task() -> None:
     records = [
-        TaskRecord(operation=Operation.convert, input_path=Path("done.mp4"), status=TaskStatus.succeeded, progress=1.0),
-        TaskRecord(operation=Operation.convert, input_path=Path("running.mp4"), status=TaskStatus.running, progress=None),
+        TaskRecord(
+            operation=Operation.convert,
+            input_path=Path("done.mp4"),
+            status=TaskStatus.succeeded,
+            progress=1.0,
+        ),
+        TaskRecord(
+            operation=Operation.convert,
+            input_path=Path("running.mp4"),
+            status=TaskStatus.running,
+            progress=None,
+        ),
     ]
 
     summary = _total_progress_summary(records)
 
     assert summary.label == "总进度 1/2 · 运行中"
     assert summary.indeterminate
+    assert summary.state == "running"
+
+
+def test_total_progress_summary_exposes_failure_state() -> None:
+    records = [
+        TaskRecord(operation=Operation.convert, input_path=Path("failed.mp4"), status=TaskStatus.failed, progress=0.0),
+    ]
+
+    summary = _total_progress_summary(records)
+
+    assert summary.label == "总进度 1/1 · 100%"
+    assert summary.percent == 100
+    assert summary.state == "failure"
 
 
 def test_task_panel_processing_buttons_follow_task_state() -> None:
@@ -101,6 +142,15 @@ def test_task_panel_configures_queue_columns_and_delegates() -> None:
     assert isinstance(panel.task_table.itemDelegateForColumn(2), TextCellDelegate)
     assert isinstance(panel.task_table.itemDelegateForColumn(3), ProgressBarDelegate)
     assert isinstance(panel.task_table.itemDelegateForColumn(4), RemoveActionDelegate)
+
+
+def test_task_panel_uses_progress_summary_widget() -> None:
+    _qt_app()
+    panel = TaskPanel(TaskTableModel())
+
+    assert isinstance(panel.total_progress, ProgressSummaryWidget)
+    assert panel.total_progress_label is panel.total_progress.label
+    assert panel.total_progress_bar is panel.total_progress.progress_bar
 
 
 def test_task_panel_remove_column_emits_task_id_only_for_removable_rows() -> None:

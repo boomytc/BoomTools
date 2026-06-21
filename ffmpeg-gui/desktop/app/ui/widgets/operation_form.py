@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QSpinBox,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
     QVBoxLayout,
     QWidget,
@@ -37,6 +38,8 @@ class OperationFormWidget(QWidget):
 
     def __init__(self) -> None:
         super().__init__()
+        self.setMinimumHeight(248)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._controls: dict[str, QWidget] = {}
         self._operation_buttons: dict[Operation, QPushButton] = {}
         self._selected_operation = Operation.convert
@@ -50,7 +53,8 @@ class OperationFormWidget(QWidget):
 
         operation_group = QGroupBox()
         operation_group.setObjectName("operationGroup")
-        operation_group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        operation_group.setMinimumHeight(236)
+        operation_group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         operation_layout = QVBoxLayout(operation_group)
         operation_layout.setSpacing(8)
         operation_header = QHBoxLayout()
@@ -97,26 +101,51 @@ class OperationFormWidget(QWidget):
             self.operation_button_group.addButton(button)
             self._operation_buttons[operation] = button
             operation_grid.addWidget(button, index // operation_columns, index % operation_columns)
-        operation_grid_widget = QWidget()
-        operation_grid_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
-        operation_grid_widget.setLayout(operation_grid)
-        operation_layout.addWidget(operation_grid_widget)
+        self.operation_grid_widget = QWidget()
+        self.operation_grid_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+        self.operation_grid_widget.setLayout(operation_grid)
+        self.operation_scroll_area = QScrollArea()
+        self.operation_scroll_area.setObjectName("operationScroll")
+        self.operation_scroll_area.setWidgetResizable(True)
+        self.operation_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.operation_scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.operation_scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)
+        self.operation_scroll_area.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.operation_scroll_area.setFixedHeight(140)
+        self.operation_scroll_area.setWidget(self.operation_grid_widget)
+        operation_layout.addWidget(self.operation_scroll_area)
         operation_layout.addStretch(1)
 
         self.parameters_group = QGroupBox("参数")
         self.parameters_group.setObjectName("parameterGroup")
         self.parameters_group.setMinimumWidth(320)
-        self.parameters_group.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+        self.parameters_group.setMinimumHeight(236)
+        self.parameters_group.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         parameters_layout = QVBoxLayout(self.parameters_group)
         parameters_layout.setSpacing(6)
 
         self.selected_operation_label = QLabel()
         self.selected_operation_label.setObjectName("operationSelectionLabel")
+        self.selected_operation_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self.selected_operation_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         parameters_layout.addWidget(self.selected_operation_label)
+
+        self.parameter_scroll_area = QScrollArea()
+        self.parameter_scroll_area.setObjectName("parameterScroll")
+        self.parameter_scroll_area.setWidgetResizable(True)
+        self.parameter_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.parameter_scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.parameter_scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)
+        self.parameter_scroll_area.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.parameter_scroll_area.setFixedHeight(164)
+        parameter_content = QWidget()
+        parameter_content_layout = QVBoxLayout(parameter_content)
+        parameter_content_layout.setContentsMargins(0, 0, 0, 0)
+        parameter_content_layout.setSpacing(6)
 
         range_label = QLabel("处理范围（可选）")
         range_label.setObjectName("formSectionLabel")
-        parameters_layout.addWidget(range_label)
+        parameter_content_layout.addWidget(range_label)
 
         common_layout = QFormLayout()
         _configure_form_layout(common_layout)
@@ -130,17 +159,20 @@ class OperationFormWidget(QWidget):
         self.end_seconds_edit.textChanged.connect(lambda _text: self.spec_changed.emit())
         common_layout.addRow("开始", self.start_seconds_edit)
         common_layout.addRow("结束", self.end_seconds_edit)
-        parameters_layout.addLayout(common_layout)
+        parameter_content_layout.addLayout(common_layout)
 
         self.fields_label = QLabel("动作参数")
         self.fields_label.setObjectName("formSectionLabel")
-        parameters_layout.addWidget(self.fields_label)
+        parameter_content_layout.addWidget(self.fields_label)
         self.fields_layout = QFormLayout()
         _configure_form_layout(self.fields_layout)
-        parameters_layout.addLayout(self.fields_layout)
+        parameter_content_layout.addLayout(self.fields_layout)
         self.empty_fields_label = QLabel("当前动作无需额外参数。")
         self.empty_fields_label.setObjectName("mutedLabel")
-        parameters_layout.addWidget(self.empty_fields_label)
+        parameter_content_layout.addWidget(self.empty_fields_label)
+        self.parameter_scroll_area.setWidget(parameter_content)
+        parameters_layout.addWidget(self.parameter_scroll_area)
+        parameters_layout.addStretch(1)
         layout.addWidget(operation_group, 3)
         layout.addWidget(self.parameters_group, 2)
 
@@ -247,6 +279,7 @@ class OperationFormWidget(QWidget):
             self._connect_change_signal(control)
         self.fields_label.setVisible(has_fields)
         self.empty_fields_label.setVisible(not has_fields)
+        self.parameter_scroll_area.verticalScrollBar().setValue(0)
 
     def _clear_fields(self) -> None:
         self._controls.clear()

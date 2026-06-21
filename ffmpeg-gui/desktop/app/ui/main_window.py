@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QMessageBox,
+    QSizePolicy,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -73,9 +74,9 @@ class MainWindow(QMainWindow):
 
         root.addWidget(self._create_masthead())
         root.addWidget(self.runtime_panel)
-        root.addWidget(self.operation_panel, 1)
+        root.addWidget(self.operation_panel)
         root.addWidget(self.command_preview_panel)
-        root.addWidget(self.task_panel)
+        root.addWidget(self.task_panel, 1)
         self.setCentralWidget(central)
         self.statusBar().showMessage("Ready")
 
@@ -302,6 +303,7 @@ class MainWindow(QMainWindow):
     def _create_masthead(self) -> QFrame:
         masthead = QFrame()
         masthead.setObjectName("masthead")
+        masthead.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         layout = QHBoxLayout(masthead)
         layout.setContentsMargins(12, 10, 12, 10)
         layout.setSpacing(10)

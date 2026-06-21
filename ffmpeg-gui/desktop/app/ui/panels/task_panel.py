@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QMenu,
     QProgressBar,
     QPushButton,
+    QSizePolicy,
     QTableView,
     QVBoxLayout,
 )
@@ -38,8 +39,9 @@ class TaskPanel(QFrame):
         self._pending_count = 0
         self._batch_running = False
         self.setObjectName("taskPanel")
-        self.setMinimumHeight(172)
-        self.setMaximumHeight(228)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.setMinimumHeight(158)
+        self.setMaximumHeight(420)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 10, 12, 12)
         layout.setSpacing(8)
@@ -104,7 +106,7 @@ class TaskPanel(QFrame):
         self.task_table.setColumnWidth(3, 120)
         self.task_table.setColumnWidth(4, 72)
         self.task_table.verticalHeader().setDefaultSectionSize(54)
-        self.task_table.setMinimumHeight(104)
+        self.task_table.setMinimumHeight(90)
         self.task_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         layout.addWidget(self.task_table)
         self.task_table.clicked.connect(self._handle_table_clicked)

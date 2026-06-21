@@ -4,7 +4,7 @@ from collections.abc import Set as AbstractSet
 from pathlib import Path
 
 from PySide6.QtCore import Signal
-from PySide6.QtWidgets import QVBoxLayout, QWidget
+from PySide6.QtWidgets import QSizePolicy, QVBoxLayout, QWidget
 
 from desktop.app.ui.panels.stack_panel import StackPanel
 from desktop.app.ui.widgets.operation_form import OperationFormWidget
@@ -24,18 +24,19 @@ class OperationPanel(QWidget):
     def __init__(self) -> None:
         super().__init__()
         self.setObjectName("operationPanel")
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         self._busy = False
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(12)
+        layout.setSpacing(8)
 
         self.operation_form = OperationFormWidget()
         self.operation_form.file_browse_requested.connect(self.file_browse_requested.emit)
         self.operation_form.spec_changed.connect(self.refresh_stack_controls)
         self.operation_form.spec_changed.connect(self.command_preview_requested.emit)
         self.operation_form.stack_mode_toggled.connect(self.stack_mode_toggled.emit)
-        layout.addWidget(self.operation_form, 1)
+        layout.addWidget(self.operation_form)
 
         self.stack_panel = StackPanel()
         self.stack_panel.add_requested.connect(self.stack_add_requested.emit)
@@ -45,6 +46,7 @@ class OperationPanel(QWidget):
         self.stack_panel.clear_requested.connect(self.stack_clear_requested.emit)
         self.stack_panel.setVisible(False)
         layout.addWidget(self.stack_panel)
+        layout.addStretch(1)
 
     def selected_operation_payload(self) -> tuple[Operation, dict[str, object], dict[str, Path]]:
         return self.operation_form.collect()

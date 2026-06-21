@@ -141,6 +141,30 @@ class FileSummaryDelegate(QStyledItemDelegate):
 MediaSummaryDelegate = FileSummaryDelegate
 
 
+class TextCellDelegate(QStyledItemDelegate):
+    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index) -> None:  # type: ignore[override]
+        text = str(index.data() or "")
+
+        painter.save()
+        self._draw_item_background(painter, option, index)
+        self._draw_text(painter, option, text)
+        painter.restore()
+
+    def _draw_text(self, painter: QPainter, option: QStyleOptionViewItem, text: str) -> None:
+        text_rect = option.rect.adjusted(10, 0, -10, 0)
+        metrics = painter.fontMetrics()
+        elided_text = metrics.elidedText(text, Qt.TextElideMode.ElideRight, max(24, text_rect.width()))
+        selected = bool(option.state & QStyle.StateFlag.State_Selected)
+        painter.setPen(QPen(QColor("#ffffff" if selected else "#d7e2f5")))
+        painter.drawText(text_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, elided_text)
+
+    def _draw_item_background(self, painter: QPainter, option: QStyleOptionViewItem, index) -> None:
+        opt = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        opt.text = ""
+        QApplication.style().drawControl(QStyle.ControlElement.CE_ItemViewItem, opt, painter)
+
+
 class RemoveActionDelegate(QStyledItemDelegate):
     def paint(self, painter: QPainter, option: QStyleOptionViewItem, index) -> None:  # type: ignore[override]
         enabled = bool(index.data(ACTION_ENABLED_ROLE))

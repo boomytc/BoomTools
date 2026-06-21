@@ -8,6 +8,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
 
+from desktop.app.ui.delegates import TextCellDelegate
 from desktop.app.ui.panels.task_panel import _total_progress_summary
 from desktop.app.ui.panels.task_panel import TaskPanel
 from desktop.app.ui.widgets.task_table_model import TaskTableModel
@@ -74,6 +75,13 @@ def test_task_panel_processing_buttons_follow_task_state() -> None:
     assert not panel.cancel_button.isEnabled()
     assert not panel.cancel_queue_button.isEnabled()
     assert panel.remove_pending_button.isEnabled()
+
+
+def test_task_panel_uses_text_delegate_for_action_column() -> None:
+    _qt_app()
+    panel = TaskPanel(TaskTableModel())
+
+    assert isinstance(panel.task_table.itemDelegateForColumn(2), TextCellDelegate)
 
 
 def _qt_app() -> QApplication:

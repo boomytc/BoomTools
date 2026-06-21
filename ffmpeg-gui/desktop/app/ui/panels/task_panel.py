@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from desktop.app.ui.delegates import MediaSummaryDelegate, ProgressBarDelegate, RemoveActionDelegate
+from desktop.app.ui.delegates import MediaSummaryDelegate, ProgressBarDelegate, RemoveActionDelegate, TextCellDelegate
 from desktop.app.ui.widgets.task_table_model import ACTION_ENABLED_ROLE, TaskTableModel
 from shared.contracts import TERMINAL_STATUSES, TaskRecord, TaskStatus
 
@@ -94,6 +94,7 @@ class TaskPanel(QFrame):
         file_delegate = MediaSummaryDelegate(self.task_table)
         self.task_table.setItemDelegateForColumn(0, file_delegate)
         self.task_table.setItemDelegateForColumn(1, file_delegate)
+        self.task_table.setItemDelegateForColumn(2, TextCellDelegate(self.task_table))
         self.task_table.setItemDelegateForColumn(3, ProgressBarDelegate(self.task_table))
         self.task_table.setItemDelegateForColumn(4, RemoveActionDelegate(self.task_table))
         self.task_table.resizeColumnsToContents()

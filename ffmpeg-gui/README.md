@@ -11,7 +11,7 @@
 - 字幕：软字幕与字幕烧录（`.srt/.vtt/.ass/.ssa`）
 - 多输入组合：叠加、拼接、并排、画中画
 - Raw 参数：输入参数数组构建，支持可选第二输入
-- 抽取音频（MP3/WAV/AAC/FLAC/OGG）与 GIF 输出（mp4/mkv/mov/webm/avi）
+- 抽取音频（MP3/WAV/AAC/FLAC/OGG）与 GIF 输出（mp4/mkv/mov/webm/avi）；高质量 GIF 可使用 `palettegen/paletteuse` 两阶段 palette 模式
 - 单任务执行、批处理队列、任务进度、日志、取消、输出结果入口（打开文件、打开目录、复制路径）
 
 ## 范围与反目标
@@ -60,6 +60,15 @@ uv run python -m desktop.app.main
 ```
 
 输出、临时文件和日志默认写入 `ffmpeg-gui/data/`，该目录不会提交到 git。
+
+## GIF 质量
+
+`gif` 操作支持两种质量模式：
+
+- `fast`：默认模式，沿用单阶段 `fps,scale` 路径，启动快。
+- `palette`：高质量模式，先在 `data/temp/` 生成临时 palette，再用 `paletteuse` 输出 GIF；任务结束、失败或取消后会清理临时 palette 文件。
+
+两种模式都继续支持帧率、宽度和可选开始/结束时间范围。
 
 ## 验证
 

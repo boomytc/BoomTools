@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from desktop.app.core.paths import TEMP_DIR
 from shared.contracts import Operation
 
 
@@ -44,6 +45,7 @@ ROTATE_FILTERS = {
     "hvflip": "hflip,vflip",
 }
 LOUDNESS_TARGETS = {"-14", "-16", "-23"}
+GIF_QUALITY_MODES = {"fast", "palette"}
 RAW_FORBIDDEN_ARGS = {
     "-i",
     "-y",
@@ -84,6 +86,8 @@ class CommandSpec:
     args: list[str]
     output_path: Path | None
     output_name: str | None
+    setup_args: tuple[tuple[str, ...], ...] = ()
+    cleanup_paths: tuple[Path, ...] = ()
 
 
 class CommandError(ValueError):
@@ -123,6 +127,14 @@ def build_command(
     ]
     args.extend(_trim_input_args(op, normalized))
     args.extend(["-i", str(input_path)])
+    if op is Operation.gif and _gif_quality(normalized) == "palette":
+        return _build_palette_gif_command(
+            ffmpeg_bin=ffmpeg_bin,
+            input_path=input_path,
+            output_path=output_path,
+            output_name=output_path.name,
+            options=normalized,
+        )
     args.extend(_operation_inputs(op, normalized, extra_inputs))
     args.extend(_operation_args(op, normalized, extra_inputs=extra_inputs, ffmpeg_bin=ffmpeg_bin))
     args.append(str(output_path))
@@ -133,6 +145,62 @@ def build_media_info_command(*, ffmpeg_bin: str, input_path: Path) -> CommandSpe
     args = [ffmpeg_bin]
     args.extend(_media_info_args(input_path))
     return CommandSpec(args=args, output_path=None, output_name=None)
+
+
+def _build_palette_gif_command(
+    *,
+    ffmpeg_bin: str,
+    input_path: Path,
+    output_path: Path,
+    output_name: str,
+    options: dict[str, Any],
+) -> CommandSpec:
+    TEMP_DIR.mkdir(parents=True, exist_ok=True)
+    palette_path = _unique_output_path(TEMP_DIR / f"{output_path.stem}_palette.png")
+    trim_args = _trim_input_args(Operation.gif, options)
+    frame_filter = _gif_frame_filter(options)
+
+    setup_args = [
+        ffmpeg_bin,
+        "-hide_banner",
+        "-nostdin",
+        "-y",
+        *trim_args,
+        "-i",
+        str(input_path),
+        "-vf",
+        f"{frame_filter},palettegen=stats_mode=diff",
+        str(palette_path),
+    ]
+    args = [
+        ffmpeg_bin,
+        "-hide_banner",
+        "-nostdin",
+        "-y",
+        "-progress",
+        "pipe:1",
+        "-nostats",
+        *trim_args,
+        "-i",
+        str(input_path),
+        "-i",
+        str(palette_path),
+        "-filter_complex",
+        f"[0:v]{frame_filter}[gifsrc];[gifsrc][1:v]paletteuse=dither=sierra2_4a[gifout]",
+        "-map",
+        "[gifout]",
+        "-an",
+        "-loop",
+        "0",
+        str(output_path),
+    ]
+    return CommandSpec(
+        args=args,
+        output_path=output_path,
+        output_name=output_name,
+        setup_args=(tuple(setup_args),),
+        cleanup_paths=(palette_path,),
+    )
 
 
 def parse_progress_line(line: str, duration_seconds: float | None) -> float | None:
@@ -290,9 +358,8 @@ def _operation_args(
         return _audio_codec_args(fmt)
 
     if operation is Operation.gif:
-        fps = _bounded_int(options.get("fps", 10), "fps", 1, 30)
-        width = _bounded_int(options.get("width", 480), "width", 64, 1920)
-        return ["-vf", f"fps={fps},scale={width}:-1:flags=lanczos", "-loop", "0"]
+        _gif_quality(options)
+        return ["-vf", _gif_frame_filter(options), "-loop", "0"]
 
     if operation is Operation.mute:
         fmt = _choice(options.get("output_format", "mp4"), VIDEO_FORMATS, "output_format")
@@ -620,6 +687,16 @@ def _output_extension(operation: Operation, options: dict[str, Any]) -> str:
     if operation is Operation.gif:
         return "gif"
     raise CommandError(f"Unsupported operation: {operation}")
+
+
+def _gif_quality(options: dict[str, Any]) -> str:
+    return _choice(options.get("quality", "fast"), GIF_QUALITY_MODES, "quality")
+
+
+def _gif_frame_filter(options: dict[str, Any]) -> str:
+    fps = _bounded_int(options.get("fps", 10), "fps", 1, 30)
+    width = _bounded_int(options.get("width", 480), "width", 64, 1920)
+    return f"fps={fps},scale={width}:-1:flags=lanczos"
 
 
 def _trim_input_args(operation: Operation, options: dict[str, Any]) -> list[str]:

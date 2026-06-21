@@ -65,6 +65,7 @@ FIELD_SPECS: dict[Operation, list[dict[str, Any]]] = {
         {"name": "audio_format", "label": "音频格式", "kind": "choice", "choices": AUDIO_FORMAT_CHOICES, "default": "mp3"},
     ],
     Operation.gif: [
+        {"name": "quality", "label": "质量", "kind": "choice", "choices": ["fast", "palette"], "default": "fast"},
         {"name": "fps", "label": "帧率", "kind": "int", "min": 1, "max": 30, "default": 10},
         {"name": "width", "label": "宽度", "kind": "int", "min": 64, "max": 1920, "default": 480},
     ],

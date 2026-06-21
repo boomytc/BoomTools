@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from desktop.app.runtime.ffmpeg import build_command
+from desktop.app.runtime.ffmpeg import CommandSpec, build_command
 from desktop.app.runtime.filter_chain import build_stack_command
 from shared.contracts import MediaInfo, Operation
 
@@ -15,6 +15,12 @@ from shared.contracts import MediaInfo, Operation
 def _ffmpeg_run(args: list[str]) -> None:
     proc = subprocess.run(args, check=True, capture_output=True)
     assert proc.returncode == 0
+
+
+def _run_command_spec(spec: CommandSpec) -> None:
+    for args in spec.setup_args:
+        _ffmpeg_run(list(args))
+    _ffmpeg_run(spec.args)
 
 
 def test_ffmpeg_smoke_all_operations(tmp_path: Path) -> None:
@@ -171,7 +177,7 @@ def test_ffmpeg_smoke_all_operations(tmp_path: Path) -> None:
             output_dir=tmp_path / operation.value,
             extra_inputs=extra_inputs,
         )
-        _ffmpeg_run(spec.args)
+        _run_command_spec(spec)
         if spec.output_path is not None:
             assert spec.output_path.exists(), operation
             assert spec.output_path.stat().st_size > 0, operation
@@ -196,10 +202,57 @@ def test_ffmpeg_smoke_all_operations(tmp_path: Path) -> None:
             output_dir=tmp_path / f"targeted_{operation.value}",
             extra_inputs=extra_inputs,
         )
-        _ffmpeg_run(spec.args)
+        _run_command_spec(spec)
         if spec.output_path is not None:
             assert spec.output_path.exists(), operation
             assert spec.output_path.stat().st_size > 0, operation
+
+
+def test_ffmpeg_smoke_palette_gif_quality(tmp_path: Path) -> None:
+    if os.environ.get("RUN_FFMPEG_GUI_SMOKE") != "1":
+        pytest.skip("Set RUN_FFMPEG_GUI_SMOKE=1 to run real ffmpeg smoke tests")
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        pytest.skip("ffmpeg not available")
+
+    input_path = tmp_path / "input.mp4"
+    _ffmpeg_run(
+        [
+            ffmpeg,
+            "-hide_banner",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=size=160x90:rate=12",
+            "-t",
+            "1",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            str(input_path),
+        ]
+    )
+    spec = build_command(
+        ffmpeg_bin=ffmpeg,
+        operation=Operation.gif,
+        options={"quality": "palette", "fps": 6, "width": 120, "start_seconds": 0.0, "end_seconds": 0.8},
+        input_path=input_path,
+        output_dir=tmp_path / "palette_gif",
+    )
+
+    try:
+        _run_command_spec(spec)
+        if spec.output_path is None:
+            pytest.fail("GIF 命令应有明确输出文件")
+        assert spec.output_path.read_bytes()[:6] in {b"GIF87a", b"GIF89a"}
+        assert spec.output_path.stat().st_size > 0
+        assert spec.cleanup_paths
+        assert spec.cleanup_paths[0].exists()
+    finally:
+        for path in spec.cleanup_paths:
+            path.unlink(missing_ok=True)
 
 
 def test_ffmpeg_smoke_stack_chain_three_steps(tmp_path: Path) -> None:
@@ -245,9 +298,12 @@ def test_ffmpeg_smoke_stack_chain_three_steps(tmp_path: Path) -> None:
         input_path=input_path,
         output_dir=tmp_path / "stack",
         stack=stack,
-        media_info=MediaInfo(raw={}, duration_seconds=2.0),
+        media_info=MediaInfo(
+            raw={"streams": [{"codec_type": "video", "width": 320, "height": 180}]},
+            duration_seconds=2.0,
+        ),
     )
-    _ffmpeg_run(spec.args)
+    _run_command_spec(spec)
 
     if spec.output_path is None:
         pytest.fail("Stack 命令应有明确输出文件")

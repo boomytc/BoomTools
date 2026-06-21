@@ -10,6 +10,7 @@ from desktop.app.runtime.ffmpeg import (
     build_command,
     build_media_info_command,
 )
+from desktop.app.core.paths import TEMP_DIR
 from shared.contracts import Operation
 
 
@@ -127,6 +128,57 @@ def test_build_subtitle_operations() -> None:
                 extra_inputs=extra_inputs,
             )
             assert any(expected_arg in arg for arg in spec.args)
+
+
+def test_gif_fast_quality_uses_single_stage_command() -> None:
+    with TemporaryDirectory() as tmp:
+        input_path = Path(tmp) / "input.mp4"
+        input_path.write_bytes(b"\x00")
+
+        spec = build_command(
+            ffmpeg_bin="ffmpeg",
+            operation=Operation.gif,
+            options={"quality": "fast", "fps": 8, "width": 320},
+            input_path=input_path,
+            output_dir=Path(tmp) / "outputs",
+        )
+
+    assert spec.setup_args == ()
+    assert spec.cleanup_paths == ()
+    assert any("fps=8,scale=320:-1:flags=lanczos" in arg for arg in spec.args)
+    assert not any("paletteuse" in arg for arg in spec.args)
+
+
+def test_gif_palette_quality_builds_two_stage_command_with_temp_palette() -> None:
+    with TemporaryDirectory() as tmp:
+        input_path = Path(tmp) / "input.mp4"
+        input_path.write_bytes(b"\x00")
+
+        spec = build_command(
+            ffmpeg_bin="ffmpeg",
+            operation=Operation.gif,
+            options={"quality": "palette", "fps": 12, "width": 240, "start_seconds": 0.5, "end_seconds": 1.5},
+            input_path=input_path,
+            output_dir=Path(tmp) / "outputs",
+        )
+
+    assert len(spec.setup_args) == 1
+    assert len(spec.cleanup_paths) == 1
+    assert spec.cleanup_paths[0].parent == TEMP_DIR
+    assert spec.cleanup_paths[0].suffix == ".png"
+    assert spec.output_path is not None
+    assert spec.output_path.suffix == ".gif"
+
+    palettegen_args = list(spec.setup_args[0])
+    paletteuse_args = spec.args
+    assert "-ss" in palettegen_args
+    assert "-t" in palettegen_args
+    assert "-ss" in paletteuse_args
+    assert "-t" in paletteuse_args
+    assert any("palettegen=stats_mode=diff" in arg for arg in palettegen_args)
+    assert str(spec.cleanup_paths[0]) == palettegen_args[-1]
+    assert any("paletteuse=dither=sierra2_4a" in arg for arg in paletteuse_args)
+    assert str(spec.cleanup_paths[0]) in paletteuse_args
 
 
 def test_build_multi_input_operations() -> None:
@@ -277,6 +329,7 @@ def test_build_media_info_command_uses_ffmpeg_binary() -> None:
     ),
     [
         (Operation.resize_compress, {"output_format": "mp4"}, {}),
+        (Operation.gif, {"quality": "best", "fps": 8, "width": 320}, {}),
         (Operation.adjust, {"brightness": 0.0, "contrast": 1.0, "saturation": 4.0}, {}),
         (Operation.loop, {"output_format": "mp4", "plays": 1}, {}),
         (Operation.loop, {"output_format": "mp4", "plays": 3, "start_seconds": 1}, {}),

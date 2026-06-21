@@ -523,7 +523,7 @@ class MainController(QObject):
             self.window.set_output_estimate("输出大小保守估算：参数异常，无法估算")
             return
 
-        self.window.set_command_preview("$ " + " ".join(shlex.quote(arg) for arg in spec.args))
+        self.window.set_command_preview(_format_command_preview(spec))
         self.window.set_output_estimate(self._format_output_estimate(spec))
 
     def _format_output_estimate(self, spec: CommandSpec) -> str:
@@ -708,7 +708,8 @@ class MainController(QObject):
         self.window.set_progress(task.progress)
         self.window.set_current_output(None)
         self.window.set_batch_progress(0, 0)
-        self._append_log("$ " + " ".join(shlex.quote(arg) for arg in spec.args))
+        for line in _format_command_lines(spec):
+            self._append_log(line)
 
         worker = self.task_manager.create_worker(spec, self._duration_seconds_for_path(input_path))
         worker.status_changed.connect(lambda status: self._on_task_status(task, status))
@@ -754,7 +755,8 @@ class MainController(QObject):
         self.window.set_progress(task.progress)
         self.window.set_current_output(None)
         self.window.set_batch_progress(0, 0)
-        self._append_log("$ " + " ".join(shlex.quote(arg) for arg in spec.args))
+        for line in _format_command_lines(spec):
+            self._append_log(line)
 
         worker = self.task_manager.create_worker(spec, self._duration_seconds_for_path(input_path))
         worker.status_changed.connect(lambda status: self._on_task_status(task, status))
@@ -874,7 +876,8 @@ class MainController(QObject):
         self.window.clear_log()
         self.window.set_progress(record.progress)
         self.window.set_current_output(None)
-        self._append_log(f"[{self.state.batch_current_index}/{self._current_batch_total}] " + " ".join(shlex.quote(arg) for arg in spec.args))
+        for line in _format_command_lines(spec):
+            self._append_log(f"[{self.state.batch_current_index}/{self._current_batch_total}] {line}")
 
         worker = self.task_manager.create_worker(spec, self._duration_seconds_for_path(input_path))
         worker.status_changed.connect(lambda status: self._on_task_status(record, status))
@@ -1340,6 +1343,16 @@ def _operation_needs_media_duration(operation: Operation, options: dict[str, obj
 
 def _operation_needs_media_context(operation: Operation, options: dict[str, object]) -> bool:
     return operation is Operation.crop or _operation_needs_media_duration(operation, options)
+
+
+def _format_command_preview(spec: CommandSpec) -> str:
+    return "\n".join(_format_command_lines(spec))
+
+
+def _format_command_lines(spec: CommandSpec) -> list[str]:
+    command_args = [list(args) for args in spec.setup_args]
+    command_args.append(spec.args)
+    return ["$ " + " ".join(shlex.quote(arg) for arg in args) for args in command_args]
 
 
 def _unsupported_batch_stack_operation(

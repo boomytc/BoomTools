@@ -336,6 +336,41 @@ QComboBox::drop-down {
   border-left: 1px solid #333a50;
 }
 
+QComboBox {
+  combobox-popup: 0;
+}
+
+QComboBox QAbstractItemView,
+QListView#comboPopupView {
+  color: #d8e0ef;
+  background: #101522;
+  border: 1px solid #4a536a;
+  border-radius: 6px;
+  padding: 4px;
+  outline: 0;
+  selection-color: #ffffff;
+  selection-background-color: #376fd6;
+}
+
+QComboBox QAbstractItemView::item,
+QListView#comboPopupView::item {
+  min-height: 24px;
+  padding: 5px 10px;
+  border-radius: 4px;
+}
+
+QComboBox QAbstractItemView::item:hover,
+QListView#comboPopupView::item:hover {
+  color: #eef4ff;
+  background: #20283d;
+}
+
+QComboBox QAbstractItemView::item:selected,
+QListView#comboPopupView::item:selected {
+  color: #ffffff;
+  background: #376fd6;
+}
+
 QSpinBox::up-button,
 QDoubleSpinBox::up-button,
 QSpinBox::down-button,

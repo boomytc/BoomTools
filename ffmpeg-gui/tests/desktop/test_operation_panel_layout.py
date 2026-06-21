@@ -7,7 +7,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QPoint, QPointF, Qt
 from PySide6.QtGui import QWheelEvent
-from PySide6.QtWidgets import QApplication, QFrame
+from PySide6.QtWidgets import QApplication, QComboBox, QFrame, QListView
 
 from desktop.app.core.paths import QSS_PATH
 from desktop.app.ui.main_window import MainWindow
@@ -111,6 +111,30 @@ def test_parameter_spinboxes_ignore_wheel_events() -> None:
 
     assert fps_spin.value() == fps_value  # type: ignore[attr-defined]
     assert fade_spin.value() == fade_value  # type: ignore[attr-defined]
+
+    panel.close()
+
+
+def test_parameter_comboboxes_use_styled_popup_views() -> None:
+    app = _qt_app()
+    app.setStyleSheet(QSS_PATH.read_text(encoding="utf-8"))
+    panel = OperationPanel()
+    panel.show()
+    app.processEvents()
+
+    panel.operation_form._select_operation(Operation.resize_compress)
+    app.processEvents()
+    preset_combo = panel.operation_form._controls["preset"]
+
+    panel.operation_form._select_operation(Operation.raw)
+    app.processEvents()
+    raw_preset_combo = panel.operation_form._controls["raw_preset"]
+
+    for combo in (preset_combo, raw_preset_combo):
+        assert isinstance(combo, QComboBox)
+        assert isinstance(combo.view(), QListView)
+        assert combo.view().objectName() == "comboPopupView"
+        assert combo.view().uniformItemSizes()
 
     panel.close()
 

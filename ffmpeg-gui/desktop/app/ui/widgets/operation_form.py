@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListView,
     QPlainTextEdit,
     QSpinBox,
     QPushButton,
@@ -320,7 +321,7 @@ class OperationFormWidget(QWidget):
     def _create_widget(self, spec: dict[str, Any]) -> QWidget:
         kind = str(spec["kind"])
         if kind == "choice":
-            combo = QComboBox()
+            combo = _create_styled_combo_box()
             for value in spec["choices"]:
                 combo.addItem(str(value), str(value))
             default = str(spec.get("default", ""))
@@ -357,7 +358,7 @@ class OperationFormWidget(QWidget):
             editor.setToolTip("仅填写 ffmpeg 输入文件之后、输出文件之前的参数；不要包含 -i、输入路径或输出路径。")
             return editor
         if kind == "raw_preset":
-            combo = QComboBox()
+            combo = _create_styled_combo_box()
             combo.addItem("不使用示例命令", "")
             for label, args in RAW_PRESET_OPTIONS:
                 combo.addItem(label, args)
@@ -563,6 +564,16 @@ def _configure_form_layout(layout: QFormLayout) -> None:
 def _configure_parameter_field(widget: QWidget) -> None:
     if isinstance(widget, (QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QPlainTextEdit, PathPicker)):
         widget.setMaximumWidth(PARAMETER_FIELD_MAX_WIDTH)
+
+
+def _create_styled_combo_box() -> QComboBox:
+    combo = QComboBox()
+    popup_view = QListView()
+    popup_view.setObjectName("comboPopupView")
+    popup_view.setUniformItemSizes(True)
+    popup_view.setMouseTracking(True)
+    combo.setView(popup_view)
+    return combo
 
 
 class _NoWheelSpinBox(QSpinBox):

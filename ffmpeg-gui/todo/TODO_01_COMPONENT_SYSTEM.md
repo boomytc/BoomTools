@@ -137,11 +137,11 @@ tests/desktop/test_ui_components.py
 
 覆盖：
 
-- [ ] `PanelFrame` 标题、actions、body layout 可用。
-- [ ] `SegmentedToggle` 单选、value changed、禁用态可用。
-- [ ] `PanelActionBar` 能按 role 创建按钮。
-- [ ] `FixedScrollArea` 无水平滚动、固定高度、gutter 生效。
-- [ ] `FormSection` form layout 边距和 label 对齐稳定。
+- [x] `PanelFrame` 标题、actions、body layout 可用。
+- [x] `SegmentedToggle` 单选、value changed、禁用态可用。
+- [x] `PanelActionBar` 能按 role 创建按钮。
+- [x] `FixedScrollArea` 无水平滚动、固定高度、gutter 生效。
+- [x] `FormSection` form layout 边距和 label 对齐稳定。
 
 ## 迁移限制
 
@@ -167,4 +167,4 @@ git diff --check
 
 - [ ] 未开始
 - [ ] 进行中
-- [ ] 已完成
+- [x] 已完成

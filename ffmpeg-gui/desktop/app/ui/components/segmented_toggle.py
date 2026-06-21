@@ -52,10 +52,10 @@ class SegmentedToggle(QWidget):
     def value(self) -> str:
         return self._value
 
-    def set_value(self, value: str, *, emit: bool = False) -> None:
+    def set_value(self, value: str, *, emit: bool = False, force: bool = False) -> None:
         if value not in self._buttons:
             raise ValueError(f"Unknown segment value: {value}")
-        if not self._buttons[value].isEnabled():
+        if not force and not self._buttons[value].isEnabled():
             return
         changed = value != self._value
         self._value = value

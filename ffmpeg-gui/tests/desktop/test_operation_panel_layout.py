@@ -30,9 +30,10 @@ def test_stack_mode_keeps_operation_form_readable() -> None:
     assert panel.stack_panel.isVisible()
     assert panel.stack_panel.height() <= panel.stack_panel.maximumHeight()
     assert panel.operation_form.height() >= panel.operation_form.minimumHeight()
-    assert min(button.height() for button in panel.operation_form._operation_buttons.values()) >= 28
-    assert panel.operation_form.operation_scroll_area.verticalScrollBar().maximum() > 0
-    assert panel.operation_form.operation_scroll_area.horizontalScrollBar().maximum() == 0
+    selector = panel.operation_form.operation_selector
+    assert min(button.height() for button in selector.operation_buttons().values()) >= 28
+    assert selector.operation_scroll_area.verticalScrollBar().maximum() > 0
+    assert selector.operation_scroll_area.horizontalScrollBar().maximum() == 0
 
     panel.close()
 
@@ -45,23 +46,24 @@ def test_parameter_area_scrolls_without_resizing_panel() -> None:
     panel.show()
     app.processEvents()
 
-    initial_height = panel.operation_form.parameters_group.height()
+    parameter_form = panel.operation_form.parameter_form
+    initial_height = parameter_form.height()
     form_height = panel.operation_form.height()
-    label = panel.operation_form.selected_operation_label
+    label = parameter_form.selected_operation_label
 
-    panel.operation_form._select_operation(Operation.raw)
+    panel.operation_form.select_operation(Operation.raw)
     app.processEvents()
 
-    assert panel.operation_form.parameters_group.height() == initial_height
+    assert parameter_form.height() == initial_height
     assert panel.operation_form.height() == form_height
     assert label.height() <= label.sizeHint().height() + 4
-    assert panel.operation_form.parameter_scroll_area.verticalScrollBar().maximum() > 0
-    assert panel.operation_form.parameter_scroll_area.horizontalScrollBar().maximum() == 0
+    assert parameter_form.parameter_scroll_area.verticalScrollBar().maximum() > 0
+    assert parameter_form.parameter_scroll_area.horizontalScrollBar().maximum() == 0
 
-    panel.operation_form._select_operation(Operation.media_info)
+    panel.operation_form.select_operation(Operation.media_info)
     app.processEvents()
 
-    assert panel.operation_form.parameters_group.height() == initial_height
+    assert parameter_form.height() == initial_height
     assert panel.operation_form.height() == form_height
 
     panel.close()
@@ -75,11 +77,11 @@ def test_parameter_fields_keep_gutter_from_scrollbar() -> None:
     panel.show()
     app.processEvents()
 
-    panel.operation_form._select_operation(Operation.resize_compress)
+    panel.operation_form.select_operation(Operation.resize_compress)
     app.processEvents()
 
-    form = panel.operation_form
-    width_field = form._controls["width"]
+    form = panel.operation_form.parameter_form
+    width_field = form.controls()["width"]
     content_margins = form.parameter_content_widget.layout().contentsMargins()
 
     assert form.parameter_scroll_area.viewportMargins().right() >= 8
@@ -98,15 +100,15 @@ def test_parameter_spinboxes_ignore_wheel_events() -> None:
     panel.show()
     app.processEvents()
 
-    panel.operation_form._select_operation(Operation.gif)
+    panel.operation_form.select_operation(Operation.gif)
     app.processEvents()
-    fps_spin = panel.operation_form._controls["fps"]
+    fps_spin = panel.operation_form.parameter_form.controls()["fps"]
     fps_value = fps_spin.value()  # type: ignore[attr-defined]
     QApplication.sendEvent(fps_spin, _wheel_up_event())  # type: ignore[arg-type]
 
-    panel.operation_form._select_operation(Operation.fade)
+    panel.operation_form.select_operation(Operation.fade)
     app.processEvents()
-    fade_spin = panel.operation_form._controls["fade_in_seconds"]
+    fade_spin = panel.operation_form.parameter_form.controls()["fade_in_seconds"]
     fade_value = fade_spin.value()  # type: ignore[attr-defined]
     QApplication.sendEvent(fade_spin, _wheel_up_event())  # type: ignore[arg-type]
 
@@ -123,13 +125,13 @@ def test_parameter_comboboxes_use_styled_popup_views() -> None:
     panel.show()
     app.processEvents()
 
-    panel.operation_form._select_operation(Operation.resize_compress)
+    panel.operation_form.select_operation(Operation.resize_compress)
     app.processEvents()
-    preset_combo = panel.operation_form._controls["preset"]
+    preset_combo = panel.operation_form.parameter_form.controls()["preset"]
 
-    panel.operation_form._select_operation(Operation.raw)
+    panel.operation_form.select_operation(Operation.raw)
     app.processEvents()
-    raw_preset_combo = panel.operation_form._controls["raw_preset"]
+    raw_preset_combo = panel.operation_form.parameter_form.controls()["raw_preset"]
 
     for combo in (preset_combo, raw_preset_combo):
         assert isinstance(combo, QComboBox)
@@ -149,15 +151,15 @@ def test_operation_and_parameter_panels_use_compact_internal_titles() -> None:
     app.processEvents()
 
     form = panel.operation_form
-    operation_margins = form.operation_group.layout().contentsMargins()
-    parameter_margins = form.parameters_group.layout().contentsMargins()
+    operation_margins = form.operation_selector.layout().contentsMargins()
+    parameter_margins = form.parameter_form.layout().contentsMargins()
 
-    assert isinstance(form.operation_group, PanelFrame)
-    assert isinstance(form.parameters_group, PanelFrame)
-    assert form.operation_group.objectName() == "operationFrame"
-    assert form.parameters_group.objectName() == "parameterFrame"
-    assert form.operation_title_label.text() == "处理动作"
-    assert form.parameter_title_label.text() == "参数"
+    assert isinstance(form.operation_selector, PanelFrame)
+    assert isinstance(form.parameter_form, PanelFrame)
+    assert form.operation_selector.objectName() == "operationFrame"
+    assert form.parameter_form.objectName() == "parameterFrame"
+    assert form.operation_selector.title_label.text() == "处理动作"
+    assert form.parameter_form.title_label.text() == "参数"
     assert operation_margins.top() <= 10
     assert parameter_margins.top() <= 10
     assert operation_margins.left() == parameter_margins.left()
@@ -171,8 +173,8 @@ def test_operation_form_uses_panel_frame_selectors() -> None:
     panel = OperationPanel()
     form = panel.operation_form
 
-    assert form.operation_group.objectName() == "operationFrame"
-    assert form.parameters_group.objectName() == "parameterFrame"
+    assert form.operation_selector.objectName() == "operationFrame"
+    assert form.parameter_form.objectName() == "parameterFrame"
     panel.close()
 
 
@@ -186,7 +188,7 @@ def test_operation_form_does_not_expand_into_extra_window_height() -> None:
 
     assert panel.operation_form.geometry().top() == 0
     assert panel.operation_form.height() == panel.operation_form.sizeHint().height()
-    assert panel.operation_form.parameters_group.height() == panel.operation_form.parameters_group.sizeHint().height()
+    assert panel.operation_form.parameter_form.height() == panel.operation_form.parameter_form.sizeHint().height()
 
     panel.close()
 

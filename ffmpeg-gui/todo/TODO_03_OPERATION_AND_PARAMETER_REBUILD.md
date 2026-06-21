@@ -36,10 +36,10 @@ desktop/app/ui/widgets/
 
 必做：
 
-- [ ] 将 operation card 创建逻辑从 `OperationFormWidget` 移出。
-- [ ] 将 `_sync_operation_button_states` 移到 selector 或专门 presenter。
-- [ ] 保留 tooltip 逻辑，但不泄漏到参数表单。
-- [ ] 操作按钮支持统一最小高度和滚动区域。
+- [x] 将 operation card 创建逻辑从 `OperationFormWidget` 移出。
+- [x] 将 `_sync_operation_button_states` 移到 selector 或专门 presenter。
+- [x] 保留 tooltip 逻辑，但不泄漏到参数表单。
+- [x] 操作按钮支持统一最小高度和滚动区域。
 
 ## OperationParameterForm
 
@@ -59,11 +59,11 @@ desktop/app/ui/widgets/
 
 必做：
 
-- [ ] 将 `_render_fields`、`_clear_fields`、`_create_widget`、`_connect_change_signal` 拆出。
-- [ ] 保留 `PathPicker` 用于 file 字段。
-- [ ] 将 spinbox no-wheel 和 combo popup 样式相关类移到 field factory 或专用 widgets。
-- [ ] 保留字段宽度和 scrollbar gutter。
-- [ ] 参数区域高度固定，不因字段数量跳动。
+- [x] 将 `_render_fields`、`_clear_fields`、`_create_widget`、`_connect_change_signal` 拆出。
+- [x] 保留 `PathPicker` 用于 file 字段。
+- [x] 将 spinbox no-wheel 和 combo popup 样式相关类移到 field factory 或专用 widgets。
+- [x] 保留字段宽度和 scrollbar gutter。
+- [x] 参数区域高度固定，不因字段数量跳动。
 
 ## OperationFieldFactory
 
@@ -113,13 +113,13 @@ desktop/app/ui/widgets/
 
 覆盖：
 
-- [ ] selector 单独可选择 operation。
-- [ ] selector 的 batch 禁用状态正确。
-- [ ] segmented toggle 发出 Stack 切换。
-- [ ] 参数表单在 raw、多字段、无字段 operation 下高度稳定。
-- [ ] collect 正确产出 options 和 extra_inputs。
-- [ ] spinbox wheel 禁用仍有效。
-- [ ] combo popup 使用 styled view。
+- [x] selector 单独可选择 operation。
+- [x] selector 的 batch 禁用状态正确。
+- [x] segmented toggle 发出 Stack 切换。
+- [x] 参数表单在 raw、多字段、无字段 operation 下高度稳定。
+- [x] collect 正确产出 options 和 extra_inputs。
+- [x] spinbox wheel 禁用仍有效。
+- [x] combo popup 使用 styled view。
 
 ## 验收标准
 
@@ -142,4 +142,4 @@ git diff --check
 
 - [ ] 未开始
 - [ ] 进行中
-- [ ] 已完成
+- [x] 已完成

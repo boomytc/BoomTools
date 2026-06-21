@@ -47,7 +47,7 @@ class OperationFormWidget(QWidget):
 
     def __init__(self) -> None:
         super().__init__()
-        self.setMinimumHeight(248)
+        self.setMinimumHeight(236)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._controls: dict[str, QWidget] = {}
         self._operation_buttons: dict[Operation, QPushButton] = {}
@@ -60,17 +60,18 @@ class OperationFormWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
 
-        operation_group = QGroupBox()
-        operation_group.setObjectName("operationGroup")
-        operation_group.setMinimumHeight(236)
-        operation_group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        operation_layout = QVBoxLayout(operation_group)
+        self.operation_group = QGroupBox()
+        self.operation_group.setObjectName("operationGroup")
+        self.operation_group.setMinimumHeight(236)
+        self.operation_group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        operation_layout = QVBoxLayout(self.operation_group)
+        operation_layout.setContentsMargins(12, 10, 12, 10)
         operation_layout.setSpacing(8)
         operation_header = QHBoxLayout()
         operation_header.setSpacing(8)
-        operation_title = QLabel("处理动作")
-        operation_title.setObjectName("sectionTitle")
-        operation_header.addWidget(operation_title)
+        self.operation_title_label = QLabel("处理动作")
+        self.operation_title_label.setObjectName("sectionTitle")
+        operation_header.addWidget(self.operation_title_label)
         operation_header.addStretch(1)
         self.single_mode_button = QPushButton("单操作")
         self.stack_mode_button = QPushButton("Stack 链式")
@@ -125,13 +126,18 @@ class OperationFormWidget(QWidget):
         operation_layout.addWidget(self.operation_scroll_area)
         operation_layout.addStretch(1)
 
-        self.parameters_group = QGroupBox("参数")
+        self.parameters_group = QGroupBox()
         self.parameters_group.setObjectName("parameterGroup")
         self.parameters_group.setMinimumWidth(320)
         self.parameters_group.setMinimumHeight(236)
         self.parameters_group.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         parameters_layout = QVBoxLayout(self.parameters_group)
+        parameters_layout.setContentsMargins(12, 10, 12, 10)
         parameters_layout.setSpacing(6)
+
+        self.parameter_title_label = QLabel("参数")
+        self.parameter_title_label.setObjectName("sectionTitle")
+        parameters_layout.addWidget(self.parameter_title_label)
 
         self.selected_operation_label = QLabel()
         self.selected_operation_label.setObjectName("operationSelectionLabel")
@@ -188,7 +194,7 @@ class OperationFormWidget(QWidget):
         self.parameter_scroll_area.setWidget(self.parameter_content_widget)
         parameters_layout.addWidget(self.parameter_scroll_area)
         parameters_layout.addStretch(1)
-        layout.addWidget(operation_group, 3)
+        layout.addWidget(self.operation_group, 3)
         layout.addWidget(self.parameters_group, 2)
 
         self._select_operation(self._selected_operation, emit=False)

@@ -8,6 +8,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
 
+from desktop.app.core.paths import QSS_PATH
 from desktop.app.ui.delegates import TextCellDelegate
 from desktop.app.ui.panels.task_panel import _total_progress_summary
 from desktop.app.ui.panels.task_panel import TaskPanel
@@ -82,6 +83,21 @@ def test_task_panel_uses_text_delegate_for_action_column() -> None:
     panel = TaskPanel(TaskTableModel())
 
     assert isinstance(panel.task_table.itemDelegateForColumn(2), TextCellDelegate)
+
+
+def test_task_panel_places_total_progress_under_title() -> None:
+    app = _qt_app()
+    app.setStyleSheet(QSS_PATH.read_text(encoding="utf-8"))
+    panel = TaskPanel(TaskTableModel())
+    panel.resize(1320, 360)
+    panel.show()
+    app.processEvents()
+
+    assert panel.total_progress_label.geometry().top() > panel.title_label.geometry().top()
+    assert panel.total_progress_bar.geometry().top() >= panel.total_progress_label.geometry().top() - 2
+    assert panel.start_button.geometry().left() > panel.total_progress_bar.geometry().right()
+
+    panel.close()
 
 
 def _qt_app() -> QApplication:

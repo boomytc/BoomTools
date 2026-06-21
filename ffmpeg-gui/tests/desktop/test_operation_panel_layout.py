@@ -139,6 +139,30 @@ def test_parameter_comboboxes_use_styled_popup_views() -> None:
     panel.close()
 
 
+def test_operation_and_parameter_panels_use_compact_internal_titles() -> None:
+    app = _qt_app()
+    app.setStyleSheet(QSS_PATH.read_text(encoding="utf-8"))
+    panel = OperationPanel()
+    panel.resize(1320, 500)
+    panel.show()
+    app.processEvents()
+
+    form = panel.operation_form
+    operation_margins = form.operation_group.layout().contentsMargins()
+    parameter_margins = form.parameters_group.layout().contentsMargins()
+
+    assert form.operation_group.title() == ""
+    assert form.parameters_group.title() == ""
+    assert form.operation_title_label.text() == "处理动作"
+    assert form.parameter_title_label.text() == "参数"
+    assert operation_margins.top() <= 10
+    assert parameter_margins.top() <= 10
+    assert operation_margins.left() == parameter_margins.left()
+    assert operation_margins.right() == parameter_margins.right()
+
+    panel.close()
+
+
 def test_operation_form_does_not_expand_into_extra_window_height() -> None:
     app = _qt_app()
     app.setStyleSheet(QSS_PATH.read_text(encoding="utf-8"))

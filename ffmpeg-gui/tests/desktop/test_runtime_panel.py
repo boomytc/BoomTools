@@ -5,7 +5,8 @@ import sys
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QPoint
+from PySide6.QtCore import QPoint, Qt
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QLabel, QPushButton
 
 from desktop.app.core.paths import QSS_PATH
@@ -64,9 +65,9 @@ def test_stack_panel_renders_steps_as_arrow_chain() -> None:
     app = _qt_app()
     app.setStyleSheet(QSS_PATH.read_text(encoding="utf-8"))
     panel = StackPanel()
-    emitted: list[int] = []
+    moved: list[tuple[int, int]] = []
     selected: list[int] = []
-    panel.move_down_requested.connect(emitted.append)
+    panel.item_moved.connect(lambda from_index, to_index: moved.append((from_index, to_index)))
     panel.item_selected.connect(selected.append)
     panel.set_items(["基础 - 旋转/翻转", "基础 - 缩放+压缩 (outoverwrite)", "视频编辑 - 画面调整"])
     panel.resize(900, panel.maximumHeight())
@@ -82,16 +83,50 @@ def test_stack_panel_renders_steps_as_arrow_chain() -> None:
     assert min(chip.height() for chip in chips) >= 26
     assert panel.stack_chain.height() >= max(chip.height() for chip in chips) + 10
     assert panel.stack_chain.selected_index() == 2
+    assert not hasattr(panel, "move_up_button")
+    assert not hasattr(panel, "move_down_button")
 
     chips[1].click()
     assert selected == [1]
     assert panel.stack_chain.selected_index() == 1
 
-    panel.stack_chain.select_index(0)
-    panel.move_down_button.click()
+    panel.stack_chain.move_item(0, 2)
 
-    assert emitted == [0]
-    assert panel.stack_chain.selected_index() == 1
+    assert moved == [(0, 2)]
+    assert panel.stack_chain.selected_index() == 2
+    panel.close()
+
+
+def test_stack_chip_drag_emits_move_request() -> None:
+    app = _qt_app()
+    app.setStyleSheet(QSS_PATH.read_text(encoding="utf-8"))
+    panel = StackPanel()
+    moved: list[tuple[int, int]] = []
+    panel.item_moved.connect(lambda from_index, to_index: moved.append((from_index, to_index)))
+    panel.set_items(["旋转", "裁剪", "调色"])
+    panel.resize(900, panel.maximumHeight())
+    panel.show()
+    app.processEvents()
+
+    chips = panel.stack_chain.findChildren(QPushButton)
+    source_chip = chips[0]
+    target_position = QPoint(
+        chips[2].geometry().center().x() - source_chip.geometry().left() + 10,
+        source_chip.rect().center().y(),
+    )
+
+    QTest.mousePress(
+        source_chip,
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+        source_chip.rect().center(),
+    )
+    QTest.mouseMove(source_chip, target_position, delay=20)
+    QTest.mouseRelease(source_chip, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, target_position)
+    app.processEvents()
+
+    assert moved == [(0, 2)]
+    assert panel.stack_chain.selected_index() == 2
     panel.close()
 
 

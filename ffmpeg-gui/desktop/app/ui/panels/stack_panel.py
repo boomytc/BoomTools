@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QPoint, Qt, Signal
+from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import (
+    QApplication,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -14,11 +16,10 @@ from desktop.app.ui.components import PanelActionBar, PanelFrame
 
 class StackPanel(PanelFrame):
     add_requested = Signal()
-    move_up_requested = Signal(int)
-    move_down_requested = Signal(int)
     remove_requested = Signal(int)
     clear_requested = Signal()
     item_selected = Signal(int)
+    item_moved = Signal(int, int)
 
     def __init__(self) -> None:
         super().__init__("Stack 队列", density="compact")
@@ -43,16 +44,13 @@ class StackPanel(PanelFrame):
 
         self.stack_chain = _StackChainView()
         self.stack_chain.item_selected.connect(self.item_selected.emit)
+        self.stack_chain.item_moved.connect(self.item_moved.emit)
 
         button_row = PanelActionBar()
         self.add_button = button_row.add_button("添加当前操作到 Stack", role="result")
-        self.move_up_button = button_row.add_button("上移", role="quiet")
-        self.move_down_button = button_row.add_button("下移", role="quiet")
         self.remove_button = button_row.add_button("移除", role="quiet")
         self.clear_button = button_row.add_button("清空", role="danger")
         self.add_button.clicked.connect(lambda _checked=False: self.add_requested.emit())
-        self.move_up_button.clicked.connect(self._emit_move_up)
-        self.move_down_button.clicked.connect(self._emit_move_down)
         self.remove_button.clicked.connect(self._emit_remove)
         self.clear_button.clicked.connect(lambda _checked=False: self.clear_requested.emit())
 
@@ -86,28 +84,14 @@ class StackPanel(PanelFrame):
 
     def set_actions_enabled(self, has_items: bool) -> None:
         enabled = has_items and not self._busy
-        self.move_up_button.setEnabled(enabled)
-        self.move_down_button.setEnabled(enabled)
         self.remove_button.setEnabled(enabled)
         self.clear_button.setEnabled(enabled)
 
     def set_supported_note(self, supported: bool) -> None:
         if supported:
-            self.mode_label.setText("当前操作支持加入 Stack。")
+            self.mode_label.setText("当前操作支持加入 Stack；拖动标签调整顺序。")
             return
         self.mode_label.setText("当前操作不支持加入 Stack。")
-
-    def _emit_move_up(self) -> None:
-        index = self._selected_index()
-        if index is not None and index > 0:
-            self.stack_chain.select_index(index - 1)
-            self.move_up_requested.emit(index)
-
-    def _emit_move_down(self) -> None:
-        index = self._selected_index()
-        if index is not None and index < len(self._items) - 1:
-            self.stack_chain.select_index(index + 1)
-            self.move_down_requested.emit(index)
 
     def _emit_remove(self) -> None:
         index = self._selected_index()
@@ -120,12 +104,14 @@ class StackPanel(PanelFrame):
 
 class _StackChainView(QFrame):
     item_selected = Signal(int)
+    item_moved = Signal(int, int)
 
     def __init__(self) -> None:
         super().__init__()
         self._items: list[str] = []
         self._selected_index: int | None = None
-        self._chip_buttons: list[QPushButton] = []
+        self._chip_buttons: list[_StackChipButton] = []
+        self._drop_target_index: int | None = None
         self.setObjectName("stackChainView")
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setFixedHeight(44)
@@ -150,16 +136,18 @@ class _StackChainView(QFrame):
             return
 
         for index, item in enumerate(self._items):
-            chip = QPushButton(_chip_text(index, item))
+            chip = _StackChipButton(index, _chip_text(index, item))
             chip.setCheckable(True)
             chip.setProperty("role", "stackChip")
-            chip.setCursor(Qt.CursorShape.PointingHandCursor)
-            chip.setToolTip(f"第 {index + 1} 步：{item}")
+            chip.setCursor(Qt.CursorShape.OpenHandCursor)
+            chip.setToolTip(f"第 {index + 1} 步：{item}\n点击查看参数；拖动调整执行顺序。")
             chip.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
             chip.setMinimumHeight(28)
             chip.setMaximumWidth(260)
             chip.setMinimumWidth(min(chip.sizeHint().width(), 260))
             chip.clicked.connect(lambda _checked=False, chip_index=index: self.select_index(chip_index, emit=True))
+            chip.drag_moved.connect(self._on_chip_drag_moved)
+            chip.drag_finished.connect(self._on_chip_drag_finished)
             self._chip_buttons.append(chip)
             self._layout.addWidget(chip)
             if index < len(self._items) - 1:
@@ -187,10 +175,44 @@ class _StackChainView(QFrame):
         if emit:
             self.item_selected.emit(index)
 
+    def move_item(self, from_index: int, to_index: int) -> None:
+        if from_index < 0 or from_index >= len(self._chip_buttons):
+            return
+        if to_index < 0 or to_index >= len(self._chip_buttons):
+            return
+        if from_index == to_index:
+            self.select_index(to_index)
+            return
+        self.select_index(to_index)
+        self.item_moved.emit(from_index, to_index)
+
     def set_busy(self, busy: bool) -> None:
         self.setEnabled(not busy)
         for chip in self._chip_buttons:
             chip.setEnabled(not busy)
+
+    def _on_chip_drag_moved(self, _from_index: int, position: QPoint) -> None:
+        self._set_drop_target(self._target_index_from_position(position))
+
+    def _on_chip_drag_finished(self, from_index: int, position: QPoint) -> None:
+        to_index = self._target_index_from_position(position)
+        self._set_drop_target(None)
+        self.move_item(from_index, to_index)
+
+    def _target_index_from_position(self, position: QPoint) -> int:
+        if not self._chip_buttons:
+            return 0
+        for index, chip in enumerate(self._chip_buttons):
+            if position.x() < chip.geometry().center().x():
+                return index
+        return len(self._chip_buttons) - 1
+
+    def _set_drop_target(self, index: int | None) -> None:
+        if index == self._drop_target_index:
+            return
+        self._drop_target_index = index
+        for chip_index, chip in enumerate(self._chip_buttons):
+            _set_dynamic_property(chip, "dropTarget", chip_index == index)
 
     def _clear(self) -> None:
         while self._layout.count():
@@ -199,6 +221,55 @@ class _StackChainView(QFrame):
             if widget is not None:
                 widget.setParent(None)
         self._chip_buttons.clear()
+        self._drop_target_index = None
+
+
+class _StackChipButton(QPushButton):
+    drag_moved = Signal(int, QPoint)
+    drag_finished = Signal(int, QPoint)
+
+    def __init__(self, index: int, text: str) -> None:
+        super().__init__(text)
+        self._index = index
+        self._press_position: QPoint | None = None
+        self._dragging = False
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._press_position = event.position().toPoint()
+            self._dragging = False
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        if self._press_position is None or not event.buttons() & Qt.MouseButton.LeftButton:
+            super().mouseMoveEvent(event)
+            return
+        distance = (event.position().toPoint() - self._press_position).manhattanLength()
+        if not self._dragging and distance >= QApplication.startDragDistance():
+            self._dragging = True
+            self.setCursor(Qt.CursorShape.ClosedHandCursor)
+            _set_dynamic_property(self, "dragging", True)
+        if self._dragging:
+            self.drag_moved.emit(self._index, self.mapToParent(event.position().toPoint()))
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if self._dragging:
+            self.drag_finished.emit(self._index, self.mapToParent(event.position().toPoint()))
+            self._reset_drag_state()
+            self.setDown(False)
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+        self._reset_drag_state()
+
+    def _reset_drag_state(self) -> None:
+        self._press_position = None
+        self._dragging = False
+        self.setCursor(Qt.CursorShape.OpenHandCursor)
+        _set_dynamic_property(self, "dragging", False)
 
 
 def _chip_text(index: int, item: str) -> str:
@@ -206,3 +277,10 @@ def _chip_text(index: int, item: str) -> str:
     if len(text) > 28:
         text = f"{text[:25]}..."
     return f"{index + 1}. {text}"
+
+
+def _set_dynamic_property(widget: QPushButton, name: str, value: bool) -> None:
+    widget.setProperty(name, value)
+    widget.style().unpolish(widget)
+    widget.style().polish(widget)
+    widget.update()

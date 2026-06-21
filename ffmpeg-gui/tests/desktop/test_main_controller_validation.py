@@ -40,11 +40,10 @@ class _FakeWindow:
         self.task_remove_requested = _Signal()
         self.stack_mode_toggled = _Signal()
         self.stack_add_requested = _Signal()
-        self.stack_move_up_requested = _Signal()
-        self.stack_move_down_requested = _Signal()
         self.stack_remove_requested = _Signal()
         self.stack_clear_requested = _Signal()
         self.stack_item_selected = _Signal()
+        self.stack_item_moved = _Signal()
         self.command_preview_requested = _Signal()
         self.open_output_requested = _Signal()
         self.open_output_dir_requested = _Signal()
@@ -330,6 +329,31 @@ def test_stack_add_syncs_parameter_payload_to_stored_follow_up_step() -> None:
     assert extra_inputs == {}
     assert controller._stack_items[0][1]["start_seconds"] == 1.0
     assert "start_seconds" not in controller._stack_items[1][1]
+
+
+def test_stack_item_move_reorders_payloads_by_index() -> None:
+    window = _FakeWindow()
+    window.stack_mode_enabled = True
+    controller = _make_controller(window)
+
+    first_crop = {"x": 0, "y": 0, "width": 320, "height": 180, "output_format": "mp4"}
+    second_crop = {"x": 40, "y": 24, "width": 640, "height": 360, "output_format": "mp4"}
+    third_crop = {"x": 80, "y": 48, "width": 960, "height": 540, "output_format": "mp4"}
+
+    window.set_operation_payload(Operation.crop, first_crop, {})
+    controller._on_stack_add_requested()
+    window.set_operation_payload(Operation.crop, second_crop, {})
+    controller._on_stack_add_requested()
+    window.set_operation_payload(Operation.crop, third_crop, {})
+    controller._on_stack_add_requested()
+
+    controller._on_stack_item_moved(0, 2)
+
+    assert [item[1] for item in controller._stack_items] == [second_crop, third_crop, first_crop]
+    operation, options, extra_inputs = window.selected_operation_payload()
+    assert operation is Operation.crop
+    assert options == first_crop
+    assert extra_inputs == {}
 
 
 def test_collect_input_paths_respects_single_input_mode(tmp_path: Path) -> None:

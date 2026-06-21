@@ -323,11 +323,10 @@ class MainController(QObject):
         self.window.task_remove_requested.connect(self.remove_task)
         self.window.stack_mode_toggled.connect(self._on_stack_mode_toggled)
         self.window.stack_add_requested.connect(self._on_stack_add_requested)
-        self.window.stack_move_up_requested.connect(self._on_stack_move_up_requested)
-        self.window.stack_move_down_requested.connect(self._on_stack_move_down_requested)
         self.window.stack_remove_requested.connect(self._on_stack_remove_requested)
         self.window.stack_clear_requested.connect(self._on_stack_clear_requested)
         self.window.stack_item_selected.connect(self._on_stack_item_selected)
+        self.window.stack_item_moved.connect(self._on_stack_item_moved)
         self.window.command_preview_requested.connect(self._refresh_command_preview)
         self.window.open_output_requested.connect(self.open_output)
         self.window.open_output_dir_requested.connect(self.open_output_dir)
@@ -365,20 +364,19 @@ class MainController(QObject):
         self._sync_stack_payload(len(self._stack_items) - 1)
         self._refresh_command_preview()
 
-    def _on_stack_move_up_requested(self, index: int) -> None:
-        if index <= 0 or index >= len(self._stack_items):
+    def _on_stack_item_moved(self, from_index: int, to_index: int) -> None:
+        if from_index < 0 or from_index >= len(self._stack_items):
             return
-        self._stack_items[index - 1], self._stack_items[index] = self._stack_items[index], self._stack_items[index - 1]
-        self.window.set_stack_items([self._format_stack_item(item) for item in self._stack_items])
-        self._sync_stack_payload(index - 1)
-        self._refresh_command_preview()
-
-    def _on_stack_move_down_requested(self, index: int) -> None:
-        if index < 0 or index + 1 >= len(self._stack_items):
+        if to_index < 0 or to_index >= len(self._stack_items):
             return
-        self._stack_items[index + 1], self._stack_items[index] = self._stack_items[index], self._stack_items[index + 1]
+        if from_index == to_index:
+            self._sync_stack_payload(to_index)
+            return
+        item = self._stack_items.pop(from_index)
+        self._stack_items.insert(to_index, item)
         self.window.set_stack_items([self._format_stack_item(item) for item in self._stack_items])
-        self._sync_stack_payload(index + 1)
+        self._sync_stack_payload(to_index)
+        self._refresh_start_state()
         self._refresh_command_preview()
 
     def _on_stack_remove_requested(self, index: int) -> None:

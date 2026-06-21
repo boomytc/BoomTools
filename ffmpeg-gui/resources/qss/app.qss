@@ -591,6 +591,18 @@ QPushButton[role="stackChip"]:checked {
   border-color: #67a2ff;
 }
 
+QPushButton[role="stackChip"][dropTarget="true"] {
+  color: #ffffff;
+  background: #273958;
+  border-color: #8fb7ff;
+}
+
+QPushButton[role="stackChip"][dragging="true"] {
+  color: #ffffff;
+  background: #2c4268;
+  border-color: #a7c5ff;
+}
+
 QPushButton[role="stackChip"]:disabled {
   color: #6f7a8e;
   background: #171b26;

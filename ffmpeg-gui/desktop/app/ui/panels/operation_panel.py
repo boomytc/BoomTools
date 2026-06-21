@@ -16,11 +16,10 @@ class OperationPanel(QWidget):
     file_browse_requested = Signal(str, str)
     stack_mode_toggled = Signal(bool)
     stack_add_requested = Signal()
-    stack_move_up_requested = Signal(int)
-    stack_move_down_requested = Signal(int)
     stack_remove_requested = Signal(int)
     stack_clear_requested = Signal()
     stack_item_selected = Signal(int)
+    stack_item_moved = Signal(int, int)
     command_preview_requested = Signal()
 
     def __init__(self, command_preview_panel: CommandPreviewPanel | None = None) -> None:
@@ -43,11 +42,10 @@ class OperationPanel(QWidget):
 
         self.stack_panel = StackPanel()
         self.stack_panel.add_requested.connect(self.stack_add_requested.emit)
-        self.stack_panel.move_up_requested.connect(self.stack_move_up_requested.emit)
-        self.stack_panel.move_down_requested.connect(self.stack_move_down_requested.emit)
         self.stack_panel.remove_requested.connect(self.stack_remove_requested.emit)
         self.stack_panel.clear_requested.connect(self.stack_clear_requested.emit)
         self.stack_panel.item_selected.connect(self.stack_item_selected.emit)
+        self.stack_panel.item_moved.connect(self.stack_item_moved.emit)
         self.stack_panel.setVisible(False)
         layout.addWidget(self.stack_panel)
         layout.addStretch(1)

@@ -7,6 +7,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QPoint, QPointF, Qt
 from PySide6.QtGui import QWheelEvent
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QComboBox, QFrame, QListView
 
 from desktop.app.core.paths import QSS_PATH
@@ -35,6 +36,66 @@ def test_stack_mode_keeps_operation_form_readable() -> None:
     assert selector.operation_scroll_area.verticalScrollBar().maximum() > 0
     assert selector.operation_scroll_area.horizontalScrollBar().maximum() == 0
 
+    panel.close()
+
+
+def test_stack_mode_double_click_operation_requests_stack_add() -> None:
+    app = _qt_app()
+    app.setStyleSheet(QSS_PATH.read_text(encoding="utf-8"))
+    panel = OperationPanel()
+    emitted: list[bool] = []
+    panel.stack_add_requested.connect(lambda: emitted.append(True))
+    panel.set_stack_mode(True)
+    panel.show()
+    app.processEvents()
+
+    selector = panel.operation_form.operation_selector
+    button = selector.operation_buttons()[Operation.crop]
+    QTest.mouseDClick(button, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, button.rect().center())
+    app.processEvents()
+
+    assert selector.selected_operation() is Operation.crop
+    assert emitted == [True]
+    panel.close()
+
+
+def test_single_mode_double_click_operation_does_not_request_stack_add() -> None:
+    app = _qt_app()
+    app.setStyleSheet(QSS_PATH.read_text(encoding="utf-8"))
+    panel = OperationPanel()
+    emitted: list[bool] = []
+    panel.stack_add_requested.connect(lambda: emitted.append(True))
+    panel.show()
+    app.processEvents()
+
+    selector = panel.operation_form.operation_selector
+    button = selector.operation_buttons()[Operation.rotate]
+    QTest.mouseDClick(button, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, button.rect().center())
+    app.processEvents()
+
+    assert selector.selected_operation() is Operation.rotate
+    assert emitted == []
+    panel.close()
+
+
+def test_busy_stack_mode_double_click_operation_does_not_request_stack_add() -> None:
+    app = _qt_app()
+    app.setStyleSheet(QSS_PATH.read_text(encoding="utf-8"))
+    panel = OperationPanel()
+    emitted: list[bool] = []
+    panel.stack_add_requested.connect(lambda: emitted.append(True))
+    panel.set_stack_mode(True)
+    panel.set_busy(True)
+    panel.show()
+    app.processEvents()
+
+    selector = panel.operation_form.operation_selector
+    button = selector.operation_buttons()[Operation.rotate]
+    QTest.mouseDClick(button, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, button.rect().center())
+    app.processEvents()
+
+    assert not button.isEnabled()
+    assert emitted == []
     panel.close()
 
 

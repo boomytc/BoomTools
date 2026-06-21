@@ -5,6 +5,8 @@ import sys
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PySide6.QtCore import Qt
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from desktop.app.ui.widgets.operation_selector import OperationSelector
@@ -22,6 +24,35 @@ def test_operation_selector_selects_operation_and_emits_change() -> None:
     assert selector.selected_operation() is Operation.raw
     assert emitted == [Operation.raw]
     assert selector.operation_buttons()[Operation.raw].isChecked()
+
+
+def test_operation_selector_double_click_activates_operation_after_selecting() -> None:
+    _qt_app()
+    selector = OperationSelector()
+    changed: list[Operation] = []
+    activated: list[Operation] = []
+    selector.operation_changed.connect(changed.append)
+    selector.operation_activated.connect(activated.append)
+
+    button = selector.operation_buttons()[Operation.crop]
+    QTest.mouseDClick(button, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, button.rect().center())
+
+    assert selector.selected_operation() is Operation.crop
+    assert changed == [Operation.crop]
+    assert activated == [Operation.crop]
+
+
+def test_operation_selector_single_click_does_not_activate_operation() -> None:
+    _qt_app()
+    selector = OperationSelector()
+    activated: list[Operation] = []
+    selector.operation_activated.connect(activated.append)
+
+    button = selector.operation_buttons()[Operation.crop]
+    QTest.mouseClick(button, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, button.rect().center())
+
+    assert selector.selected_operation() is Operation.crop
+    assert activated == []
 
 
 def test_operation_selector_disables_unsupported_batch_operations() -> None:

@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Set as AbstractSet
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QButtonGroup, QGridLayout, QPushButton, QSizePolicy, QWidget
 
 from desktop.app.ui.components import FixedScrollArea, PanelFrame, SegmentOption, SegmentedToggle
@@ -25,6 +26,7 @@ STACK_MODE_FALLBACK_ORDER = (
 
 class OperationSelector(PanelFrame):
     operation_changed = Signal(object)
+    operation_activated = Signal(object)
     stack_mode_toggled = Signal(bool)
 
     def __init__(self) -> None:
@@ -55,7 +57,7 @@ class OperationSelector(PanelFrame):
         operation_grid.setVerticalSpacing(6)
         operation_columns = 8
         for index, operation in enumerate(OPERATION_LABELS):
-            button = QPushButton(operation_card_text(operation))
+            button = _OperationButton(operation, operation_card_text(operation))
             button.setCheckable(True)
             button.setProperty("role", "operationCard")
             button.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -63,6 +65,7 @@ class OperationSelector(PanelFrame):
             button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
             button.setMinimumHeight(30)
             button.clicked.connect(lambda _checked=False, op=operation: self.select_operation(op))
+            button.activated.connect(self._activate_operation)
             self.operation_button_group.addButton(button)
             self._operation_buttons[operation] = button
             operation_grid.addWidget(button, index // operation_columns, index % operation_columns)
@@ -164,6 +167,13 @@ class OperationSelector(PanelFrame):
         self._apply_stack_mode(stack_enabled)
         self.stack_mode_toggled.emit(stack_enabled)
 
+    def _activate_operation(self, operation: object) -> None:
+        if not isinstance(operation, Operation):
+            return
+        self.select_operation(operation)
+        if self._operation_is_available(operation) and self._selected_operation is operation:
+            self.operation_activated.emit(operation)
+
     def _apply_stack_mode(self, enabled: bool) -> None:
         self._stack_mode = enabled
         self._sync_operation_hint()
@@ -187,6 +197,21 @@ class OperationSelector(PanelFrame):
         if self._batch_mode and operation not in self._batch_supported_operations:
             blockers.append("多个文件暂不支持此动作。")
         return blockers
+
+
+class _OperationButton(QPushButton):
+    activated = Signal(object)
+
+    def __init__(self, operation: Operation, text: str) -> None:
+        super().__init__(text)
+        self._operation = operation
+
+    def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton and self.isEnabled():
+            self.activated.emit(self._operation)
+            event.accept()
+            return
+        super().mouseDoubleClickEvent(event)
 
 
 _OPERATION_SHORT_LABELS: dict[Operation, str] = {

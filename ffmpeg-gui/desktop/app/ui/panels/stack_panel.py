@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QPoint, Qt, Signal
-from PySide6.QtGui import QMouseEvent
+from PySide6.QtCore import QEvent, QPoint, QRect, Qt, Signal
+from PySide6.QtGui import QColor, QMouseEvent, QPaintEvent, QPainter
 from PySide6.QtWidgets import (
     QApplication,
     QFrame,
@@ -12,11 +12,10 @@ from PySide6.QtWidgets import (
     QSizePolicy,
 )
 
-from desktop.app.ui.components import PanelActionBar, PanelFrame
+from desktop.app.ui.components import PanelFrame
 
 
 class StackPanel(PanelFrame):
-    add_requested = Signal()
     remove_requested = Signal(int)
     clear_requested = Signal()
     item_selected = Signal(int)
@@ -28,8 +27,14 @@ class StackPanel(PanelFrame):
         self._busy = False
         self.setObjectName("stackPanel")
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.setMinimumHeight(148)
-        self.setMaximumHeight(168)
+        self.setMinimumHeight(112)
+        self.setMaximumHeight(132)
+
+        self.clear_button = QPushButton("清空")
+        self.clear_button.setProperty("role", "danger")
+        self.clear_button.setProperty("density", "compact")
+        self.clear_button.clicked.connect(lambda _checked=False: self.clear_requested.emit())
+        self.add_action(self.clear_button)
 
         layout = self.body_layout()
 
@@ -46,21 +51,12 @@ class StackPanel(PanelFrame):
         self.stack_chain = _StackChainView()
         self.stack_chain.item_selected.connect(self.item_selected.emit)
         self.stack_chain.item_moved.connect(self.item_moved.emit)
-
-        button_row = PanelActionBar()
-        self.add_button = button_row.add_button("添加当前操作到 Stack", role="result")
-        self.remove_button = button_row.add_button("移除", role="quiet")
-        self.clear_button = button_row.add_button("清空", role="danger")
-        self.add_button.clicked.connect(lambda _checked=False: self.add_requested.emit())
-        self.remove_button.clicked.connect(self._emit_remove)
-        self.clear_button.clicked.connect(lambda _checked=False: self.clear_requested.emit())
+        self.stack_chain.item_removed.connect(self.remove_requested.emit)
 
         layout.addWidget(self.stack_chain)
-        layout.addWidget(button_row)
 
         self.setVisible(False)
         self.set_busy(False)
-        self.set_add_enabled(False)
         self.set_actions_enabled(False)
 
     def set_stack_mode(self, enabled: bool) -> None:
@@ -80,32 +76,21 @@ class StackPanel(PanelFrame):
         self.stack_chain.set_busy(busy)
         self.set_actions_enabled(self.has_items())
 
-    def set_add_enabled(self, enabled: bool) -> None:
-        self.add_button.setEnabled(enabled and not self._busy)
-
     def set_actions_enabled(self, has_items: bool) -> None:
         enabled = has_items and not self._busy
-        self.remove_button.setEnabled(enabled)
         self.clear_button.setEnabled(enabled)
 
     def set_supported_note(self, supported: bool) -> None:
         if supported:
-            self.mode_label.setText("当前操作支持加入 Stack；拖动标签调整顺序。")
+            self.mode_label.setText("单击动作配置参数；双击动作加入 Stack；拖动标签调整顺序。")
             return
-        self.mode_label.setText("当前操作不支持加入 Stack。")
-
-    def _emit_remove(self) -> None:
-        index = self._selected_index()
-        if index is not None:
-            self.remove_requested.emit(index)
-
-    def _selected_index(self) -> int | None:
-        return self.stack_chain.selected_index()
+        self.mode_label.setText("当前操作不支持加入 Stack；可双击可链式动作加入。")
 
 
 class _StackChainView(QFrame):
     item_selected = Signal(int)
     item_moved = Signal(int, int)
+    item_removed = Signal(int)
 
     def __init__(self) -> None:
         super().__init__()
@@ -117,10 +102,10 @@ class _StackChainView(QFrame):
         self._drag_hot_spot = QPoint()
         self.setObjectName("stackChainView")
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.setFixedHeight(44)
+        self.setFixedHeight(36)
 
         self._layout = QHBoxLayout(self)
-        self._layout.setContentsMargins(8, 5, 8, 5)
+        self._layout.setContentsMargins(0, 2, 0, 2)
         self._layout.setSpacing(6)
         self._drop_marker = QFrame(self)
         self._drop_marker.setObjectName("stackDropMarker")
@@ -154,12 +139,15 @@ class _StackChainView(QFrame):
             chip.setCheckable(True)
             chip.setProperty("role", "stackChip")
             chip.setCursor(Qt.CursorShape.OpenHandCursor)
-            chip.setToolTip(f"第 {index + 1} 步：{item}\n点击查看参数；拖动调整执行顺序。")
+            chip.setToolTip(f"第 {index + 1} 步：{item}\n点击查看参数；拖动调整执行顺序；点击右侧 x 移除。")
+            chip.setAccessibleName(f"Stack 第 {index + 1} 步")
+            chip.setAccessibleDescription("点击查看参数，拖动调整执行顺序，点击右侧 x 移除。")
             chip.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
             chip.setMinimumHeight(28)
             chip.setMaximumWidth(260)
             chip.setMinimumWidth(min(chip.sizeHint().width(), 260))
             chip.clicked.connect(lambda _checked=False, chip_index=index: self.select_index(chip_index, emit=True))
+            chip.remove_requested.connect(self.item_removed.emit)
             chip.drag_started.connect(self._on_chip_drag_started)
             chip.drag_moved.connect(self._on_chip_drag_moved)
             chip.drag_finished.connect(self._on_chip_drag_finished)
@@ -330,20 +318,36 @@ class _StackChipButton(QPushButton):
     drag_started = Signal(int, QPoint, QPoint)
     drag_moved = Signal(int, QPoint)
     drag_finished = Signal(int, QPoint)
+    remove_requested = Signal(int)
 
     def __init__(self, index: int, text: str) -> None:
         super().__init__(text)
         self._index = index
         self._press_position: QPoint | None = None
         self._dragging = False
+        self._close_pressed = False
+        self._close_hovered = False
+        self.setMouseTracking(True)
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
+            if self._close_rect().contains(event.position().toPoint()):
+                self._close_pressed = True
+                self._press_position = None
+                self._dragging = False
+                _set_dynamic_property(self, "closeHover", True)
+                event.accept()
+                return
             self._press_position = event.position().toPoint()
             self._dragging = False
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        if self._close_pressed:
+            self._set_close_hovered(self._close_rect().contains(event.position().toPoint()))
+            event.accept()
+            return
+        self._set_close_hovered(self._close_rect().contains(event.position().toPoint()))
         if self._press_position is None or not event.buttons() & Qt.MouseButton.LeftButton:
             super().mouseMoveEvent(event)
             return
@@ -360,6 +364,15 @@ class _StackChipButton(QPushButton):
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if self._close_pressed:
+            should_remove = self._close_rect().contains(event.position().toPoint())
+            self._close_pressed = False
+            self._set_close_hovered(should_remove)
+            self.setDown(False)
+            if should_remove:
+                self.remove_requested.emit(self._index)
+            event.accept()
+            return
         if self._dragging:
             self.drag_finished.emit(self._index, self.mapToParent(event.position().toPoint()))
             self._reset_drag_state()
@@ -369,10 +382,47 @@ class _StackChipButton(QPushButton):
         super().mouseReleaseEvent(event)
         self._reset_drag_state()
 
+    def leaveEvent(self, event: QEvent) -> None:
+        self._set_close_hovered(False)
+        super().leaveEvent(event)
+
+    def paintEvent(self, event: QPaintEvent) -> None:
+        super().paintEvent(event)
+        close_rect = self._close_rect()
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        if self._close_hovered or self._close_pressed:
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor("#31415e"))
+            painter.drawRoundedRect(close_rect, 8, 8)
+        painter.setPen(QColor("#6f7a8e") if not self.isEnabled() else QColor("#aeb9ce"))
+        painter.drawText(close_rect, Qt.AlignmentFlag.AlignCenter, "x")
+        painter.end()
+
+    def _close_rect(self) -> QRect:
+        side = 18
+        return QRect(self.width() - side - 6, (self.height() - side) // 2, side, side)
+
+    def _set_close_hovered(self, hovered: bool) -> None:
+        if hovered == self._close_hovered:
+            return
+        self._close_hovered = hovered
+        _set_dynamic_property(self, "closeHover", hovered)
+        if hovered:
+            self.setCursor(Qt.CursorShape.PointingHandCursor)
+        elif self._dragging:
+            self.setCursor(Qt.CursorShape.ClosedHandCursor)
+        else:
+            self.setCursor(Qt.CursorShape.OpenHandCursor)
+
     def _reset_drag_state(self) -> None:
         self._press_position = None
         self._dragging = False
-        self.setCursor(Qt.CursorShape.OpenHandCursor)
+        self._close_pressed = False
+        if self._close_hovered:
+            self.setCursor(Qt.CursorShape.PointingHandCursor)
+        else:
+            self.setCursor(Qt.CursorShape.OpenHandCursor)
         _set_dynamic_property(self, "dragging", False)
 
 

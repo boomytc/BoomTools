@@ -15,6 +15,7 @@ class OperationFormWidget(QWidget):
     file_browse_requested = Signal(str, str)
     spec_changed = Signal()
     stack_mode_toggled = Signal(bool)
+    operation_activated = Signal(object)
 
     def __init__(self, command_preview_widget: QWidget | None = None) -> None:
         super().__init__()
@@ -30,6 +31,7 @@ class OperationFormWidget(QWidget):
         self.parameter_form = OperationParameterForm()
         self.command_preview_widget = command_preview_widget
         self.operation_selector.operation_changed.connect(self._on_operation_changed)
+        self.operation_selector.operation_activated.connect(self.operation_activated.emit)
         self.operation_selector.stack_mode_toggled.connect(self.stack_mode_toggled.emit)
         self.parameter_form.file_browse_requested.connect(self.file_browse_requested.emit)
         self.parameter_form.spec_changed.connect(self.spec_changed.emit)

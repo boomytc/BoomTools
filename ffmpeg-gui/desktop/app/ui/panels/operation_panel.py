@@ -38,10 +38,10 @@ class OperationPanel(QWidget):
         self.operation_form.spec_changed.connect(self.refresh_stack_controls)
         self.operation_form.spec_changed.connect(self.command_preview_requested.emit)
         self.operation_form.stack_mode_toggled.connect(self.stack_mode_toggled.emit)
+        self.operation_form.operation_activated.connect(self._handle_operation_activated)
         layout.addWidget(self.operation_form)
 
         self.stack_panel = StackPanel()
-        self.stack_panel.add_requested.connect(self.stack_add_requested.emit)
         self.stack_panel.remove_requested.connect(self.stack_remove_requested.emit)
         self.stack_panel.clear_requested.connect(self.stack_clear_requested.emit)
         self.stack_panel.item_selected.connect(self.stack_item_selected.emit)
@@ -64,9 +64,7 @@ class OperationPanel(QWidget):
         self.operation_form.set_enabled(not busy)
         self.operation_form.set_stack_mode_enabled(not busy)
         self.stack_panel.set_busy(busy)
-        if busy:
-            self.stack_panel.set_add_enabled(False)
-        else:
+        if not busy:
             self.refresh_stack_controls()
 
     def is_busy(self) -> bool:
@@ -99,7 +97,6 @@ class OperationPanel(QWidget):
 
     def refresh_stack_controls(self) -> None:
         supported = self._is_stack_operation_supported()
-        self.stack_panel.set_add_enabled(self.stack_mode() and supported)
         if self.stack_mode():
             self.stack_panel.set_supported_note(supported)
         self.stack_panel.set_actions_enabled(self.stack_panel.has_items())
@@ -115,3 +112,12 @@ class OperationPanel(QWidget):
 
     def _is_stack_operation_supported(self) -> bool:
         return self.selected_operation() in STACK_FILTER_OPERATIONS
+
+    def _handle_operation_activated(self, operation: object) -> None:
+        if self._busy or not self.stack_mode():
+            return
+        if not isinstance(operation, Operation):
+            return
+        if operation not in STACK_FILTER_OPERATIONS:
+            return
+        self.stack_add_requested.emit()

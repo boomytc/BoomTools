@@ -81,10 +81,17 @@ def test_stack_panel_renders_steps_as_arrow_chain() -> None:
     assert len(arrows) == 2
     assert all(chip.property("role") == "stackChip" for chip in chips)
     assert min(chip.height() for chip in chips) >= 26
-    assert panel.stack_chain.height() >= max(chip.height() for chip in chips) + 10
+    assert panel.stack_chain.height() <= 38
+    assert panel.stack_chain.height() >= max(chip.height() for chip in chips) + 4
+    assert "QFrame#stackChainView" not in QSS_PATH.read_text(encoding="utf-8")
     assert panel.stack_chain.selected_index() == 2
+    assert panel.clear_button.parentWidget() is panel.header_widget
+    assert panel.body_layout().count() == 2
+    assert panel.maximumHeight() <= 132
     assert not hasattr(panel, "move_up_button")
     assert not hasattr(panel, "move_down_button")
+    assert not hasattr(panel, "add_button")
+    assert not hasattr(panel, "remove_button")
 
     chips[1].click()
     assert selected == [1]
@@ -141,6 +148,64 @@ def test_stack_chip_drag_emits_move_request() -> None:
     assert not ghost.isVisible()
     assert not marker.isVisible()
     assert source_chip.property("dragging") is False
+    panel.close()
+
+
+def test_stack_chip_close_hit_area_emits_remove_without_selecting() -> None:
+    app = _qt_app()
+    app.setStyleSheet(QSS_PATH.read_text(encoding="utf-8"))
+    panel = StackPanel()
+    removed: list[int] = []
+    selected: list[int] = []
+    panel.remove_requested.connect(removed.append)
+    panel.item_selected.connect(selected.append)
+    panel.set_items(["旋转", "裁剪", "调色"])
+    panel.resize(900, panel.maximumHeight())
+    panel.show()
+    app.processEvents()
+
+    chips = panel.stack_chain.findChildren(QPushButton)
+    close_position = QPoint(chips[1].width() - 15, chips[1].height() // 2)
+
+    QTest.mouseClick(
+        chips[1],
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+        close_position,
+    )
+    app.processEvents()
+
+    assert removed == [1]
+    assert selected == []
+    assert panel.stack_chain.selected_index() == 2
+    panel.close()
+
+
+def test_stack_chip_close_hit_area_respects_busy_state() -> None:
+    app = _qt_app()
+    app.setStyleSheet(QSS_PATH.read_text(encoding="utf-8"))
+    panel = StackPanel()
+    removed: list[int] = []
+    panel.remove_requested.connect(removed.append)
+    panel.set_items(["旋转", "裁剪"])
+    panel.set_busy(True)
+    panel.resize(900, panel.maximumHeight())
+    panel.show()
+    app.processEvents()
+
+    chips = panel.stack_chain.findChildren(QPushButton)
+    close_position = QPoint(chips[0].width() - 15, chips[0].height() // 2)
+
+    QTest.mouseClick(
+        chips[0],
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+        close_position,
+    )
+    app.processEvents()
+
+    assert removed == []
+    assert not chips[0].isEnabled()
     panel.close()
 
 

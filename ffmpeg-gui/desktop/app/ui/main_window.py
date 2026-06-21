@@ -189,9 +189,6 @@ class MainWindow(QMainWindow):
     def refresh_stack_controls(self) -> None:
         self.operation_panel.refresh_stack_controls()
 
-    def _update_stack_add_enabled(self) -> None:
-        self.refresh_stack_controls()
-
     def set_command_preview(self, command: str) -> None:
         self.command_preview_panel.set_command(command)
 

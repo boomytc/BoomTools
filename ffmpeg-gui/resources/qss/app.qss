@@ -562,18 +562,12 @@ QPushButton[role="operationCard"]:checked {
   border-color: #5b8dff;
 }
 
-QFrame#stackChainView {
-  background: #0f1320;
-  border: 1px solid #3f475d;
-  border-radius: 6px;
-}
-
 QPushButton[role="stackChip"] {
   color: #cfe0ff;
   background: #182236;
   border: 1px solid #465674;
   border-radius: 13px;
-  padding: 4px 11px;
+  padding: 4px 30px 4px 11px;
   min-height: 20px;
   font-size: 12px;
   font-weight: 800;
@@ -595,6 +589,11 @@ QPushButton[role="stackChip"][dropTarget="true"] {
   color: #ffffff;
   background: #273958;
   border-color: #8fb7ff;
+}
+
+QPushButton[role="stackChip"][closeHover="true"] {
+  color: #ffffff;
+  border-color: #7f93ba;
 }
 
 QPushButton[role="stackChip"][dragging="true"] {

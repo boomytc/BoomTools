@@ -21,10 +21,12 @@ class ConfigService:
             raw = json.loads(self.config_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return defaults
+        prevent_sleep = raw.get("prevent_sleep_during_tasks", defaults.prevent_sleep_during_tasks)
         return AppConfig(
             ffmpeg_bin=str(raw.get("ffmpeg_bin") or defaults.ffmpeg_bin),
             ffprobe_bin=str(raw.get("ffprobe_bin") or defaults.ffprobe_bin),
             output_dir=Path(raw.get("output_dir") or defaults.output_dir),
+            prevent_sleep_during_tasks=prevent_sleep if isinstance(prevent_sleep, bool) else defaults.prevent_sleep_during_tasks,
         )
 
     def save(self, config: AppConfig) -> None:

@@ -88,8 +88,19 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
         self.statusBar().showMessage("Ready")
 
-    def set_initial_paths(self, *, ffmpeg_bin: str, ffprobe_bin: str, output_dir: Path) -> None:
-        self.settings_dialog.set_initial_paths(ffmpeg_bin=ffmpeg_bin, ffprobe_bin=ffprobe_bin)
+    def set_initial_paths(
+        self,
+        *,
+        ffmpeg_bin: str,
+        ffprobe_bin: str,
+        output_dir: Path,
+        prevent_sleep_during_tasks: bool,
+    ) -> None:
+        self.settings_dialog.set_initial_paths(
+            ffmpeg_bin=ffmpeg_bin,
+            ffprobe_bin=ffprobe_bin,
+            prevent_sleep_during_tasks=prevent_sleep_during_tasks,
+        )
         self.runtime_panel.set_output_dir_text(str(output_dir))
 
     def selected_ffmpeg_bin(self) -> str:
@@ -97,6 +108,9 @@ class MainWindow(QMainWindow):
 
     def selected_ffprobe_bin(self) -> str:
         return self.settings_dialog.selected_ffprobe_bin()
+
+    def prevent_sleep_during_tasks(self) -> bool:
+        return self.settings_dialog.prevent_sleep_during_tasks()
 
     def selected_input_path(self) -> Path | None:
         return self.runtime_panel.selected_input_path()

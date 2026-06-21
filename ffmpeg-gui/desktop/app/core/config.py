@@ -12,6 +12,7 @@ class AppConfig:
     ffmpeg_bin: str = "ffmpeg"
     ffprobe_bin: str = "ffprobe"
     output_dir: Path = OUTPUTS_DIR
+    prevent_sleep_during_tasks: bool = True
 
     @classmethod
     def defaults(cls) -> "AppConfig":
@@ -19,4 +20,5 @@ class AppConfig:
             ffmpeg_bin=os.environ.get("FFMPEG_BIN", "ffmpeg"),
             ffprobe_bin=os.environ.get("FFPROBE_BIN", "ffprobe"),
             output_dir=OUTPUTS_DIR,
+            prevent_sleep_during_tasks=True,
         )

@@ -669,6 +669,12 @@ QRadioButton {
   font-weight: 700;
 }
 
+QCheckBox {
+  color: #b8c4d8;
+  spacing: 7px;
+  font-weight: 700;
+}
+
 QRadioButton::indicator {
   width: 13px;
   height: 13px;
@@ -678,6 +684,19 @@ QRadioButton::indicator {
 }
 
 QRadioButton::indicator:checked {
+  background: #5b8dff;
+  border-color: #8eb0ff;
+}
+
+QCheckBox::indicator {
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  border: 1px solid #657089;
+  background: #111827;
+}
+
+QCheckBox::indicator:checked {
   background: #5b8dff;
   border-color: #8eb0ff;
 }

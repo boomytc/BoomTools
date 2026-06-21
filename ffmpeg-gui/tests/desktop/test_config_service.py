@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -44,7 +45,12 @@ def test_config_service_roundtrip() -> None:
     with TemporaryDirectory() as tmp:
         config_path = Path(tmp) / "config.json"
         service = ConfigService(config_path)
-        config = AppConfig(ffmpeg_bin="/opt/ffmpeg", ffprobe_bin="/opt/ffprobe", output_dir=Path(tmp) / "输出 目录")
+        config = AppConfig(
+            ffmpeg_bin="/opt/ffmpeg",
+            ffprobe_bin="/opt/ffprobe",
+            output_dir=Path(tmp) / "输出 目录",
+            prevent_sleep_during_tasks=False,
+        )
 
         service.save(config)
         loaded = service.load()
@@ -52,3 +58,17 @@ def test_config_service_roundtrip() -> None:
     assert loaded.ffmpeg_bin == "/opt/ffmpeg"
     assert loaded.ffprobe_bin == "/opt/ffprobe"
     assert loaded.output_dir.name == "输出 目录"
+    assert loaded.prevent_sleep_during_tasks is False
+
+
+def test_config_service_ignores_invalid_prevent_sleep_value() -> None:
+    with TemporaryDirectory() as tmp:
+        config_path = Path(tmp) / "config.json"
+        config_path.write_text(
+            json.dumps({"prevent_sleep_during_tasks": "false"}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+        loaded = ConfigService(config_path).load()
+
+    assert loaded.prevent_sleep_during_tasks is True

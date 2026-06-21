@@ -29,6 +29,7 @@ class AppState:
     output_dir: Path | None = None
     media_info: MediaInfo | None = None
     runtime_health: RuntimeHealth | None = None
+    prevent_sleep_during_tasks: bool = True
     current_task: TaskRecord | None = None
     batch_input_paths: list[Path] = field(default_factory=list)
     is_batch_running: bool = False

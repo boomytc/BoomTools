@@ -7,11 +7,16 @@ from desktop.app.core.config import AppConfig
 from desktop.app.runtime.binaries import RuntimeHealth
 from desktop.app.runtime.ffmpeg import CommandSpec
 from desktop.app.services.output_service import BatchZipResult
+from desktop.app.services.sleep_inhibitor import SleepInhibitionResult
 from shared.contracts import MediaInfo, Operation, STACK_MAX_ITEMS, TaskRecord, TaskStatus
 
 
 class _Signal:
+    def __init__(self) -> None:
+        self.slots: list[object] = []
+
     def connect(self, *_: object, **__: object) -> None:
+        self.slots.extend(_)
         return None
 
 
@@ -23,6 +28,7 @@ class _FakeWindow:
         self._selected_output_dir = "/tmp"
         self._ffmpeg_bin = "ffmpeg"
         self._ffprobe_bin = "ffprobe"
+        self._prevent_sleep_during_tasks = True
         self.stack_mode_enabled = False
         self.batch_input_mode_enabled = False
         self.error_messages: list[str] = []
@@ -106,6 +112,12 @@ class _FakeWindow:
 
     def selected_ffprobe_bin(self) -> str:
         return self._ffprobe_bin
+
+    def prevent_sleep_during_tasks(self) -> bool:
+        return self._prevent_sleep_during_tasks
+
+    def set_prevent_sleep_during_tasks(self, enabled: bool) -> None:
+        self._prevent_sleep_during_tasks = enabled
 
     def stack_mode(self) -> bool:
         return self.stack_mode_enabled
@@ -265,6 +277,24 @@ class _TaskManager:
         raise AssertionError("should not reach worker creation")
 
 
+class _SleepInhibitor:
+    def __init__(self, result: SleepInhibitionResult | None = None) -> None:
+        self.result = result or SleepInhibitionResult(supported=True, active=True, changed=True)
+        self.enabled_values: list[bool] = []
+        self.start_count = 0
+        self.stop_count = 0
+
+    def set_enabled(self, enabled: bool) -> None:
+        self.enabled_values.append(enabled)
+
+    def start(self) -> SleepInhibitionResult:
+        self.start_count += 1
+        return self.result
+
+    def stop(self) -> None:
+        self.stop_count += 1
+
+
 class _FakeWorker:
     def __init__(self) -> None:
         self.status_changed = _Signal()
@@ -294,6 +324,7 @@ def _make_controller(
     task_model: _TaskModel | None = None,
     ffmpeg_service: _FfmpegService | None = None,
     task_manager: _TaskManager | None = None,
+    sleep_inhibitor: _SleepInhibitor | None = None,
 ) -> MainController:
     ffmpeg_service = ffmpeg_service or _FfmpegService(
         RuntimeHealth(
@@ -311,6 +342,7 @@ def _make_controller(
         ffmpeg_service=ffmpeg_service,
         output_service=_OutputService(),
         log_service=_LogService(),
+        sleep_inhibitor=sleep_inhibitor or _SleepInhibitor(),
         task_manager=task_manager or _TaskManager(),
     )
 
@@ -359,6 +391,59 @@ def test_fade_out_options_use_media_duration(tmp_path: Path) -> None:
     assert options["duration_seconds"] == 7.5
 
 
+def test_single_task_starts_and_stops_sleep_inhibitor(tmp_path: Path) -> None:
+    window = _FakeWindow()
+    input_path = tmp_path / "input.mp4"
+    input_path.write_bytes(b"\x00")
+    window.set_input_path(input_path)
+    task_manager = _RecordingTaskManager()
+    sleep_inhibitor = _SleepInhibitor()
+    controller = _make_controller(window, task_manager=task_manager, sleep_inhibitor=sleep_inhibitor)
+    controller.state.input_path = input_path
+
+    controller.start_task()
+
+    assert sleep_inhibitor.start_count == 1
+    assert any("长任务防睡眠已启用" in message for message in window.status_messages)
+    current_task = controller.state.current_task
+    assert current_task is not None
+    controller._on_task_finished(current_task, task_manager.created_workers[0][2], TaskStatus.succeeded)
+
+    assert sleep_inhibitor.stop_count == 1
+
+
+def test_sleep_inhibitor_disabled_by_setting_does_not_start(tmp_path: Path) -> None:
+    window = _FakeWindow()
+    input_path = tmp_path / "input.mp4"
+    input_path.write_bytes(b"\x00")
+    window.set_input_path(input_path)
+    window.set_prevent_sleep_during_tasks(False)
+    sleep_inhibitor = _SleepInhibitor()
+    controller = _make_controller(window, task_manager=_RecordingTaskManager(), sleep_inhibitor=sleep_inhibitor)
+    controller.state.input_path = input_path
+
+    controller.start_task()
+
+    assert sleep_inhibitor.enabled_values[-1] is False
+    assert sleep_inhibitor.start_count == 0
+
+
+def test_sleep_inhibitor_failure_does_not_block_task(tmp_path: Path) -> None:
+    window = _FakeWindow()
+    input_path = tmp_path / "input.mp4"
+    input_path.write_bytes(b"\x00")
+    window.set_input_path(input_path)
+    task_manager = _RecordingTaskManager()
+    sleep_inhibitor = _SleepInhibitor(SleepInhibitionResult(supported=True, active=False, error="boom"))
+    controller = _make_controller(window, task_manager=task_manager, sleep_inhibitor=sleep_inhibitor)
+    controller.state.input_path = input_path
+
+    controller.start_task()
+
+    assert len(task_manager.created_workers) == 1
+    assert any("长任务防睡眠启用失败" in message for message in window.status_messages)
+
+
 def test_batch_fade_out_uses_per_file_media_duration(tmp_path: Path) -> None:
     window = _FakeWindow()
     first = tmp_path / "first.mp4"
@@ -397,6 +482,49 @@ def test_batch_fade_out_uses_per_file_media_duration(tmp_path: Path) -> None:
     second_request = service.build_command_args[1][1]
     assert second_request.options["duration_seconds"] == 8.0
     assert task_manager.created_workers[1][1] == 8.0
+
+
+def test_batch_task_keeps_one_sleep_inhibitor_for_continuous_queue(tmp_path: Path) -> None:
+    window = _FakeWindow()
+    first = tmp_path / "first.mp4"
+    second = tmp_path / "second.mp4"
+    first.write_bytes(b"\x00")
+    second.write_bytes(b"\x00")
+    window.set_operation_payload(Operation.convert, {"output_format": "mp4"}, {})
+    window.set_batch_paths([first, second])
+    window.set_batch_input_mode(True)
+    task_manager = _RecordingTaskManager()
+    sleep_inhibitor = _SleepInhibitor()
+    controller = _make_controller(window, task_manager=task_manager, sleep_inhibitor=sleep_inhibitor)
+    controller.state.input_mode = "batch"
+    controller.state.batch_input_paths = [first, second]
+    controller.state.input_path = first
+
+    controller.start_task()
+
+    assert sleep_inhibitor.start_count == 1
+    first_record = controller.state.current_task
+    assert first_record is not None
+    controller._on_task_finished(first_record, task_manager.created_workers[0][2], TaskStatus.succeeded)
+
+    assert sleep_inhibitor.start_count == 1
+    assert sleep_inhibitor.stop_count == 0
+    second_record = controller.state.current_task
+    assert second_record is not None
+    controller._on_task_finished(second_record, task_manager.created_workers[1][2], TaskStatus.succeeded)
+
+    assert sleep_inhibitor.start_count == 1
+    assert sleep_inhibitor.stop_count == 1
+
+
+def test_close_stops_sleep_inhibitor() -> None:
+    window = _FakeWindow()
+    sleep_inhibitor = _SleepInhibitor()
+    controller = _make_controller(window, sleep_inhibitor=sleep_inhibitor)
+
+    controller.close()
+
+    assert sleep_inhibitor.stop_count >= 1
 
 
 def test_media_info_operation_writes_probe_json_to_log(tmp_path: Path) -> None:
@@ -782,6 +910,78 @@ def test_zip_result_updates_status_and_current_output(tmp_path: Path) -> None:
     assert window.current_output_path_value == archive_path
     assert window.status_messages[-1] == "已打包 2 个，跳过 1 个：ffmpeg-gui-batch-20260621-101112.zip"
     assert window.recent_batch_summaries[-1][0] == "最近批次：暂无结果"
+
+
+def test_zip_thread_starts_and_stops_sleep_inhibitor(monkeypatch, tmp_path: Path) -> None:
+    import desktop.app.controllers.main_controller as main_controller_module
+
+    class _FakeZipThread:
+        def __init__(self) -> None:
+            self.started = _Signal()
+            self.finished = _Signal()
+            self.started_count = 0
+            self.quit_count = 0
+            self.wait_count = 0
+
+        def start(self) -> None:
+            self.started_count += 1
+
+        def isRunning(self) -> bool:
+            return True
+
+        def quit(self) -> None:
+            self.quit_count += 1
+
+        def wait(self, _wait_msecs: int) -> None:
+            self.wait_count += 1
+
+        def deleteLater(self) -> None:
+            return None
+
+    class _FakeZipWorker:
+        def __init__(self, *_: object) -> None:
+            self.result_ready = _Signal()
+            self.error_occurred = _Signal()
+            self.finished = _Signal()
+            self.cancel_count = 0
+
+        def moveToThread(self, _thread: object) -> None:
+            return None
+
+        def run(self) -> None:
+            return None
+
+        def cancel(self) -> None:
+            self.cancel_count += 1
+
+        def deleteLater(self) -> None:
+            return None
+
+    fake_thread = _FakeZipThread()
+    monkeypatch.setattr(main_controller_module, "QThread", lambda: fake_thread)
+    monkeypatch.setattr(main_controller_module, "ZipResultsWorker", _FakeZipWorker)
+    window = _FakeWindow()
+    sleep_inhibitor = _SleepInhibitor()
+    controller = _make_controller(window, sleep_inhibitor=sleep_inhibitor)
+    record = TaskRecord(
+        operation=Operation.convert,
+        input_path=tmp_path / "input.mp4",
+        output_path=tmp_path / "out.mp4",
+        status=TaskStatus.succeeded,
+    )
+
+    controller._start_zip_thread([record], tmp_path)
+
+    assert sleep_inhibitor.start_count == 1
+    assert window.zip_results_enabled_values[-1] == (False, True)
+    assert window.status_messages[-1] == "长任务防睡眠已启用"
+    assert fake_thread.started_count == 1
+
+    controller._stop_zip_thread()
+
+    assert sleep_inhibitor.stop_count == 1
+    assert fake_thread.quit_count == 1
+    assert fake_thread.wait_count == 1
 
 
 def test_copy_recent_batch_output_paths_only_uses_successful_existing_outputs(tmp_path: Path) -> None:

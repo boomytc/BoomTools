@@ -14,6 +14,7 @@ from desktop.app.services.config_service import ConfigService
 from desktop.app.services.ffmpeg_service import FfmpegService
 from desktop.app.services.log_service import LogService
 from desktop.app.services.output_service import OutputService
+from desktop.app.services.sleep_inhibitor import SleepInhibitionResult, SleepInhibitor
 from desktop.app.tasks.health_worker import HealthWorker
 from desktop.app.tasks.probe_worker import ProbeWorker
 from desktop.app.tasks.task_manager import TaskManager
@@ -50,6 +51,7 @@ class MainController(QObject):
         ffmpeg_service: FfmpegService,
         output_service: OutputService,
         log_service: LogService,
+        sleep_inhibitor: SleepInhibitor,
         task_manager: TaskManager,
     ) -> None:
         super().__init__()
@@ -59,6 +61,7 @@ class MainController(QObject):
         self.ffmpeg_service = ffmpeg_service
         self.output_service = output_service
         self.log_service = log_service
+        self.sleep_inhibitor = sleep_inhibitor
         self.task_manager = task_manager
 
         self.state = AppState()
@@ -96,8 +99,11 @@ class MainController(QObject):
             ffmpeg_bin=config.ffmpeg_bin,
             ffprobe_bin=config.ffprobe_bin,
             output_dir=output_dir,
+            prevent_sleep_during_tasks=config.prevent_sleep_during_tasks,
         )
         self.state.output_dir = output_dir
+        self.state.prevent_sleep_during_tasks = config.prevent_sleep_during_tasks
+        self.sleep_inhibitor.set_enabled(config.prevent_sleep_during_tasks)
         self.refresh_runtime_health()
         self.window.set_batch_progress(0, 0)
         self.window.set_stack_items([])
@@ -383,6 +389,7 @@ class MainController(QObject):
         self._stop_health_thread()
         self._stop_probe_thread()
         self._stop_zip_thread()
+        self._stop_sleep_inhibition()
 
     def copy_output_path(self) -> None:
         current_output = self.window.current_output_path()
@@ -765,6 +772,7 @@ class MainController(QObject):
         self.state.logs = []
         self.window.clear_log()
         self.window.set_busy(True)
+        self._start_sleep_inhibition()
         self.window.set_progress(task.progress)
         self.window.set_current_output(None)
         self.window.set_batch_progress(0, 0)
@@ -812,6 +820,7 @@ class MainController(QObject):
         self.state.logs = []
         self.window.clear_log()
         self.window.set_busy(True)
+        self._start_sleep_inhibition()
         self.window.set_progress(task.progress)
         self.window.set_current_output(None)
         self.window.set_batch_progress(0, 0)
@@ -864,6 +873,7 @@ class MainController(QObject):
         self.window.set_current_output(None)
         self.window.set_batch_buttons(pending_count=len(self._batch_queue), running=True)
         self.window.set_busy(True)
+        self._start_sleep_inhibition()
         self.window.clear_log()
         self._start_next_batch_task()
 
@@ -1123,6 +1133,7 @@ class MainController(QObject):
         self._zip_running = True
         self.window.set_zip_results_enabled(False, running=True)
         self.window.show_status("正在打包成功结果...")
+        self._start_sleep_inhibition()
         thread.start()
 
     def _stop_zip_thread(self, wait_msecs: int = 1500) -> None:
@@ -1135,6 +1146,26 @@ class MainController(QObject):
         if thread.isRunning():
             thread.quit()
             thread.wait(wait_msecs)
+        self._stop_sleep_inhibition()
+
+    def _start_sleep_inhibition(self) -> None:
+        self.sleep_inhibitor.set_enabled(self.state.prevent_sleep_during_tasks)
+        if not self.state.prevent_sleep_during_tasks:
+            return
+        result = self.sleep_inhibitor.start()
+        self._report_sleep_inhibition_start(result)
+
+    def _report_sleep_inhibition_start(self, result: SleepInhibitionResult) -> None:
+        if not result.supported:
+            return
+        if result.error:
+            self.window.show_status(f"长任务防睡眠启用失败，任务继续执行：{result.error}")
+            return
+        if result.changed:
+            self.window.show_status("长任务防睡眠已启用")
+
+    def _stop_sleep_inhibition(self) -> None:
+        self.sleep_inhibitor.stop()
 
     def _clear_zip_worker(self, thread: QThread, worker: ZipResultsWorker) -> None:
         if self._zip_thread is not thread or self._zip_worker is not worker:
@@ -1164,6 +1195,7 @@ class MainController(QObject):
     @Slot()
     def _on_zip_results_finished(self) -> None:
         self._zip_running = False
+        self._stop_sleep_inhibition()
         self._refresh_recent_batch_results_state()
 
     def _last_batch_records(self) -> list[TaskRecord]:
@@ -1339,6 +1371,7 @@ class MainController(QObject):
             return
 
         self.window.set_busy(False)
+        self._stop_sleep_inhibition()
         self.window.set_start_enabled(self.state.can_start())
         if status is TaskStatus.succeeded:
             self.window.show_status("任务完成")
@@ -1358,6 +1391,7 @@ class MainController(QObject):
         self.task_manager.clear_batch_cancel_flag()
         self._batch_queue.clear()
         self.window.set_busy(False)
+        self._stop_sleep_inhibition()
         self.window.set_batch_buttons(pending_count=0, running=False)
         self.window.set_start_enabled(self.state.can_start())
         self.window.set_batch_progress(
@@ -1491,10 +1525,14 @@ class MainController(QObject):
 
     def _save_current_config(self) -> None:
         output_dir = self.window.selected_output_dir() or self.output_service.default_output_dir()
+        prevent_sleep_during_tasks = self.window.prevent_sleep_during_tasks()
+        self.state.prevent_sleep_during_tasks = prevent_sleep_during_tasks
+        self.sleep_inhibitor.set_enabled(prevent_sleep_during_tasks)
         config = AppConfig(
             ffmpeg_bin=self.window.selected_ffmpeg_bin(),
             ffprobe_bin=self.window.selected_ffprobe_bin(),
             output_dir=output_dir,
+            prevent_sleep_during_tasks=prevent_sleep_during_tasks,
         )
         self.config_service.save(config)
 

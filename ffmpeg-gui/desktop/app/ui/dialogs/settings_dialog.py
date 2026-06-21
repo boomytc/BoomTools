@@ -4,6 +4,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtWidgets import (
+    QCheckBox,
     QDialog,
     QFileDialog,
     QFrame,
@@ -97,7 +98,11 @@ class SettingsDialog(QDialog):
         form_layout.addWidget(QLabel("ffprobe"), 1, 0)
         form_layout.addWidget(self.ffprobe_bin_edit, 1, 1)
         form_layout.addWidget(self.ffprobe_browse_button, 1, 2)
-        form_layout.addWidget(hint, 2, 1, 1, 2)
+        self.prevent_sleep_checkbox = QCheckBox("长任务期间防止系统睡眠")
+        self.prevent_sleep_checkbox.setObjectName("preventSleepCheckbox")
+        self.prevent_sleep_checkbox.setToolTip("macOS 下使用 caffeinate -dimsu；其他平台自动降级为空操作。")
+        form_layout.addWidget(self.prevent_sleep_checkbox, 2, 1, 1, 2)
+        form_layout.addWidget(hint, 3, 1, 1, 2)
         form_layout.setColumnStretch(1, 1)
         layout.addWidget(form_panel)
 
@@ -113,15 +118,19 @@ class SettingsDialog(QDialog):
         button_row.addWidget(self.close_button)
         layout.addLayout(button_row)
 
-    def set_initial_paths(self, *, ffmpeg_bin: str, ffprobe_bin: str) -> None:
+    def set_initial_paths(self, *, ffmpeg_bin: str, ffprobe_bin: str, prevent_sleep_during_tasks: bool = True) -> None:
         self.ffmpeg_bin_edit.setText(ffmpeg_bin)
         self.ffprobe_bin_edit.setText(ffprobe_bin)
+        self.prevent_sleep_checkbox.setChecked(prevent_sleep_during_tasks)
 
     def selected_ffmpeg_bin(self) -> str:
         return self.ffmpeg_bin_edit.text().strip() or "ffmpeg"
 
     def selected_ffprobe_bin(self) -> str:
         return self.ffprobe_bin_edit.text().strip() or "ffprobe"
+
+    def prevent_sleep_during_tasks(self) -> bool:
+        return self.prevent_sleep_checkbox.isChecked()
 
     def set_runtime_health(self, health: RuntimeHealth) -> str:
         if health.ok:
@@ -155,6 +164,7 @@ class SettingsDialog(QDialog):
         self.ffprobe_bin_edit.setEnabled(enabled)
         self.ffmpeg_browse_button.setEnabled(enabled)
         self.ffprobe_browse_button.setEnabled(enabled)
+        self.prevent_sleep_checkbox.setEnabled(enabled)
         self.check_button.setEnabled(enabled)
 
     def _browse_binary(self, line_edit: QLineEdit, title: str) -> None:

@@ -8,6 +8,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QLabel, QLineEdit, QPushButton
 
+from desktop.app.core.paths import QSS_PATH
 from desktop.app.ui.components import FixedScrollArea, FormSection, PanelActionBar, PanelFrame, SegmentOption, SegmentedToggle
 
 
@@ -24,6 +25,8 @@ def test_panel_frame_exposes_title_actions_and_body_layout() -> None:
     assert panel.property("density") == "compact"
     assert panel.title_label.text() == "任务队列"
     assert panel.description_label.text() == "总进度"
+    assert panel.description_label.objectName() == "panelHeaderHint"
+    assert panel.description_label.parentWidget() is panel.header_widget
     assert action.parent() is panel.header_widget
     assert panel.body_layout().count() == 1
 
@@ -101,6 +104,15 @@ def test_form_section_sets_form_alignment_and_empty_state() -> None:
     assert section.form_layout.labelAlignment() == Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
     assert field.maximumWidth() == 320
     assert section.empty_label.isHidden()
+
+
+def test_message_box_qss_uses_readable_light_dialog_text() -> None:
+    qss = QSS_PATH.read_text(encoding="utf-8")
+
+    assert "QMessageBox {" in qss
+    assert "QMessageBox QLabel {" in qss
+    assert "color: #1f2937;" in qss
+    assert "QMessageBox QPushButton {" in qss
 
 
 def _qt_app() -> QApplication:

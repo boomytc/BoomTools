@@ -6,7 +6,7 @@ from desktop.app.controllers.main_controller import MainController
 from desktop.app.core.config import AppConfig
 from desktop.app.runtime.binaries import RuntimeHealth
 from desktop.app.runtime.ffmpeg import CommandSpec
-from shared.contracts import Operation, TaskStatus
+from shared.contracts import Operation, STACK_MAX_ITEMS, TaskStatus
 
 
 class _Signal:
@@ -255,6 +255,21 @@ def test_stack_add_reports_unsupported_subtitle_operation(tmp_path: Path) -> Non
 
     assert any("当前操作不支持加入 Stack" in message for message in window.error_messages)
     assert controller._stack_items == []
+
+
+def test_stack_add_rejects_more_than_max_items() -> None:
+    window = _FakeWindow()
+    window.stack_mode_enabled = True
+    window.set_operation_payload(Operation.rotate, {"mode": "cw90", "output_format": "mp4"}, {})
+    controller = _make_controller(window)
+
+    for _ in range(STACK_MAX_ITEMS):
+        controller._on_stack_add_requested()
+    controller._on_stack_add_requested()
+
+    assert len(controller._stack_items) == STACK_MAX_ITEMS
+    assert len(window._stack_items) == STACK_MAX_ITEMS
+    assert any(f"Stack 最多支持 {STACK_MAX_ITEMS} 个动作" in message for message in window.error_messages)
 
 
 def test_stack_item_selection_syncs_operation_payload() -> None:

@@ -23,6 +23,7 @@ from shared.contracts import (
     MediaInfo,
     Operation,
     STACK_FILTER_OPERATIONS,
+    STACK_MAX_ITEMS,
     TaskRecord,
     TaskRequest,
     TaskResult,
@@ -347,6 +348,9 @@ class MainController(QObject):
         operation, options, extra_inputs = self.window.selected_operation_payload()
         if operation not in STACK_FILTER_OPERATIONS:
             self.window.show_error("当前操作不支持加入 Stack")
+            return
+        if len(self._stack_items) >= STACK_MAX_ITEMS:
+            self.window.show_error(f"Stack 最多支持 {STACK_MAX_ITEMS} 个动作，请先移除或清空后再添加。")
             return
         try:
             self._validate_operation_inputs(operation, extra_inputs)

@@ -106,6 +106,25 @@ QToolButton#logButton[state="error"] {
 }
 
 /* Dialogs */
+QMessageBox {
+  color: #1f2937;
+  background: #f8fafc;
+}
+
+QMessageBox QLabel {
+  color: #1f2937;
+  background: transparent;
+  font-weight: 700;
+}
+
+QMessageBox QPushButton {
+  color: #eef4ff;
+  background: #202638;
+  border-color: #4a536a;
+  min-width: 68px;
+  min-height: 28px;
+}
+
 QDialog#settingsDialog,
 QDialog#logDialog {
   background: #090b12;
@@ -220,11 +239,10 @@ QLabel#totalProgressLabel {
   color: #91a0b8;
 }
 
-QLabel#operationSelectionLabel {
-  color: #edf4ff;
-  font-size: 13px;
-  font-weight: 800;
-  padding: 1px 0 0 0;
+QLabel#panelHeaderHint {
+  color: #7f8ba3;
+  font-size: 11px;
+  font-weight: 600;
 }
 
 QLabel#formSectionLabel {
@@ -567,10 +585,16 @@ QPushButton[role="stackChip"] {
   background: #182236;
   border: 1px solid #465674;
   border-radius: 13px;
-  padding: 4px 30px 4px 11px;
+  padding: 4px 26px 4px 9px;
   min-height: 20px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
+}
+
+QLabel#stackCountLabel {
+  color: #7f8ba3;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 QPushButton[role="stackChip"]:hover {

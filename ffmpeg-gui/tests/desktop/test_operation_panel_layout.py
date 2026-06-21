@@ -221,6 +221,8 @@ def test_operation_and_parameter_panels_use_compact_internal_titles() -> None:
     assert form.parameter_form.objectName() == "parameterFrame"
     assert form.operation_selector.title_label.text() == "处理动作"
     assert form.parameter_form.title_label.text() == "参数"
+    assert form.operation_selector.description_label.parentWidget() is form.operation_selector.header_widget
+    assert form.parameter_form.selected_operation_label.parentWidget() is form.parameter_form.header_widget
     assert operation_margins.top() <= 10
     assert parameter_margins.top() <= 10
     assert operation_margins.left() == parameter_margins.left()

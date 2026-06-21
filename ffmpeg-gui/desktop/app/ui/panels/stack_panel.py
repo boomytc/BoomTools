@@ -13,6 +13,13 @@ from PySide6.QtWidgets import (
 )
 
 from desktop.app.ui.components import PanelFrame
+from shared.contracts import STACK_MAX_ITEMS
+
+
+STACK_HINT = f"双击动作加入 · 拖动排序 · 最多 {STACK_MAX_ITEMS} 步"
+STACK_LIMITED_HINT = f"仅可双击可链式动作 · 最多 {STACK_MAX_ITEMS} 步"
+STACK_CHIP_MAX_WIDTH = 136
+STACK_CHIP_TEXT_LIMIT = 12
 
 
 class StackPanel(PanelFrame):
@@ -22,13 +29,18 @@ class StackPanel(PanelFrame):
     item_moved = Signal(int, int)
 
     def __init__(self) -> None:
-        super().__init__("Stack 队列", density="compact")
+        super().__init__("Stack 队列", description=STACK_HINT, density="compact")
         self._items: list[str] = []
         self._busy = False
         self.setObjectName("stackPanel")
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.setMinimumHeight(112)
-        self.setMaximumHeight(132)
+        self.setMinimumHeight(86)
+        self.setMaximumHeight(112)
+
+        self.count_label = QLabel(f"0/{STACK_MAX_ITEMS}")
+        self.count_label.setObjectName("stackCountLabel")
+        self.count_label.setToolTip(f"Stack 最多支持 {STACK_MAX_ITEMS} 个动作")
+        self.add_action(self.count_label)
 
         self.clear_button = QPushButton("清空")
         self.clear_button.setProperty("role", "danger")
@@ -37,16 +49,6 @@ class StackPanel(PanelFrame):
         self.add_action(self.clear_button)
 
         layout = self.body_layout()
-
-        status_row = QHBoxLayout()
-        status_row.setSpacing(8)
-        self.mode_label = QLabel("仅支持可链式单输入滤镜，顺序即执行顺序。")
-        self.mode_label.setObjectName("mutedLabel")
-        self.list_label = QLabel("0 项")
-        self.list_label.setObjectName("mutedLabel")
-        status_row.addWidget(self.mode_label, 1)
-        status_row.addWidget(self.list_label)
-        layout.addLayout(status_row)
 
         self.stack_chain = _StackChainView()
         self.stack_chain.item_selected.connect(self.item_selected.emit)
@@ -65,7 +67,7 @@ class StackPanel(PanelFrame):
     def set_items(self, items: list[str]) -> None:
         self._items = list(items)
         self.stack_chain.set_items(items)
-        self.list_label.setText(f"{len(items)} 项")
+        self.count_label.setText(f"{len(items)}/{STACK_MAX_ITEMS}")
         self.set_actions_enabled(len(items) > 0)
 
     def has_items(self) -> bool:
@@ -82,9 +84,9 @@ class StackPanel(PanelFrame):
 
     def set_supported_note(self, supported: bool) -> None:
         if supported:
-            self.mode_label.setText("单击动作配置参数；双击动作加入 Stack；拖动标签调整顺序。")
+            self.set_description(STACK_HINT)
             return
-        self.mode_label.setText("当前操作不支持加入 Stack；可双击可链式动作加入。")
+        self.set_description(STACK_LIMITED_HINT)
 
 
 class _StackChainView(QFrame):
@@ -144,8 +146,8 @@ class _StackChainView(QFrame):
             chip.setAccessibleDescription("点击查看参数，拖动调整执行顺序，点击右侧 x 移除。")
             chip.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
             chip.setMinimumHeight(28)
-            chip.setMaximumWidth(260)
-            chip.setMinimumWidth(min(chip.sizeHint().width(), 260))
+            chip.setMaximumWidth(STACK_CHIP_MAX_WIDTH)
+            chip.setMinimumWidth(min(chip.sizeHint().width(), STACK_CHIP_MAX_WIDTH))
             chip.clicked.connect(lambda _checked=False, chip_index=index: self.select_index(chip_index, emit=True))
             chip.remove_requested.connect(self.item_removed.emit)
             chip.drag_started.connect(self._on_chip_drag_started)
@@ -427,10 +429,20 @@ class _StackChipButton(QPushButton):
 
 
 def _chip_text(index: int, item: str) -> str:
-    text = item.strip()
-    if len(text) > 28:
-        text = f"{text[:25]}..."
+    text = _compact_chip_label(item)
+    if len(text) > STACK_CHIP_TEXT_LIMIT:
+        text = f"{text[: STACK_CHIP_TEXT_LIMIT - 3]}..."
     return f"{index + 1}. {text}"
+
+
+def _compact_chip_label(item: str) -> str:
+    text = item.strip()
+    _category, separator, title = text.partition(" - ")
+    if separator and title:
+        text = title.strip()
+    if len(text) > STACK_CHIP_TEXT_LIMIT and " (" in text:
+        text = text.split(" (", 1)[0].strip()
+    return text
 
 
 def _set_dynamic_property(widget: QPushButton, name: str, value: bool) -> None:

@@ -25,16 +25,19 @@ class PanelFrame(QFrame):
         header_layout.setContentsMargins(0, 0, 0, 0)
         header_layout.setSpacing(10)
 
-        title_block = QVBoxLayout()
+        title_block = QHBoxLayout()
         title_block.setContentsMargins(0, 0, 0, 0)
-        title_block.setSpacing(3)
+        title_block.setSpacing(8)
         self.title_label = QLabel(title)
         self.title_label.setObjectName("sectionTitle")
-        title_block.addWidget(self.title_label)
+        title_block.addWidget(self.title_label, 0, Qt.AlignmentFlag.AlignVCenter)
         self.description_label = QLabel(description)
-        self.description_label.setObjectName("mutedLabel")
+        self.description_label.setObjectName("panelHeaderHint")
+        self.description_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self.description_label.setMinimumWidth(0)
+        self.description_label.setToolTip(description)
         self.description_label.setVisible(bool(description))
-        title_block.addWidget(self.description_label)
+        title_block.addWidget(self.description_label, 1, Qt.AlignmentFlag.AlignVCenter)
 
         self._action_layout = QHBoxLayout()
         self._action_layout.setContentsMargins(0, 0, 0, 0)
@@ -60,4 +63,5 @@ class PanelFrame(QFrame):
 
     def set_description(self, text: str) -> None:
         self.description_label.setText(text)
+        self.description_label.setToolTip(text)
         self.description_label.setVisible(bool(text))

@@ -16,6 +16,8 @@ STACK_FILTER_OPERATIONS = {
     Operation.fade,
 }
 
+STACK_MAX_ITEMS = 6
+
 BATCH_SUPPORTED_OPERATIONS = {
     Operation.convert,
     Operation.compress,

@@ -79,19 +79,26 @@ def test_stack_panel_renders_steps_as_arrow_chain() -> None:
 
     assert len(chips) == 3
     assert len(arrows) == 2
+    assert [chip.text() for chip in chips] == ["1. 旋转/翻转", "2. 缩放+压缩", "3. 画面调整"]
     assert all(chip.property("role") == "stackChip" for chip in chips)
+    assert all(chip.sizeHint().width() <= chip.width() for chip in chips)
     assert min(chip.height() for chip in chips) >= 26
     assert panel.stack_chain.height() <= 38
     assert panel.stack_chain.height() >= max(chip.height() for chip in chips) + 4
     assert "QFrame#stackChainView" not in QSS_PATH.read_text(encoding="utf-8")
     assert panel.stack_chain.selected_index() == 2
     assert panel.clear_button.parentWidget() is panel.header_widget
-    assert panel.body_layout().count() == 2
-    assert panel.maximumHeight() <= 132
+    assert panel.count_label.parentWidget() is panel.header_widget
+    assert panel.count_label.text() == "3/6"
+    assert panel.description_label.text() == "双击动作加入 · 拖动排序 · 最多 6 步"
+    assert panel.body_layout().count() == 1
+    assert panel.maximumHeight() <= 112
     assert not hasattr(panel, "move_up_button")
     assert not hasattr(panel, "move_down_button")
     assert not hasattr(panel, "add_button")
     assert not hasattr(panel, "remove_button")
+    assert not hasattr(panel, "mode_label")
+    assert not hasattr(panel, "list_label")
 
     chips[1].click()
     assert selected == [1]
@@ -101,6 +108,37 @@ def test_stack_panel_renders_steps_as_arrow_chain() -> None:
 
     assert moved == [(0, 2)]
     assert panel.stack_chain.selected_index() == 2
+    panel.close()
+
+
+def test_stack_chain_limits_six_steps_to_one_row_at_desktop_width() -> None:
+    app = _qt_app()
+    app.setStyleSheet(QSS_PATH.read_text(encoding="utf-8"))
+    panel = StackPanel()
+    panel.set_items(
+        [
+            "视频编辑 - 画布补边",
+            "视频编辑 - 旋转/翻转",
+            "视频编辑 - 裁剪",
+            "视频编辑 - 画面调整",
+            "音频处理 - 音量调整",
+            "视频编辑 - 去噪",
+        ]
+    )
+    panel.resize(680, panel.maximumHeight())
+    panel.show()
+    app.processEvents()
+
+    chips = panel.stack_chain.findChildren(QPushButton)
+    row_tops = {chip.geometry().top() for chip in chips}
+
+    assert len(chips) == 6
+    assert len(row_tops) == 1
+    assert panel.stack_chain.height() <= 38
+    assert panel.count_label.text() == "6/6"
+    assert all(chip.sizeHint().width() <= chip.width() for chip in chips)
+    assert max(chip.geometry().right() for chip in chips) <= panel.stack_chain.width()
+    assert max(chip.geometry().bottom() for chip in chips) <= panel.stack_chain.height()
     panel.close()
 
 

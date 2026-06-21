@@ -4,12 +4,11 @@ import shlex
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import QTimer, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDoubleSpinBox,
-    QLabel,
     QLineEdit,
     QPlainTextEdit,
     QSizePolicy,
@@ -50,11 +49,7 @@ class OperationParameterForm(PanelFrame):
         self._layout_sync_timer.setSingleShot(True)
         self._layout_sync_timer.timeout.connect(self._sync_content_minimum_height)
 
-        self.selected_operation_label = QLabel()
-        self.selected_operation_label.setObjectName("operationSelectionLabel")
-        self.selected_operation_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        self.selected_operation_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.body_layout().addWidget(self.selected_operation_label)
+        self.selected_operation_label = self.description_label
 
         self.parameter_scroll_area = FixedScrollArea(right_gutter=PARAMETER_SCROLL_RIGHT_GUTTER)
         self.parameter_scroll_area.setObjectName("parameterScroll")
@@ -270,7 +265,7 @@ class OperationParameterForm(PanelFrame):
 
     def _sync_selected_operation_label(self) -> None:
         title, category = operation_title_and_category(self._operation)
-        self.selected_operation_label.setText(f"{title} · {category}")
+        self.set_description(f"{title} · {category}")
 
     def _video_size(self, raw: dict[str, Any]) -> tuple[int | None, int | None]:
         streams = raw.get("streams", [])

@@ -26,6 +26,7 @@ class TaskPanel(PanelFrame):
     open_output_dir_requested = Signal()
     copy_output_path_requested = Signal()
     remove_task_requested = Signal(str)
+    zip_outputs_requested = Signal()
 
     def __init__(self, task_model: TaskTableModel) -> None:
         super().__init__("任务队列", density="compact")
@@ -34,6 +35,8 @@ class TaskPanel(PanelFrame):
         self._start_enabled = False
         self._pending_count = 0
         self._batch_running = False
+        self._zip_results_enabled = False
+        self._zip_results_running = False
         self.setObjectName("taskPanel")
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setMinimumHeight(158)
@@ -44,6 +47,7 @@ class TaskPanel(PanelFrame):
         self.cancel_button = action_bar.add_button("取消当前", role="danger")
         self.cancel_queue_button = action_bar.add_button("取消队列", role="danger")
         self.remove_pending_button = action_bar.add_button("移除未运行", role="quiet")
+        self.zip_results_button = action_bar.add_button("打包成功结果", role="result")
         self.add_action(action_bar)
 
         layout = self.body_layout()
@@ -55,6 +59,7 @@ class TaskPanel(PanelFrame):
         self.cancel_button.clicked.connect(lambda _checked=False: self.cancel_requested.emit())
         self.cancel_queue_button.clicked.connect(lambda _checked=False: self.cancel_queue_requested.emit())
         self.remove_pending_button.clicked.connect(lambda _checked=False: self.remove_pending_requested.emit())
+        self.zip_results_button.clicked.connect(lambda _checked=False: self.zip_outputs_requested.emit())
         layout.addWidget(self.total_progress)
 
         self.task_table = QTableView()
@@ -109,6 +114,12 @@ class TaskPanel(PanelFrame):
     def set_batch_buttons(self, pending_count: int, running: bool) -> None:
         self._pending_count = pending_count
         self._batch_running = running
+        self._sync_processing_buttons()
+
+    def set_zip_results_enabled(self, enabled: bool, *, running: bool = False) -> None:
+        self._zip_results_enabled = enabled
+        self._zip_results_running = running
+        self.zip_results_button.setText("正在打包..." if running else "打包成功结果")
         self._sync_processing_buttons()
 
     def refresh_total_progress(self) -> None:
@@ -175,6 +186,12 @@ class TaskPanel(PanelFrame):
         self.cancel_button.setEnabled(self._busy)
         self.cancel_queue_button.setEnabled(self._batch_running)
         self.remove_pending_button.setEnabled(self._pending_count > 0 and not self._batch_running and not self._busy)
+        self.zip_results_button.setEnabled(
+            self._zip_results_enabled
+            and not self._zip_results_running
+            and not self._batch_running
+            and not self._busy
+        )
 
 
 class _TotalProgressSummary:

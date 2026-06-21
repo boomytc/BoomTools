@@ -100,6 +100,7 @@ def test_task_panel_processing_buttons_follow_task_state() -> None:
     assert not panel.cancel_button.isEnabled()
     assert not panel.cancel_queue_button.isEnabled()
     assert not panel.remove_pending_button.isEnabled()
+    assert not panel.zip_results_button.isEnabled()
 
     panel.set_start_enabled(True)
     assert panel.start_button.isEnabled()
@@ -118,6 +119,16 @@ def test_task_panel_processing_buttons_follow_task_state() -> None:
     assert not panel.cancel_button.isEnabled()
     assert not panel.cancel_queue_button.isEnabled()
     assert panel.remove_pending_button.isEnabled()
+
+    panel.set_zip_results_enabled(True)
+    assert panel.zip_results_button.isEnabled()
+
+    panel.set_zip_results_enabled(False, running=True)
+    assert not panel.zip_results_button.isEnabled()
+    assert panel.zip_results_button.text() == "正在打包..."
+
+    panel.set_zip_results_enabled(True)
+    assert panel.zip_results_button.text() == "打包成功结果"
 
 
 def test_task_panel_uses_text_delegate_for_action_column() -> None:

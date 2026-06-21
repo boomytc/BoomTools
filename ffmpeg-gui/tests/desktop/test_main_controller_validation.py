@@ -6,6 +6,7 @@ from desktop.app.controllers.main_controller import MainController
 from desktop.app.core.config import AppConfig
 from desktop.app.runtime.binaries import RuntimeHealth
 from desktop.app.runtime.ffmpeg import CommandSpec
+from desktop.app.services.output_service import BatchZipResult
 from shared.contracts import MediaInfo, Operation, STACK_MAX_ITEMS, TaskRecord, TaskStatus
 
 
@@ -29,7 +30,9 @@ class _FakeWindow:
         self.log_lines: list[str] = []
         self.command_preview = ""
         self.output_estimate = ""
+        self.current_output_path_value: Path | None = None
         self.start_enabled_values: list[bool] = []
+        self.zip_results_enabled_values: list[tuple[bool, bool]] = []
         self.batch_progress_values: list[tuple[int, int, str | None]] = []
 
         self.input_file_selected = _Signal()
@@ -52,6 +55,7 @@ class _FakeWindow:
         self.command_preview_requested = _Signal()
         self.open_output_requested = _Signal()
         self.open_output_dir_requested = _Signal()
+        self.zip_outputs_requested = _Signal()
         self.copy_output_path_requested = _Signal()
         self.closing = _Signal()
 
@@ -130,7 +134,10 @@ class _FakeWindow:
         return None
 
     def set_current_output(self, _path: Path | None) -> None:
-        return None
+        self.current_output_path_value = _path
+
+    def set_zip_results_enabled(self, enabled: bool, *, running: bool = False) -> None:
+        self.zip_results_enabled_values.append((enabled, running))
 
     def set_command_preview(self, command: str) -> None:
         self.command_preview = command
@@ -183,6 +190,9 @@ class _OutputService:
 
     def default_output_dir(self) -> Path:
         return Path("/tmp")
+
+    def zip_successful_outputs(self, *_: object, **__: object) -> BatchZipResult:
+        return BatchZipResult(archive_path=Path("/tmp/ffmpeg-gui-batch-test.zip"), packed_count=1, skipped_count=0)
 
 
 class _LogService:
@@ -698,6 +708,51 @@ def test_finish_batch_reports_partial_failure_terminal_label() -> None:
     controller._finish_batch(TaskStatus.failed)
 
     assert window.batch_progress_values[-1] == (3, 3, "处理结束（有失败）")
+
+
+def test_finish_batch_enables_zip_results_for_last_batch(tmp_path: Path) -> None:
+    window = _FakeWindow()
+    output_path = tmp_path / "out.mp4"
+    output_path.write_bytes(b"ok")
+    task_model = _TaskModel()
+    record = TaskRecord(
+        operation=Operation.convert,
+        input_path=tmp_path / "input.mp4",
+        output_path=output_path,
+        status=TaskStatus.succeeded,
+        progress=1.0,
+    )
+    task_model.append_record(record)
+    controller = _make_controller(window, task_model=task_model)
+    controller.state.is_batch_running = True
+    controller.state.batch_current_index = 1
+    controller._current_batch_total = 1
+    controller._batch_records = [record]
+    controller._last_batch_task_ids = {record.task_id}
+
+    controller._finish_batch()
+
+    assert window.zip_results_enabled_values[-1] == (True, False)
+
+
+def test_zip_batch_outputs_without_current_batch_reports_status() -> None:
+    window = _FakeWindow()
+    controller = _make_controller(window)
+
+    controller.zip_batch_outputs()
+
+    assert window.status_messages[-1] == "当前没有可打包的批量结果"
+
+
+def test_zip_result_updates_status_and_current_output(tmp_path: Path) -> None:
+    window = _FakeWindow()
+    controller = _make_controller(window)
+    archive_path = tmp_path / "ffmpeg-gui-batch-20260621-101112.zip"
+
+    controller._on_zip_results_ready(BatchZipResult(archive_path=archive_path, packed_count=2, skipped_count=1))
+
+    assert window.current_output_path_value == archive_path
+    assert window.status_messages[-1] == "已打包 2 个，跳过 1 个：ffmpeg-gui-batch-20260621-101112.zip"
 
 
 def test_batch_selection_creates_ready_queue_rows(tmp_path: Path) -> None:

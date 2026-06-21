@@ -12,7 +12,7 @@
 - 多输入组合：叠加、拼接、并排、画中画
 - Raw 参数：输入参数数组构建，支持可选第二输入
 - 抽取音频（MP3/WAV/AAC/FLAC/OGG）与 GIF 输出（mp4/mkv/mov/webm/avi）；高质量 GIF 可使用 `palettegen/paletteuse` 两阶段 palette 模式
-- 单任务执行、批处理队列、任务进度、日志、取消、输出结果入口（打开文件、打开目录、复制路径）
+- 单任务执行、批处理队列、任务进度、日志、取消、输出结果入口（打开文件、打开目录、复制路径、打包当前批次成功结果）
 
 ## 范围与反目标
 
@@ -69,6 +69,10 @@ uv run python -m desktop.app.main
 - `palette`：高质量模式，先在 `data/temp/` 生成临时 palette，再用 `paletteuse` 输出 GIF；任务结束、失败或取消后会清理临时 palette 文件。
 
 两种模式都继续支持帧率、宽度和可选开始/结束时间范围。
+
+## 批量结果打包
+
+任务队列提供“打包成功结果”入口。它只收集最近一次批处理中状态为 `succeeded` 且文件仍存在的输出文件，失败、取消、无输出或已删除的结果会跳过。ZIP 写入当前输出目录，命名格式为 `ffmpeg-gui-batch-YYYYMMDD-HHMMSS.zip`。
 
 ## 验证
 

@@ -17,6 +17,7 @@ from desktop.app.services.output_service import OutputService
 from desktop.app.tasks.health_worker import HealthWorker
 from desktop.app.tasks.probe_worker import ProbeWorker
 from desktop.app.tasks.task_manager import TaskManager
+from desktop.app.tasks.zip_results_worker import ZipResultsWorker
 from desktop.app.ui.main_window import MainWindow
 from desktop.app.ui.widgets.task_table_model import TaskTableModel
 from desktop.app.viewmodels.app_state import AppState
@@ -69,6 +70,9 @@ class MainController(QObject):
         self._probe_context: str | None = None
         self._batch_probe_record: TaskRecord | None = None
         self._batch_probe_error: str | None = None
+        self._zip_thread: QThread | None = None
+        self._zip_worker: ZipResultsWorker | None = None
+        self._zip_running = False
 
         self._batch_queue: list[tuple[TaskRecord, Path]] = []
         self._batch_operation: Operation = Operation.convert
@@ -82,6 +86,7 @@ class MainController(QObject):
         self._stack_items: list[tuple[Operation, dict[str, object], dict[str, Path]]] = []
         self._prepared_records: list[TaskRecord] = []
         self._media_info_cache: dict[Path, MediaInfo] = {}
+        self._last_batch_task_ids: set[str] = set()
 
         self._connect_signals()
 
@@ -101,6 +106,7 @@ class MainController(QObject):
         self.window.set_batch_input_mode(False)
         self.window.set_start_enabled(self.state.can_start())
         self.window.set_batch_buttons(pending_count=0, running=False)
+        self.window.set_zip_results_enabled(False)
 
     def refresh_runtime_health(self, *, include_version: bool = True) -> None:
         self._save_current_config()
@@ -314,6 +320,7 @@ class MainController(QObject):
             self.window.set_batch_buttons(pending_count=len(self._batch_queue), running=True)
 
         self.window.show_status("已从任务队列移除任务")
+        self._refresh_zip_results_state()
 
     def open_output(self) -> None:
         self.window.open_output()
@@ -321,12 +328,25 @@ class MainController(QObject):
     def open_output_dir(self) -> None:
         self.window.open_output_dir()
 
+    def zip_batch_outputs(self) -> None:
+        if self._zip_running:
+            self.window.show_status("正在打包成功结果，请稍候")
+            return
+        records = self._last_batch_records()
+        if not records:
+            self.window.show_status("当前没有可打包的批量结果")
+            return
+
+        output_dir = self.state.output_dir or self.output_service.default_output_dir()
+        self._start_zip_thread(records, output_dir)
+
     def close(self) -> None:
         self.cancel_current_task()
         self.cancel_batch()
         self.task_manager.cancel_current(preserve_batch_cancel=True, wait=True)
         self._stop_health_thread()
         self._stop_probe_thread()
+        self._stop_zip_thread()
 
     def copy_output_path(self) -> None:
         current_output = self.window.current_output_path()
@@ -356,6 +376,7 @@ class MainController(QObject):
         self.window.command_preview_requested.connect(self._refresh_command_preview)
         self.window.open_output_requested.connect(self.open_output)
         self.window.open_output_dir_requested.connect(self.open_output_dir)
+        self.window.zip_outputs_requested.connect(self.zip_batch_outputs)
         self.window.copy_output_path_requested.connect(self.copy_output_path)
         self.window.closing.connect(self.close)
 
@@ -778,6 +799,8 @@ class MainController(QObject):
         self.task_manager.clear_batch_cancel_flag()
         self._batch_queue = []
         self._batch_records = []
+        self._last_batch_task_ids = set()
+        self._refresh_zip_results_state()
         display_operation = self._batch_stack_items[0][0] if self._is_batch_stack_mode else self._batch_operation
         operation_text = f"Stack x{len(self._batch_stack_items)}" if self._is_batch_stack_mode else None
 
@@ -793,6 +816,8 @@ class MainController(QObject):
             )
             self._batch_queue.append((task, input_path))
             self._batch_records.append(task)
+
+        self._last_batch_task_ids = {record.task_id for record in self._batch_records}
 
         self.window.set_progress(None)
         self.window.set_batch_progress(0, self._current_batch_total)
@@ -1040,6 +1065,78 @@ class MainController(QObject):
             thread.quit()
             thread.wait(wait_msecs)
 
+    def _start_zip_thread(self, records: list[TaskRecord], output_dir: Path) -> None:
+        self._stop_zip_thread()
+        thread = QThread()
+        worker = ZipResultsWorker(self.output_service, records, output_dir)
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.result_ready.connect(self._on_zip_results_ready)
+        worker.error_occurred.connect(self._on_zip_results_error)
+        worker.finished.connect(self._on_zip_results_finished)
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(lambda zip_thread=thread, zip_worker=worker: self._clear_zip_worker(zip_thread, zip_worker))
+        self._zip_thread = thread
+        self._zip_worker = worker
+        self._zip_running = True
+        self.window.set_zip_results_enabled(False, running=True)
+        self.window.show_status("正在打包成功结果...")
+        thread.start()
+
+    def _stop_zip_thread(self, wait_msecs: int = 1500) -> None:
+        thread = self._zip_thread
+        worker = self._zip_worker
+        if not thread:
+            return
+        if worker is not None:
+            worker.cancel()
+        if thread.isRunning():
+            thread.quit()
+            thread.wait(wait_msecs)
+
+    def _clear_zip_worker(self, thread: QThread, worker: ZipResultsWorker) -> None:
+        if self._zip_thread is not thread or self._zip_worker is not worker:
+            return
+        self._zip_thread = None
+        self._zip_worker = None
+
+    @Slot(object)
+    def _on_zip_results_ready(self, result: object) -> None:
+        archive_path = getattr(result, "archive_path", None)
+        packed_count = int(getattr(result, "packed_count", 0))
+        skipped_count = int(getattr(result, "skipped_count", 0))
+        if isinstance(archive_path, Path):
+            self.window.set_current_output(archive_path)
+            self.window.show_status(f"已打包 {packed_count} 个，跳过 {skipped_count} 个：{archive_path.name}")
+            return
+        self.window.show_status(f"已打包 {packed_count} 个，跳过 {skipped_count} 个")
+
+    @Slot(str)
+    def _on_zip_results_error(self, message: str) -> None:
+        self.window.show_status(message)
+
+    @Slot()
+    def _on_zip_results_finished(self) -> None:
+        self._zip_running = False
+        self._refresh_zip_results_state()
+
+    def _last_batch_records(self) -> list[TaskRecord]:
+        if not self._last_batch_task_ids:
+            return []
+        return [
+            record
+            for record in self.task_model.records()
+            if isinstance(record, TaskRecord) and record.task_id in self._last_batch_task_ids
+        ]
+
+    def _refresh_zip_results_state(self) -> None:
+        self.window.set_zip_results_enabled(
+            bool(self._last_batch_records()) and not self.state.is_batch_running,
+            running=self._zip_running,
+        )
+
     def _clear_probe_worker(self, thread: QThread, worker: ProbeWorker) -> None:
         if self._probe_thread is not thread or self._probe_worker is not worker:
             return
@@ -1200,6 +1297,7 @@ class MainController(QObject):
         )
         self.window.set_progress(0.0)
         self._batch_records = []
+        self._refresh_zip_results_state()
 
     def _batch_final_status(self) -> TaskStatus:
         if any(record.status is TaskStatus.cancelled for record in self._batch_records):

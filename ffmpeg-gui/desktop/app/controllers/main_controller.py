@@ -354,13 +354,15 @@ class MainController(QObject):
         except ValueError as exc:
             self.window.show_error(str(exc))
             return
+        options = dict(options)
+        extra_inputs = dict(extra_inputs)
         if self._stack_items:
-            options = dict(options)
             options.pop("start_seconds", None)
             options.pop("end_seconds", None)
 
         self._stack_items.append((operation, options, extra_inputs))
         self.window.set_stack_items([self._format_stack_item(item) for item in self._stack_items])
+        self._sync_stack_payload(len(self._stack_items) - 1)
         self._refresh_command_preview()
 
     def _on_stack_move_up_requested(self, index: int) -> None:
@@ -368,6 +370,7 @@ class MainController(QObject):
             return
         self._stack_items[index - 1], self._stack_items[index] = self._stack_items[index], self._stack_items[index - 1]
         self.window.set_stack_items([self._format_stack_item(item) for item in self._stack_items])
+        self._sync_stack_payload(index - 1)
         self._refresh_command_preview()
 
     def _on_stack_move_down_requested(self, index: int) -> None:
@@ -375,6 +378,7 @@ class MainController(QObject):
             return
         self._stack_items[index + 1], self._stack_items[index] = self._stack_items[index], self._stack_items[index + 1]
         self.window.set_stack_items([self._format_stack_item(item) for item in self._stack_items])
+        self._sync_stack_payload(index + 1)
         self._refresh_command_preview()
 
     def _on_stack_remove_requested(self, index: int) -> None:
@@ -382,6 +386,8 @@ class MainController(QObject):
             return
         self._stack_items.pop(index)
         self.window.set_stack_items([self._format_stack_item(item) for item in self._stack_items])
+        if self._stack_items:
+            self._sync_stack_payload(min(index, len(self._stack_items) - 1))
         self._refresh_command_preview()
 
     def _on_stack_clear_requested(self) -> None:
@@ -390,12 +396,15 @@ class MainController(QObject):
         self._refresh_command_preview()
 
     def _on_stack_item_selected(self, index: int) -> None:
+        self._sync_stack_payload(index)
+        self._refresh_start_state()
+        self._refresh_command_preview()
+
+    def _sync_stack_payload(self, index: int) -> None:
         if index < 0 or index >= len(self._stack_items):
             return
         operation, options, extra_inputs = self._stack_items[index]
         self.window.set_operation_payload(operation, dict(options), dict(extra_inputs))
-        self._refresh_start_state()
-        self._refresh_command_preview()
 
     def _collect_stack_specs(
         self,

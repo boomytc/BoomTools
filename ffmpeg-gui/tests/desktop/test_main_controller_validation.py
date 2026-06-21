@@ -279,6 +279,59 @@ def test_stack_item_selection_syncs_operation_payload() -> None:
     assert extra_inputs == {}
 
 
+def test_stack_item_selection_keeps_repeated_operation_payloads_by_index() -> None:
+    window = _FakeWindow()
+    window.stack_mode_enabled = True
+    controller = _make_controller(window)
+
+    first_crop = {"x": 0, "y": 0, "width": 320, "height": 180, "output_format": "mp4"}
+    second_crop = {"x": 40, "y": 24, "width": 640, "height": 360, "output_format": "mp4"}
+
+    window.set_operation_payload(Operation.crop, first_crop, {})
+    controller._on_stack_add_requested()
+    window.set_operation_payload(Operation.crop, second_crop, {})
+    controller._on_stack_add_requested()
+
+    controller._on_stack_item_selected(0)
+    operation, options, extra_inputs = window.selected_operation_payload()
+    assert operation is Operation.crop
+    assert options == first_crop
+    assert extra_inputs == {}
+
+    controller._on_stack_item_selected(1)
+    operation, options, extra_inputs = window.selected_operation_payload()
+    assert operation is Operation.crop
+    assert options == second_crop
+    assert extra_inputs == {}
+
+
+def test_stack_add_syncs_parameter_payload_to_stored_follow_up_step() -> None:
+    window = _FakeWindow()
+    window.stack_mode_enabled = True
+    controller = _make_controller(window)
+
+    window.set_operation_payload(
+        Operation.crop,
+        {"start_seconds": 1.0, "x": 0, "y": 0, "width": 320, "height": 180, "output_format": "mp4"},
+        {},
+    )
+    controller._on_stack_add_requested()
+
+    window.set_operation_payload(
+        Operation.crop,
+        {"start_seconds": 2.0, "x": 10, "y": 20, "width": 640, "height": 360, "output_format": "mp4"},
+        {},
+    )
+    controller._on_stack_add_requested()
+
+    operation, options, extra_inputs = window.selected_operation_payload()
+    assert operation is Operation.crop
+    assert options == {"x": 10, "y": 20, "width": 640, "height": 360, "output_format": "mp4"}
+    assert extra_inputs == {}
+    assert controller._stack_items[0][1]["start_seconds"] == 1.0
+    assert "start_seconds" not in controller._stack_items[1][1]
+
+
 def test_collect_input_paths_respects_single_input_mode(tmp_path: Path) -> None:
     window = _FakeWindow()
     single_path = tmp_path / "single.mp4"

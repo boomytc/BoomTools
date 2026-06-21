@@ -14,8 +14,8 @@ class CommandPreviewPanel(PanelFrame):
         super().__init__("命令预览", density="compact")
         self._command = ""
         self.setObjectName("commandPreviewPanel")
-        self.setMinimumHeight(82)
-        self.setMaximumHeight(96)
+        self.setMinimumHeight(96)
+        self.setMaximumHeight(108)
 
         self.copy_button = QPushButton("复制")
         self.copy_button.setProperty("role", "quiet")

@@ -165,12 +165,14 @@ class _ConfigService:
 class _FfmpegService:
     def __init__(self, health: RuntimeHealth) -> None:
         self._health = health
+        self.build_command_args: list[tuple[object, ...]] = []
         self.build_command_kwargs: list[dict[str, object]] = []
 
     def check_health(self, *_: str) -> RuntimeHealth:
         return self._health
 
     def build_command(self, *_: object, **kwargs: object) -> CommandSpec:
+        self.build_command_args.append(_)
         self.build_command_kwargs.append(kwargs)
         return CommandSpec(args=["ffmpeg", "-i", "input_placeholder", "out.mp4"], output_path=Path("/tmp/out.mp4"), output_name="out.mp4")
 
@@ -226,10 +228,35 @@ class _TaskManager:
         raise AssertionError("should not reach worker creation")
 
 
+class _FakeWorker:
+    def __init__(self) -> None:
+        self.status_changed = _Signal()
+        self.progress_changed = _Signal()
+        self.log_received = _Signal()
+        self.result_ready = _Signal()
+        self.error_occurred = _Signal()
+        self.finished = _Signal()
+        self.started = False
+
+    def start(self) -> None:
+        self.started = True
+
+
+class _RecordingTaskManager(_TaskManager):
+    def __init__(self) -> None:
+        self.created_workers: list[tuple[CommandSpec, float | None, _FakeWorker]] = []
+
+    def create_worker(self, spec: CommandSpec, duration: float | None) -> object:
+        worker = _FakeWorker()
+        self.created_workers.append((spec, duration, worker))
+        return worker
+
+
 def _make_controller(
     window: _FakeWindow,
     task_model: _TaskModel | None = None,
     ffmpeg_service: _FfmpegService | None = None,
+    task_manager: _TaskManager | None = None,
 ) -> MainController:
     ffmpeg_service = ffmpeg_service or _FfmpegService(
         RuntimeHealth(
@@ -247,7 +274,7 @@ def _make_controller(
         ffmpeg_service=ffmpeg_service,
         output_service=_OutputService(),
         log_service=_LogService(),
-        task_manager=_TaskManager(),
+        task_manager=task_manager or _TaskManager(),
     )
 
 
@@ -295,7 +322,7 @@ def test_fade_out_options_use_media_duration(tmp_path: Path) -> None:
     assert options["duration_seconds"] == 7.5
 
 
-def test_batch_fade_out_is_rejected_before_queue_start(tmp_path: Path) -> None:
+def test_batch_fade_out_uses_per_file_media_duration(tmp_path: Path) -> None:
     window = _FakeWindow()
     first = tmp_path / "first.mp4"
     second = tmp_path / "second.mp4"
@@ -303,16 +330,36 @@ def test_batch_fade_out_is_rejected_before_queue_start(tmp_path: Path) -> None:
     second.write_bytes(b"\x00")
     window.set_operation_payload(Operation.fade, {"fade_out_seconds": 0.5, "output_format": "mp4"}, {})
     window.set_batch_paths([first, second])
-
-    controller = _make_controller(window)
+    window.set_batch_input_mode(True)
+    service = _FfmpegService(
+        RuntimeHealth(
+            ok=True,
+            ffmpeg_available=True,
+            ffprobe_available=True,
+            ffmpeg_path="ffmpeg",
+            ffprobe_path="ffprobe",
+        )
+    )
+    task_manager = _RecordingTaskManager()
+    controller = _make_controller(window, ffmpeg_service=service, task_manager=task_manager)
     controller.state.input_mode = "batch"
     controller.state.batch_input_paths = [first, second]
     controller.state.input_path = first
-    controller.state.media_info = MediaInfo(raw={}, duration_seconds=5.0)
-    window.set_batch_input_mode(True)
+    controller._cache_media_info(first, MediaInfo(raw={"streams": [{"codec_type": "video", "width": 640, "height": 360}]}, duration_seconds=5.0))
+    controller._cache_media_info(second, MediaInfo(raw={"streams": [{"codec_type": "video", "width": 640, "height": 360}]}, duration_seconds=8.0))
     controller.start_task()
 
-    assert any("批处理淡出需要逐文件媒体时长" in message for message in window.error_messages)
+    first_request = service.build_command_args[0][1]
+    assert first_request.options["duration_seconds"] == 5.0
+    assert task_manager.created_workers[0][1] == 5.0
+
+    first_record = controller.state.current_task
+    assert first_record is not None
+    controller._on_task_finished(first_record, task_manager.created_workers[0][2], TaskStatus.succeeded)
+
+    second_request = service.build_command_args[1][1]
+    assert second_request.options["duration_seconds"] == 8.0
+    assert task_manager.created_workers[1][1] == 8.0
 
 
 def test_media_info_operation_writes_probe_json_to_log(tmp_path: Path) -> None:
@@ -409,7 +456,7 @@ def test_stack_add_ignores_more_than_max_items_without_popup() -> None:
     assert window.error_messages == []
 
 
-def test_stack_batch_start_state_rejects_any_unsupported_stack_step(tmp_path: Path) -> None:
+def test_stack_batch_start_state_allows_crop_step(tmp_path: Path) -> None:
     window = _FakeWindow()
     window.stack_mode_enabled = True
     first = tmp_path / "first.mp4"
@@ -439,8 +486,8 @@ def test_stack_batch_start_state_rejects_any_unsupported_stack_step(tmp_path: Pa
 
     controller._refresh_start_state()
 
-    assert window.start_enabled_values[-1] is False
-    assert any("Stack 批处理暂不支持" in message for message in window.status_messages)
+    assert window.start_enabled_values[-1] is True
+    assert not any("Stack 批处理暂不支持" in message for message in window.status_messages)
 
 
 def test_stack_item_selection_syncs_operation_payload() -> None:
@@ -585,7 +632,7 @@ def test_multiple_files_reject_unsupported_operation(tmp_path: Path) -> None:
     assert any("该操作不支持批处理" in message for message in window.error_messages)
 
 
-def test_multiple_files_reject_unsupported_stack_step(tmp_path: Path) -> None:
+def test_stack_batch_crop_skips_file_when_crop_exceeds_resolution(tmp_path: Path) -> None:
     window = _FakeWindow()
     window.stack_mode_enabled = True
     first = tmp_path / "first.mp4"
@@ -594,20 +641,33 @@ def test_multiple_files_reject_unsupported_stack_step(tmp_path: Path) -> None:
     second.write_bytes(b"\x00")
     window.set_operation_payload(
         Operation.crop,
-        {"x": 0, "y": 0, "width": 320, "height": 180, "output_format": "mp4"},
+        {"x": 0, "y": 0, "width": 500, "height": 300, "output_format": "mp4"},
         {},
     )
     window.set_batch_paths([first, second])
+    task_model = _TaskModel()
+    task_manager = _RecordingTaskManager()
 
-    controller = _make_controller(window)
+    controller = _make_controller(window, task_model=task_model, task_manager=task_manager)
     controller._on_stack_add_requested()
     controller.state.input_mode = "batch"
     controller.state.batch_input_paths = [first, second]
     controller.state.input_path = first
+    controller._cache_media_info(first, MediaInfo(raw={"streams": [{"codec_type": "video", "width": 640, "height": 360}]}, duration_seconds=5.0))
+    controller._cache_media_info(second, MediaInfo(raw={"streams": [{"codec_type": "video", "width": 320, "height": 180}]}, duration_seconds=5.0))
     window.set_batch_input_mode(True)
     controller.start_task()
 
-    assert any("Stack 批处理暂不支持" in message for message in window.error_messages)
+    assert len(task_manager.created_workers) == 1
+    first_record = controller.state.current_task
+    assert first_record is not None
+    controller._on_task_finished(first_record, task_manager.created_workers[0][2], TaskStatus.succeeded)
+
+    records = task_model.records()
+    assert records[0].status is TaskStatus.succeeded
+    assert records[1].status is TaskStatus.failed
+    assert "裁剪区域超出文件分辨率" in records[1].message
+    assert window.batch_progress_values[-1] == (2, 2, "处理结束（有失败）")
 
 
 def test_finish_batch_reports_cancelled_terminal_label() -> None:

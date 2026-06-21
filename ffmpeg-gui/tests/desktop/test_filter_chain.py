@@ -30,6 +30,40 @@ def test_crop_adjust_pad_keeps_filter_order() -> None:
         assert spec.output_path.suffix == ".mp4"
 
 
+def test_stack_crop_rejects_region_outside_media_size() -> None:
+    with TemporaryDirectory() as tmp:
+        stack = [
+            (Operation.crop, {"x": 0, "y": 0, "width": 500, "height": 300, "output_format": "mp4"}, {}),
+        ]
+
+        with pytest.raises(CommandError, match="裁剪区域超出文件分辨率"):
+            build_stack_command(
+                ffmpeg_bin="ffmpeg",
+                input_path=Path(tmp) / "input.mp4",
+                output_dir=Path(tmp) / "outputs",
+                stack=stack,
+                media_info=MediaInfo(raw={"streams": [{"codec_type": "video", "width": 320, "height": 180}]}),
+            )
+
+
+def test_stack_crop_preflight_accounts_for_prior_resize() -> None:
+    with TemporaryDirectory() as tmp:
+        stack = [
+            (Operation.resize_compress, {"width": 640, "height": 360, "output_format": "mp4"}, {}),
+            (Operation.crop, {"x": 0, "y": 0, "width": 500, "height": 300, "output_format": "mp4"}, {}),
+        ]
+
+        spec = build_stack_command(
+            ffmpeg_bin="ffmpeg",
+            input_path=Path(tmp) / "input.mp4",
+            output_dir=Path(tmp) / "outputs",
+            stack=stack,
+            media_info=MediaInfo(raw={"streams": [{"codec_type": "video", "width": 320, "height": 180}]}),
+        )
+
+        assert spec.output_path is not None
+
+
 def test_speed_fade_keeps_filter_order_and_separation() -> None:
     with TemporaryDirectory() as tmp:
         stack = [

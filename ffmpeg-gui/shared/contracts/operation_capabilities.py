@@ -25,6 +25,7 @@ BATCH_SUPPORTED_OPERATIONS = {
     Operation.extract_audio,
     Operation.gif,
     Operation.mute,
+    Operation.crop,
     Operation.speed,
     Operation.rotate,
     Operation.fade,

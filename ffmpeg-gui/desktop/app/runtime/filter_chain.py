@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 from shared.contracts import MediaInfo, Operation, STACK_FILTER_OPERATIONS
@@ -21,6 +22,7 @@ from .ffmpeg import (
     _trim_input_args,
 )
 
+
 def build_stack_command(
     *,
     ffmpeg_bin: str,
@@ -39,6 +41,8 @@ def build_stack_command(
             raise CommandError(f"operation not supported in stack: {operation.value}")
         if index > 0 and ("start_seconds" in _options or "end_seconds" in _options):
             raise CommandError("trim only supported on the first stack operation")
+    if media_info is not None:
+        validate_stack_media_context(stack=stack, media_info=media_info, input_path=input_path)
 
     args = [
         ffmpeg_bin,
@@ -69,6 +73,42 @@ def build_stack_command(
     output_path = _unique_output_path(output_dir / output_name)
     args.append(str(output_path))
     return CommandSpec(args=args, output_path=output_path, output_name=output_path.name)
+
+
+def validate_crop_media_context(
+    *,
+    options: dict[str, object],
+    media_info: MediaInfo,
+    input_path: Path,
+) -> None:
+    size = _required_video_size(media_info=media_info, input_path=input_path)
+    crop = _crop_region(options)
+    _validate_crop_bounds(input_path=input_path, source_size=size, crop=crop)
+
+
+def validate_stack_media_context(
+    *,
+    stack: list[tuple[Operation, dict[str, object], dict[str, Path]]],
+    media_info: MediaInfo,
+    input_path: Path,
+) -> None:
+    if not any(operation is Operation.crop for operation, _options, _extra_inputs in stack):
+        return
+    size = _required_video_size(media_info=media_info, input_path=input_path)
+    for operation, options, _extra_inputs in stack:
+        if operation is Operation.resize_compress:
+            size = _resize_output_size(size, options)
+            continue
+        if operation is Operation.rotate:
+            size = _rotate_output_size(size, options)
+            continue
+        if operation is Operation.pad:
+            size = _pad_output_size(size, options)
+            continue
+        if operation is Operation.crop:
+            crop = _crop_region(options)
+            _validate_crop_bounds(input_path=input_path, source_size=size, crop=crop)
+            size = (crop[2], crop[3])
 
 
 def _collect_filter_chains(
@@ -208,3 +248,93 @@ def _extract_duration(raw_duration: object, media_info: MediaInfo | None) -> flo
         except (TypeError, ValueError):
             return None
     return media_info.duration_seconds if media_info else None
+
+
+def _required_video_size(*, media_info: MediaInfo, input_path: Path) -> tuple[int, int]:
+    if media_info.has_error:
+        raise CommandError(media_info.error_message or "media info is unavailable")
+    size = _video_size(media_info)
+    if size is None:
+        raise CommandError(f"{input_path.name} 无法读取视频分辨率，不能预检裁剪区域")
+    return size
+
+
+def _video_size(media_info: MediaInfo) -> tuple[int, int] | None:
+    streams = media_info.raw.get("streams", [])
+    if not isinstance(streams, list):
+        return None
+    for stream in streams:
+        if not isinstance(stream, dict):
+            continue
+        if stream.get("codec_type") != "video":
+            continue
+        try:
+            width = int(stream.get("width"))
+            height = int(stream.get("height"))
+        except (TypeError, ValueError):
+            return None
+        if width > 0 and height > 0:
+            return width, height
+    return None
+
+
+def _crop_region(options: dict[str, object]) -> tuple[int, int, int, int]:
+    x = _bounded_int(options.get("x"), "x", 0, 7680)
+    y = _bounded_int(options.get("y"), "y", 0, 4320)
+    width = _bounded_int(options.get("width"), "width", 1, 7680)
+    height = _bounded_int(options.get("height"), "height", 1, 4320)
+    return x, y, width, height
+
+
+def _validate_crop_bounds(
+    *,
+    input_path: Path,
+    source_size: tuple[int, int],
+    crop: tuple[int, int, int, int],
+) -> None:
+    source_width, source_height = source_size
+    x, y, width, height = crop
+    if x + width <= source_width and y + height <= source_height:
+        return
+    raise CommandError(
+        f"裁剪区域超出文件分辨率：{input_path.name} 为 {source_width}x{source_height}，"
+        f"裁剪区域 {width}x{height}+{x}+{y}"
+    )
+
+
+def _resize_output_size(source_size: tuple[int, int], options: dict[str, object]) -> tuple[int, int]:
+    source_width, source_height = source_size
+    width = _optional_int(options.get("width"), "width")
+    height = _optional_int(options.get("height"), "height")
+    if width is not None:
+        width = _bounded_int(width, "width", 64, 7680)
+    if height is not None:
+        height = _bounded_int(height, "height", 64, 4320)
+    if width is None and height is None:
+        raise CommandError("resize_compress needs at least width or height")
+    if width is None:
+        width = _even_dimension(source_width * height / source_height)
+    if height is None:
+        height = _even_dimension(source_height * width / source_width)
+    return width, height
+
+
+def _rotate_output_size(source_size: tuple[int, int], options: dict[str, object]) -> tuple[int, int]:
+    mode = _choice(options.get("mode", "cw90"), {"cw90", "ccw90", "180", "hflip", "vflip", "hvflip"}, "mode")
+    if mode in {"cw90", "ccw90"}:
+        return source_size[1], source_size[0]
+    return source_size
+
+
+def _pad_output_size(source_size: tuple[int, int], options: dict[str, object]) -> tuple[int, int]:
+    aspect_ratio = _choice(options.get("aspect_ratio", "16:9"), {"16:9", "9:16", "1:1", "4:3", "4:5", "21:9"}, "aspect_ratio")
+    source_width, source_height = source_size
+    ratio_width, ratio_height = (int(part) for part in aspect_ratio.split(":", 1))
+    ratio = ratio_width / ratio_height
+    width = math.ceil(max(source_width, source_height * ratio) / 2) * 2
+    height = math.ceil(max(source_height, source_width / ratio) / 2) * 2
+    return width, height
+
+
+def _even_dimension(value: float) -> int:
+    return max(2, int(round(value / 2)) * 2)

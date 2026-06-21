@@ -9,7 +9,7 @@ from PySide6.QtCore import QObject, QThread, Slot
 from desktop.app.core.config import AppConfig
 from desktop.app.runtime.binaries import RuntimeHealth, runtime_health_snapshot
 from desktop.app.runtime.ffmpeg import CommandError, CommandSpec
-from desktop.app.runtime.filter_chain import build_stack_command
+from desktop.app.runtime.filter_chain import build_stack_command, validate_crop_media_context
 from desktop.app.services.config_service import ConfigService
 from desktop.app.services.ffmpeg_service import FfmpegService
 from desktop.app.services.log_service import LogService
@@ -66,6 +66,9 @@ class MainController(QObject):
         self._health_worker: HealthWorker | None = None
         self._probe_thread: QThread | None = None
         self._probe_worker: ProbeWorker | None = None
+        self._probe_context: str | None = None
+        self._batch_probe_record: TaskRecord | None = None
+        self._batch_probe_error: str | None = None
 
         self._batch_queue: list[tuple[TaskRecord, Path]] = []
         self._batch_operation: Operation = Operation.convert
@@ -78,6 +81,7 @@ class MainController(QObject):
         self._current_batch_total: int = 0
         self._stack_items: list[tuple[Operation, dict[str, object], dict[str, Path]]] = []
         self._prepared_records: list[TaskRecord] = []
+        self._media_info_cache: dict[Path, MediaInfo] = {}
 
         self._connect_signals()
 
@@ -812,32 +816,47 @@ class MainController(QObject):
         self.state.batch_current_index += 1
         self.window.set_batch_progress(self.state.batch_current_index, self._current_batch_total)
         self.window.set_batch_buttons(pending_count=len(self._batch_queue), running=True)
+        media_info = self._media_info_for_path(input_path)
+        if self._batch_needs_media_context() and media_info is None:
+            self._start_batch_probe(record, input_path)
+            return
+        if self._batch_needs_media_context() and media_info and media_info.has_error:
+            self._fail_batch_record(record, media_info.error_message or "媒体信息读取失败")
+            self._start_next_batch_task()
+            return
+
+        self._start_batch_record(record, input_path)
+
+    def _start_batch_record(self, record: TaskRecord, input_path: Path) -> None:
         try:
             if self._is_batch_stack_mode:
+                stack_items = self._stack_specs_with_media_duration(self._batch_stack_items, input_path)
                 spec = build_stack_command(
                     ffmpeg_bin=self.window.selected_ffmpeg_bin(),
                     input_path=input_path,
                     output_dir=self.state.output_dir,
-                    stack=self._batch_stack_items,
-                    media_info=self.state.media_info,
+                    stack=stack_items,
+                    media_info=self._media_info_for_path(input_path),
                 )
             else:
+                options = self._options_with_media_duration(self._batch_operation, self._batch_options, input_path)
+                if self._batch_operation is Operation.crop:
+                    media_info = self._media_info_for_path(input_path)
+                    if media_info is None:
+                        raise ValueError("裁剪需要先读取媒体分辨率，请稍后重试。")
+                    validate_crop_media_context(options=options, media_info=media_info, input_path=input_path)
                 spec = self.ffmpeg_service.build_command(
                     self.window.selected_ffmpeg_bin(),
                     TaskRequest(
                         input_path=input_path,
                         output_dir=self.state.output_dir,
                         operation=self._batch_operation,
-                        options=self._options_with_media_duration(self._batch_operation, self._batch_options, input_path),
+                        options=options,
                         extra_inputs=self._batch_extra_inputs,
                     ),
                 )
         except (CommandError, ValueError) as exc:
-            record.status = TaskStatus.failed
-            record.message = str(exc)
-            record.progress = 0.0
-            record.touch()
-            self.task_model.notify_record_changed(record)
+            self._fail_batch_record(record, str(exc))
             self.window.show_status(f"{record.input_path.name} 跳过：{exc}")
             self.state.logs = []
             self.window.clear_log()
@@ -865,6 +884,40 @@ class MainController(QObject):
         worker.error_occurred.connect(lambda message: self._on_task_error(record, message))
         worker.finished.connect(lambda status: self._on_task_finished(record, worker, status))
         worker.start()
+
+    def _start_batch_probe(self, record: TaskRecord, input_path: Path) -> None:
+        record.status = TaskStatus.probing
+        record.message = "正在读取媒体信息"
+        record.progress = None
+        record.touch()
+        self.task_model.notify_record_changed(record)
+        self.state.logs = []
+        self.window.clear_log()
+        self.window.set_progress(None)
+        self.window.set_current_output(None)
+        self._start_probe(input_path, context="batch", batch_record=record)
+
+    def _batch_needs_media_context(self) -> bool:
+        if self._is_batch_stack_mode:
+            return any(_operation_needs_media_context(operation, options) for operation, options, _ in self._batch_stack_items)
+        return _operation_needs_media_context(self._batch_operation, self._batch_options)
+
+    def _stack_specs_with_media_duration(
+        self,
+        stack_specs: list[tuple[Operation, dict[str, object], dict[str, Path]]],
+        input_path: Path,
+    ) -> list[tuple[Operation, dict[str, object], dict[str, Path]]]:
+        adjusted_specs: list[tuple[Operation, dict[str, object], dict[str, Path]]] = []
+        for operation, options, extra_inputs in stack_specs:
+            adjusted_specs.append((operation, self._options_with_media_duration(operation, options, input_path), extra_inputs))
+        return adjusted_specs
+
+    def _fail_batch_record(self, record: TaskRecord, message: str) -> None:
+        record.status = TaskStatus.failed
+        record.message = message
+        record.progress = 0.0
+        record.touch()
+        self.task_model.notify_record_changed(record)
 
     def _collect_input_paths(self) -> list[Path]:
         prepared_paths = self._prepared_input_paths()
@@ -946,16 +999,20 @@ class MainController(QObject):
     def _on_probe_task_path(self, path: Path) -> bool:
         return self.state.input_path == path
 
-    def _start_probe(self, path: Path) -> None:
+    def _start_probe(self, path: Path, *, context: str = "selection", batch_record: TaskRecord | None = None) -> None:
         if self._probe_thread and self._probe_thread.isRunning():
             self._stop_probe_thread()
-        self.window.show_status("正在读取媒体信息...")
+        self._probe_context = context
+        self._batch_probe_record = batch_record
+        self._batch_probe_error = None
+        self.window.show_status(f"{path.name}：正在读取媒体信息..." if context == "batch" else "正在读取媒体信息...")
         thread = QThread()
         worker = ProbeWorker(self.ffmpeg_service, self.window.selected_ffprobe_bin(), path)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
         worker.media_info_ready.connect(self._on_media_info)
         worker.error_occurred.connect(self._on_probe_error)
+        worker.finished.connect(self._on_probe_finished)
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
         thread.finished.connect(thread.deleteLater)
@@ -985,11 +1042,18 @@ class MainController(QObject):
             return
         self._probe_thread = None
         self._probe_worker = None
+        self._probe_context = None
+        self._batch_probe_error = None
 
     @Slot(object, str)
     def _on_probe_error(self, path: Path, message: str) -> None:
+        if self._probe_context == "batch":
+            self._batch_probe_error = message
+            self.window.show_status(message)
+            return
         if self.state.input_path != path:
             return
+        self._cache_media_info(path, MediaInfo(raw={"error": message}, duration_seconds=None))
         record = self._prepared_record_for_path(path)
         if record is not None:
             record.status = TaskStatus.ready
@@ -1001,6 +1065,10 @@ class MainController(QObject):
 
     @Slot(object, object)
     def _on_media_info(self, path: Path, media_info: MediaInfo) -> None:
+        self._cache_media_info(path, media_info)
+        if self._probe_context == "batch":
+            self._on_batch_media_info(path, media_info)
+            return
         if self.state.input_path != path:
             return
         self.state.media_info = media_info
@@ -1018,6 +1086,36 @@ class MainController(QObject):
             self.window.show_status("媒体信息读取完成")
         self.window.set_start_enabled(self.state.can_start())
         self._refresh_command_preview()
+
+    @Slot()
+    def _on_probe_finished(self) -> None:
+        if self._probe_context != "batch" or self._batch_probe_record is None:
+            return
+        record = self._batch_probe_record
+        self._batch_probe_record = None
+        message = self._batch_probe_error or "媒体信息读取失败"
+        self._fail_batch_record(record, message)
+        if self.state.is_batch_running:
+            self._start_next_batch_task()
+
+    def _on_batch_media_info(self, path: Path, media_info: MediaInfo) -> None:
+        record = self._batch_probe_record
+        if record is None or record.input_path != path:
+            return
+        self._batch_probe_record = None
+        record.media_info = media_info
+        if media_info.has_error:
+            message = media_info.error_message or "媒体信息读取失败"
+            self._fail_batch_record(record, message)
+            self.window.show_status(f"{record.input_path.name} 跳过：{message}")
+            if self.state.is_batch_running:
+                self._start_next_batch_task()
+            return
+        record.status = TaskStatus.pending
+        record.message = "已读取媒体信息"
+        record.touch()
+        self.task_model.notify_record_changed(record)
+        self._start_batch_record(record, path)
 
     def _on_task_status(self, task: TaskRecord, status: TaskStatus) -> None:
         task.status = status
@@ -1147,7 +1245,7 @@ class MainController(QObject):
         if not any(_operation_needs_media_duration(operation, options) for operation, options, _ in specs):
             return
         if len(input_paths) > 1:
-            raise ValueError("批处理淡出需要逐文件媒体时长，当前请单文件处理或只设置淡入。")
+            return
         if not self._duration_seconds_for_path(input_paths[0]):
             raise ValueError("淡出需要先读取媒体时长，请等待媒体信息读取完成后再开始。")
 
@@ -1182,10 +1280,32 @@ class MainController(QObject):
         self.state.logs.append(line)
         self.window.append_log(line)
 
-    def _duration_seconds_for_path(self, input_path: Path) -> float | None:
+    def _cache_media_info(self, input_path: Path, media_info: MediaInfo) -> None:
+        self._media_info_cache[input_path] = media_info
+        record = self._prepared_record_for_path(input_path) or self._task_record_for_path(input_path)
+        if record is not None:
+            record.media_info = media_info
+
+    def _media_info_for_path(self, input_path: Path) -> MediaInfo | None:
+        cached = self._media_info_cache.get(input_path)
+        if cached is not None:
+            return cached
+        record = self._prepared_record_for_path(input_path) or self._task_record_for_path(input_path)
+        if record is not None and isinstance(record.media_info, MediaInfo):
+            return record.media_info
         if self.state.input_path == input_path and self.state.media_info:
-            return self.state.media_info.duration_seconds
+            return self.state.media_info
         return None
+
+    def _task_record_for_path(self, input_path: Path) -> TaskRecord | None:
+        for record in self.task_model.records():
+            if isinstance(record, TaskRecord) and record.input_path == input_path:
+                return record
+        return None
+
+    def _duration_seconds_for_path(self, input_path: Path) -> float | None:
+        media_info = self._media_info_for_path(input_path)
+        return media_info.duration_seconds if media_info else None
 
     def _validate_operation_inputs(self, operation: Operation, extra_inputs: dict[str, Path]) -> None:
         if operation is not Operation.subtitles:
@@ -1216,6 +1336,10 @@ def _operation_needs_media_duration(operation: Operation, options: dict[str, obj
     except (TypeError, ValueError):
         return False
     return fade_out > 0
+
+
+def _operation_needs_media_context(operation: Operation, options: dict[str, object]) -> bool:
+    return operation is Operation.crop or _operation_needs_media_duration(operation, options)
 
 
 def _unsupported_batch_stack_operation(

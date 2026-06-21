@@ -7,10 +7,10 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QPoint
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QHeaderView
 
 from desktop.app.core.paths import QSS_PATH
-from desktop.app.ui.delegates import TextCellDelegate
+from desktop.app.ui.delegates import MediaSummaryDelegate, ProgressBarDelegate, RemoveActionDelegate, TextCellDelegate
 from desktop.app.ui.panels.task_panel import _total_progress_summary
 from desktop.app.ui.panels.task_panel import TaskPanel
 from desktop.app.ui.widgets.task_table_model import TaskTableModel
@@ -84,6 +84,40 @@ def test_task_panel_uses_text_delegate_for_action_column() -> None:
     panel = TaskPanel(TaskTableModel())
 
     assert isinstance(panel.task_table.itemDelegateForColumn(2), TextCellDelegate)
+
+
+def test_task_panel_configures_queue_columns_and_delegates() -> None:
+    _qt_app()
+    panel = TaskPanel(TaskTableModel())
+    header = panel.task_table.horizontalHeader()
+
+    assert header.sectionResizeMode(0) == QHeaderView.ResizeMode.Stretch
+    assert header.sectionResizeMode(1) == QHeaderView.ResizeMode.Stretch
+    assert header.sectionResizeMode(2) == QHeaderView.ResizeMode.Fixed
+    assert header.sectionResizeMode(3) == QHeaderView.ResizeMode.Fixed
+    assert header.sectionResizeMode(4) == QHeaderView.ResizeMode.Fixed
+    assert isinstance(panel.task_table.itemDelegateForColumn(0), MediaSummaryDelegate)
+    assert isinstance(panel.task_table.itemDelegateForColumn(1), MediaSummaryDelegate)
+    assert isinstance(panel.task_table.itemDelegateForColumn(2), TextCellDelegate)
+    assert isinstance(panel.task_table.itemDelegateForColumn(3), ProgressBarDelegate)
+    assert isinstance(panel.task_table.itemDelegateForColumn(4), RemoveActionDelegate)
+
+
+def test_task_panel_remove_column_emits_task_id_only_for_removable_rows() -> None:
+    _qt_app()
+    model = TaskTableModel()
+    ready_record = TaskRecord(operation=Operation.convert, input_path=Path("ready.mp4"), status=TaskStatus.ready)
+    running_record = TaskRecord(operation=Operation.convert, input_path=Path("running.mp4"), status=TaskStatus.running)
+    model.append_record(ready_record)
+    model.append_record(running_record)
+    panel = TaskPanel(model)
+    emitted: list[str] = []
+    panel.remove_task_requested.connect(emitted.append)
+
+    panel._handle_table_clicked(model.index(0, 4))
+    panel._handle_table_clicked(model.index(1, 4))
+
+    assert emitted == [ready_record.task_id]
 
 
 def test_task_panel_places_total_progress_under_title() -> None:

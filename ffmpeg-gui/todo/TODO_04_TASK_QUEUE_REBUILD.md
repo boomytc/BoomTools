@@ -35,10 +35,10 @@ desktop/app/ui/delegates/task/
 
 ### Header 与 actions
 
-- [ ] 使用 `PanelFrame` 和 `PanelActionBar`。
-- [ ] 任务统计和总进度保持标题下方。
-- [ ] 处理按钮保持右侧动作区。
-- [ ] 按钮启用状态仍由 panel 状态方法控制。
+- [x] 使用 `PanelFrame` 和 `PanelActionBar`。
+- [x] 任务统计和总进度保持标题下方。
+- [x] 处理按钮保持右侧动作区。
+- [x] 按钮启用状态仍由 panel 状态方法控制。
 
 ### 表格列结构
 
@@ -50,24 +50,24 @@ desktop/app/ui/delegates/task/
 
 必做：
 
-- [ ] 输入/输出列同等 stretch 权重。
-- [ ] 行为列文本 delegate 选中状态统一。
-- [ ] 进度列使用 progress delegate。
-- [ ] 操作列使用 remove action delegate。
-- [ ] 长文本 tooltip 保留。
+- [x] 输入/输出列同等 stretch 权重。
+- [x] 行为列文本 delegate 选中状态统一。
+- [x] 进度列使用 progress delegate。
+- [x] 操作列使用 remove action delegate。
+- [x] 长文本 tooltip 保留。
 
 ### 行内摘要
 
-- [ ] 输入媒体摘要继续在输入列第二行以标签呈现。
-- [ ] 输出摘要在任务完成后显示在输出列第二行。
-- [ ] 标签密度保持紧凑，不撑高行。
-- [ ] 行高稳定，不因标签数量少量变化抖动。
+- [x] 输入媒体摘要继续在输入列第二行以标签呈现。
+- [x] 输出摘要在任务完成后显示在输出列第二行。
+- [x] 标签密度保持紧凑，不撑高行。
+- [x] 行高稳定，不因标签数量少量变化抖动。
 
 ### 行操作
 
-- [ ] 移除按钮只对允许移除的任务启用。
-- [ ] 点击操作列只发出 `remove_task_requested(task_id)`。
-- [ ] 不在 delegate 中执行删除。
+- [x] 移除按钮只对允许移除的任务启用。
+- [x] 点击操作列只发出 `remove_task_requested(task_id)`。
+- [x] 不在 delegate 中执行删除。
 
 ## 删除事项
 
@@ -85,12 +85,12 @@ desktop/app/ui/delegates/task/
 
 覆盖：
 
-- [ ] 表头列顺序准确。
-- [ ] 输入/输出列宽模式一致。
-- [ ] 行为列使用文本 delegate。
-- [ ] 进度列使用进度 delegate。
-- [ ] 操作列点击发出移除信号。
-- [ ] 任务总进度 empty/running/done/indeterminate 都正确。
+- [x] 表头列顺序准确。
+- [x] 输入/输出列宽模式一致。
+- [x] 行为列使用文本 delegate。
+- [x] 进度列使用进度 delegate。
+- [x] 操作列点击发出移除信号。
+- [x] 任务总进度 empty/running/done/indeterminate 都正确。
 
 ## 视觉验证
 
@@ -122,4 +122,4 @@ git diff --check
 
 - [ ] 未开始
 - [ ] 进行中
-- [ ] 已完成
+- [x] 已完成

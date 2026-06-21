@@ -10,6 +10,8 @@ from shared.contracts import MediaInfo, Operation, TaskRecord, TaskStatus
 
 def test_task_table_columns_match_queue_design() -> None:
     assert TaskTableModel.HEADERS == ["输入", "输出", "行为", "进度", "操作"]
+    assert "状态" not in TaskTableModel.HEADERS
+    assert "消息" not in TaskTableModel.HEADERS
 
 
 def test_task_table_operation_column_uses_short_action_label() -> None:

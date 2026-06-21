@@ -9,6 +9,20 @@ from shared.contracts import MediaInfo, TaskRecord, TaskStatus
 
 
 @dataclass
+class RecentBatchState:
+    task_ids: set[str] = field(default_factory=set)
+    succeeded_count: int = 0
+    failed_count: int = 0
+    cancelled_count: int = 0
+    packed_count: int = 0
+    archive_path: Path | None = None
+
+    @property
+    def total_count(self) -> int:
+        return self.succeeded_count + self.failed_count + self.cancelled_count
+
+
+@dataclass
 class AppState:
     input_mode: Literal["single", "batch"] = "single"
     input_path: Path | None = None
@@ -23,6 +37,7 @@ class AppState:
     batch_current_index: int = 0
     logs: list[str] = field(default_factory=list)
     error_message: str | None = None
+    recent_batch: RecentBatchState = field(default_factory=RecentBatchState)
 
     def can_start(self) -> bool:
         if self.input_mode == "batch":

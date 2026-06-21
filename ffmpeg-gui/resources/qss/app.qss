@@ -167,6 +167,7 @@ QFrame[role="panel"][density="standard"] {
 QWidget#panelHeader,
 QWidget#panelBody,
 QWidget#panelActionBar,
+QWidget#batchResultBar,
 QWidget#segmentedToggle,
 QWidget#formSection {
   background: transparent;
@@ -235,8 +236,14 @@ QLabel#dropTitle {
 
 QLabel#mutedLabel,
 QLabel#batchProgressLabel,
-QLabel#totalProgressLabel {
+QLabel#totalProgressLabel,
+QLabel#recentBatchSummaryLabel {
   color: #91a0b8;
+}
+
+QLabel#recentBatchSummaryLabel {
+  font-size: 12px;
+  padding: 2px 2px;
 }
 
 QLabel#panelHeaderHint {

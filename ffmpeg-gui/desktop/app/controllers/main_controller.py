@@ -20,7 +20,7 @@ from desktop.app.tasks.task_manager import TaskManager
 from desktop.app.tasks.zip_results_worker import ZipResultsWorker
 from desktop.app.ui.main_window import MainWindow
 from desktop.app.ui.widgets.task_table_model import TaskTableModel
-from desktop.app.viewmodels.app_state import AppState
+from desktop.app.viewmodels.app_state import AppState, RecentBatchState
 from desktop.app.viewmodels.task_state import TaskState
 from shared.contracts import (
     BATCH_SUPPORTED_OPERATIONS,
@@ -86,7 +86,6 @@ class MainController(QObject):
         self._stack_items: list[tuple[Operation, dict[str, object], dict[str, Path]]] = []
         self._prepared_records: list[TaskRecord] = []
         self._media_info_cache: dict[Path, MediaInfo] = {}
-        self._last_batch_task_ids: set[str] = set()
 
         self._connect_signals()
 
@@ -107,6 +106,7 @@ class MainController(QObject):
         self.window.set_start_enabled(self.state.can_start())
         self.window.set_batch_buttons(pending_count=0, running=False)
         self.window.set_zip_results_enabled(False)
+        self._refresh_recent_batch_results_state()
 
     def refresh_runtime_health(self, *, include_version: bool = True) -> None:
         self._save_current_config()
@@ -320,7 +320,7 @@ class MainController(QObject):
             self.window.set_batch_buttons(pending_count=len(self._batch_queue), running=True)
 
         self.window.show_status("已从任务队列移除任务")
-        self._refresh_zip_results_state()
+        self._refresh_recent_batch_results_state()
 
     def open_output(self) -> None:
         self.window.open_output()
@@ -336,9 +336,45 @@ class MainController(QObject):
         if not records:
             self.window.show_status("当前没有可打包的批量结果")
             return
+        if not self._successful_recent_batch_outputs():
+            self.window.show_status("最近批次没有可打包的成功输出")
+            return
 
         output_dir = self.state.output_dir or self.output_service.default_output_dir()
         self._start_zip_thread(records, output_dir)
+
+    def copy_recent_batch_output_paths(self) -> None:
+        output_paths = self._successful_recent_batch_outputs()
+        if not output_paths:
+            self.window.show_status("最近批次没有可复制的成功输出路径")
+            return
+        self.window.copy_text_to_clipboard("\n".join(str(path) for path in output_paths))
+        self.window.show_status(f"已复制 {len(output_paths)} 个成功输出路径")
+
+    def open_recent_batch_output_dir(self) -> None:
+        if not self._last_batch_records():
+            self.window.show_status("当前没有最近批次输出目录")
+            return
+        output_dir = self._recent_batch_output_dir()
+        if output_dir is None:
+            self.window.show_status("当前没有最近批次输出目录")
+            return
+        if not output_dir.exists():
+            self.window.show_status(f"最近批次输出目录不存在：{output_dir}")
+            return
+        self.window.open_directory(output_dir)
+        self.window.show_status(f"已打开最近批次输出目录：{output_dir}")
+
+    def locate_recent_batch_results(self) -> None:
+        task_ids = set(self.state.recent_batch.task_ids)
+        if not task_ids:
+            self.window.show_status("当前没有最近批次可定位")
+            return
+        selected_count = self.window.select_task_ids(task_ids)
+        if selected_count == 0:
+            self.window.show_status("任务表中没有最近批次结果")
+            return
+        self.window.show_status(f"已定位最近批次 {selected_count} 条结果")
 
     def close(self) -> None:
         self.cancel_current_task()
@@ -377,6 +413,9 @@ class MainController(QObject):
         self.window.open_output_requested.connect(self.open_output)
         self.window.open_output_dir_requested.connect(self.open_output_dir)
         self.window.zip_outputs_requested.connect(self.zip_batch_outputs)
+        self.window.copy_batch_output_paths_requested.connect(self.copy_recent_batch_output_paths)
+        self.window.open_batch_output_dir_requested.connect(self.open_recent_batch_output_dir)
+        self.window.locate_batch_results_requested.connect(self.locate_recent_batch_results)
         self.window.copy_output_path_requested.connect(self.copy_output_path)
         self.window.closing.connect(self.close)
 
@@ -799,8 +838,8 @@ class MainController(QObject):
         self.task_manager.clear_batch_cancel_flag()
         self._batch_queue = []
         self._batch_records = []
-        self._last_batch_task_ids = set()
-        self._refresh_zip_results_state()
+        self.state.recent_batch = RecentBatchState()
+        self._refresh_recent_batch_results_state()
         display_operation = self._batch_stack_items[0][0] if self._is_batch_stack_mode else self._batch_operation
         operation_text = f"Stack x{len(self._batch_stack_items)}" if self._is_batch_stack_mode else None
 
@@ -817,7 +856,8 @@ class MainController(QObject):
             self._batch_queue.append((task, input_path))
             self._batch_records.append(task)
 
-        self._last_batch_task_ids = {record.task_id for record in self._batch_records}
+        self.state.recent_batch.task_ids = {record.task_id for record in self._batch_records}
+        self._refresh_recent_batch_results_state()
 
         self.window.set_progress(None)
         self.window.set_batch_progress(0, self._current_batch_total)
@@ -1107,11 +1147,15 @@ class MainController(QObject):
         archive_path = getattr(result, "archive_path", None)
         packed_count = int(getattr(result, "packed_count", 0))
         skipped_count = int(getattr(result, "skipped_count", 0))
+        self.state.recent_batch.packed_count = packed_count
         if isinstance(archive_path, Path):
+            self.state.recent_batch.archive_path = archive_path
             self.window.set_current_output(archive_path)
             self.window.show_status(f"已打包 {packed_count} 个，跳过 {skipped_count} 个：{archive_path.name}")
+            self._refresh_recent_batch_results_state()
             return
         self.window.show_status(f"已打包 {packed_count} 个，跳过 {skipped_count} 个")
+        self._refresh_recent_batch_results_state()
 
     @Slot(str)
     def _on_zip_results_error(self, message: str) -> None:
@@ -1120,20 +1164,46 @@ class MainController(QObject):
     @Slot()
     def _on_zip_results_finished(self) -> None:
         self._zip_running = False
-        self._refresh_zip_results_state()
+        self._refresh_recent_batch_results_state()
 
     def _last_batch_records(self) -> list[TaskRecord]:
-        if not self._last_batch_task_ids:
+        if not self.state.recent_batch.task_ids:
             return []
         return [
             record
             for record in self.task_model.records()
-            if isinstance(record, TaskRecord) and record.task_id in self._last_batch_task_ids
+            if isinstance(record, TaskRecord) and record.task_id in self.state.recent_batch.task_ids
         ]
 
-    def _refresh_zip_results_state(self) -> None:
+    def _successful_recent_batch_outputs(self) -> list[Path]:
+        output_paths: list[Path] = []
+        for record in self._last_batch_records():
+            if record.status is not TaskStatus.succeeded or record.output_path is None:
+                continue
+            if record.output_path.exists():
+                output_paths.append(record.output_path)
+        return output_paths
+
+    def _recent_batch_output_dir(self) -> Path | None:
+        if self.state.output_dir is not None:
+            return self.state.output_dir
+        output_paths = self._successful_recent_batch_outputs()
+        return output_paths[0].parent if output_paths else None
+
+    def _refresh_recent_batch_results_state(self) -> None:
+        records = self._last_batch_records()
+        self.state.recent_batch.succeeded_count = sum(1 for record in records if record.status is TaskStatus.succeeded)
+        self.state.recent_batch.failed_count = sum(1 for record in records if record.status is TaskStatus.failed)
+        self.state.recent_batch.cancelled_count = sum(1 for record in records if record.status is TaskStatus.cancelled)
+        has_successful_outputs = bool(self._successful_recent_batch_outputs())
+        self.window.set_recent_batch_results(
+            _recent_batch_summary(self.state.recent_batch, has_batch=bool(records)),
+            tooltip=_recent_batch_tooltip(self.state.recent_batch, has_batch=bool(records)),
+            has_batch=bool(records),
+            has_successful_outputs=has_successful_outputs,
+        )
         self.window.set_zip_results_enabled(
-            bool(self._last_batch_records()) and not self.state.is_batch_running,
+            bool(records) and has_successful_outputs and not self.state.is_batch_running,
             running=self._zip_running,
         )
 
@@ -1297,7 +1367,7 @@ class MainController(QObject):
         )
         self.window.set_progress(0.0)
         self._batch_records = []
-        self._refresh_zip_results_state()
+        self._refresh_recent_batch_results_state()
 
     def _batch_final_status(self) -> TaskStatus:
         if any(record.status is TaskStatus.cancelled for record in self._batch_records):
@@ -1468,3 +1538,30 @@ def _batch_finish_label(status: TaskStatus) -> str:
     if status is TaskStatus.failed:
         return "处理结束（有失败）"
     return "处理完成"
+
+
+def _recent_batch_summary(recent_batch: RecentBatchState, *, has_batch: bool) -> str:
+    if not has_batch:
+        return "最近批次：暂无结果"
+    return (
+        "最近批次："
+        f"成功 {recent_batch.succeeded_count} · "
+        f"失败 {recent_batch.failed_count} · "
+        f"取消 {recent_batch.cancelled_count} · "
+        f"已打包 {recent_batch.packed_count}"
+    )
+
+
+def _recent_batch_tooltip(recent_batch: RecentBatchState, *, has_batch: bool) -> str:
+    if not has_batch:
+        return "完成一次批处理后会显示最近批次统计"
+    lines = [
+        f"最近批次总数：{recent_batch.total_count}",
+        f"成功：{recent_batch.succeeded_count}",
+        f"失败：{recent_batch.failed_count}",
+        f"取消：{recent_batch.cancelled_count}",
+        f"已打包：{recent_batch.packed_count}",
+    ]
+    if recent_batch.archive_path is not None:
+        lines.append(f"最近 ZIP：{recent_batch.archive_path}")
+    return "\n".join(lines)

@@ -41,6 +41,9 @@ class MainWindow(QMainWindow):
     open_output_requested = Signal()
     open_output_dir_requested = Signal()
     zip_outputs_requested = Signal()
+    copy_batch_output_paths_requested = Signal()
+    open_batch_output_dir_requested = Signal()
+    locate_batch_results_requested = Signal()
     stack_mode_toggled = Signal(bool)
     stack_add_requested = Signal()
     stack_remove_requested = Signal(int)
@@ -142,6 +145,21 @@ class MainWindow(QMainWindow):
 
     def set_zip_results_enabled(self, enabled: bool, *, running: bool = False) -> None:
         self.task_panel.set_zip_results_enabled(enabled, running=running)
+
+    def set_recent_batch_results(
+        self,
+        summary: str,
+        *,
+        tooltip: str,
+        has_batch: bool,
+        has_successful_outputs: bool,
+    ) -> None:
+        self.task_panel.set_recent_batch_results(
+            summary,
+            tooltip=tooltip,
+            has_batch=has_batch,
+            has_successful_outputs=has_successful_outputs,
+        )
 
     def set_progress(self, progress: float | None) -> None:
         self.task_panel.refresh_total_progress()
@@ -261,6 +279,16 @@ class MainWindow(QMainWindow):
         QGuiApplication.clipboard().setText(str(output_path))
         self.show_status("已复制输出路径到剪贴板")
 
+    def copy_text_to_clipboard(self, text: str) -> None:
+        QGuiApplication.clipboard().setText(text)
+
+    def open_directory(self, directory: Path) -> None:
+        if directory.exists():
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(directory)))
+
+    def select_task_ids(self, task_ids: set[str]) -> int:
+        return self.task_panel.select_task_ids(task_ids)
+
     def _effective_output_path(self) -> Path | None:
         return self.task_panel.selected_output_path() or self._last_output_path
 
@@ -301,6 +329,9 @@ class MainWindow(QMainWindow):
         self.task_panel.open_output_dir_requested.connect(self.open_output_dir_requested.emit)
         self.task_panel.copy_output_path_requested.connect(self.copy_output_path_requested.emit)
         self.task_panel.zip_outputs_requested.connect(self.zip_outputs_requested.emit)
+        self.task_panel.copy_batch_output_paths_requested.connect(self.copy_batch_output_paths_requested.emit)
+        self.task_panel.open_batch_output_dir_requested.connect(self.open_batch_output_dir_requested.emit)
+        self.task_panel.locate_batch_results_requested.connect(self.locate_batch_results_requested.emit)
         self.task_panel.remove_task_requested.connect(self.task_remove_requested.emit)
         self.task_panel.start_requested.connect(self.start_requested.emit)
         self.task_panel.cancel_requested.connect(self.cancel_requested.emit)

@@ -31,8 +31,12 @@ class _FakeWindow:
         self.command_preview = ""
         self.output_estimate = ""
         self.current_output_path_value: Path | None = None
+        self.copied_text = ""
+        self.opened_directories: list[Path] = []
+        self.selected_task_ids: set[str] = set()
         self.start_enabled_values: list[bool] = []
         self.zip_results_enabled_values: list[tuple[bool, bool]] = []
+        self.recent_batch_summaries: list[tuple[str, str, bool, bool]] = []
         self.batch_progress_values: list[tuple[int, int, str | None]] = []
 
         self.input_file_selected = _Signal()
@@ -56,6 +60,9 @@ class _FakeWindow:
         self.open_output_requested = _Signal()
         self.open_output_dir_requested = _Signal()
         self.zip_outputs_requested = _Signal()
+        self.copy_batch_output_paths_requested = _Signal()
+        self.open_batch_output_dir_requested = _Signal()
+        self.locate_batch_results_requested = _Signal()
         self.copy_output_path_requested = _Signal()
         self.closing = _Signal()
 
@@ -138,6 +145,26 @@ class _FakeWindow:
 
     def set_zip_results_enabled(self, enabled: bool, *, running: bool = False) -> None:
         self.zip_results_enabled_values.append((enabled, running))
+
+    def set_recent_batch_results(
+        self,
+        summary: str,
+        *,
+        tooltip: str,
+        has_batch: bool,
+        has_successful_outputs: bool,
+    ) -> None:
+        self.recent_batch_summaries.append((summary, tooltip, has_batch, has_successful_outputs))
+
+    def copy_text_to_clipboard(self, text: str) -> None:
+        self.copied_text = text
+
+    def open_directory(self, directory: Path) -> None:
+        self.opened_directories.append(directory)
+
+    def select_task_ids(self, task_ids: set[str]) -> int:
+        self.selected_task_ids = set(task_ids)
+        return len(task_ids)
 
     def set_command_preview(self, command: str) -> None:
         self.command_preview = command
@@ -728,11 +755,12 @@ def test_finish_batch_enables_zip_results_for_last_batch(tmp_path: Path) -> None
     controller.state.batch_current_index = 1
     controller._current_batch_total = 1
     controller._batch_records = [record]
-    controller._last_batch_task_ids = {record.task_id}
+    controller.state.recent_batch.task_ids = {record.task_id}
 
     controller._finish_batch()
 
     assert window.zip_results_enabled_values[-1] == (True, False)
+    assert window.recent_batch_summaries[-1][0] == "最近批次：成功 1 · 失败 0 · 取消 0 · 已打包 0"
 
 
 def test_zip_batch_outputs_without_current_batch_reports_status() -> None:
@@ -753,6 +781,73 @@ def test_zip_result_updates_status_and_current_output(tmp_path: Path) -> None:
 
     assert window.current_output_path_value == archive_path
     assert window.status_messages[-1] == "已打包 2 个，跳过 1 个：ffmpeg-gui-batch-20260621-101112.zip"
+    assert window.recent_batch_summaries[-1][0] == "最近批次：暂无结果"
+
+
+def test_copy_recent_batch_output_paths_only_uses_successful_existing_outputs(tmp_path: Path) -> None:
+    window = _FakeWindow()
+    output_path = tmp_path / "out one.mp4"
+    output_path.write_bytes(b"ok")
+    missing_path = tmp_path / "missing.mp4"
+    task_model = _TaskModel()
+    success = TaskRecord(
+        operation=Operation.convert,
+        input_path=tmp_path / "in one.mp4",
+        output_path=output_path,
+        status=TaskStatus.succeeded,
+    )
+    missing = TaskRecord(
+        operation=Operation.convert,
+        input_path=tmp_path / "in two.mp4",
+        output_path=missing_path,
+        status=TaskStatus.succeeded,
+    )
+    failed = TaskRecord(
+        operation=Operation.convert,
+        input_path=tmp_path / "in three.mp4",
+        output_path=tmp_path / "failed.mp4",
+        status=TaskStatus.failed,
+    )
+    for record in (success, missing, failed):
+        task_model.append_record(record)
+    controller = _make_controller(window, task_model=task_model)
+    controller.state.recent_batch.task_ids = {success.task_id, missing.task_id, failed.task_id}
+
+    controller.copy_recent_batch_output_paths()
+
+    assert window.copied_text == str(output_path)
+    assert window.status_messages[-1] == "已复制 1 个成功输出路径"
+
+
+def test_open_recent_batch_output_dir_uses_state_output_dir(tmp_path: Path) -> None:
+    window = _FakeWindow()
+    task_model = _TaskModel()
+    record = TaskRecord(
+        operation=Operation.convert,
+        input_path=tmp_path / "input.mp4",
+        output_path=tmp_path / "out.mp4",
+        status=TaskStatus.succeeded,
+    )
+    task_model.append_record(record)
+    controller = _make_controller(window, task_model=task_model)
+    controller.state.output_dir = tmp_path
+    controller.state.recent_batch.task_ids = {record.task_id}
+
+    controller.open_recent_batch_output_dir()
+
+    assert window.opened_directories == [tmp_path]
+    assert window.status_messages[-1] == f"已打开最近批次输出目录：{tmp_path}"
+
+
+def test_locate_recent_batch_results_selects_task_ids() -> None:
+    window = _FakeWindow()
+    controller = _make_controller(window)
+    controller.state.recent_batch.task_ids = {"a", "b"}
+
+    controller.locate_recent_batch_results()
+
+    assert window.selected_task_ids == {"a", "b"}
+    assert window.status_messages[-1] == "已定位最近批次 2 条结果"
 
 
 def test_batch_selection_creates_ready_queue_rows(tmp_path: Path) -> None:

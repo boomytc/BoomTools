@@ -2,12 +2,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QModelIndex, QPoint, Qt, Signal
+from PySide6.QtCore import QItemSelection, QItemSelectionModel, QModelIndex, QPoint, Qt, Signal
 from PySide6.QtWidgets import (
+    QHBoxLayout,
     QHeaderView,
+    QLabel,
     QMenu,
+    QPushButton,
     QSizePolicy,
     QTableView,
+    QWidget,
 )
 
 from desktop.app.ui.components import PanelActionBar, PanelFrame
@@ -27,6 +31,9 @@ class TaskPanel(PanelFrame):
     copy_output_path_requested = Signal()
     remove_task_requested = Signal(str)
     zip_outputs_requested = Signal()
+    copy_batch_output_paths_requested = Signal()
+    open_batch_output_dir_requested = Signal()
+    locate_batch_results_requested = Signal()
 
     def __init__(self, task_model: TaskTableModel) -> None:
         super().__init__("任务队列", density="compact")
@@ -37,6 +44,8 @@ class TaskPanel(PanelFrame):
         self._batch_running = False
         self._zip_results_enabled = False
         self._zip_results_running = False
+        self._has_recent_batch = False
+        self._has_recent_batch_outputs = False
         self.setObjectName("taskPanel")
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setMinimumHeight(158)
@@ -47,7 +56,6 @@ class TaskPanel(PanelFrame):
         self.cancel_button = action_bar.add_button("取消当前", role="danger")
         self.cancel_queue_button = action_bar.add_button("取消队列", role="danger")
         self.remove_pending_button = action_bar.add_button("移除未运行", role="quiet")
-        self.zip_results_button = action_bar.add_button("打包成功结果", role="result")
         self.add_action(action_bar)
 
         layout = self.body_layout()
@@ -59,8 +67,8 @@ class TaskPanel(PanelFrame):
         self.cancel_button.clicked.connect(lambda _checked=False: self.cancel_requested.emit())
         self.cancel_queue_button.clicked.connect(lambda _checked=False: self.cancel_queue_requested.emit())
         self.remove_pending_button.clicked.connect(lambda _checked=False: self.remove_pending_requested.emit())
-        self.zip_results_button.clicked.connect(lambda _checked=False: self.zip_outputs_requested.emit())
         layout.addWidget(self.total_progress)
+        layout.addWidget(self._create_result_action_bar())
 
         self.task_table = QTableView()
         self.task_table.setObjectName("taskTable")
@@ -119,8 +127,52 @@ class TaskPanel(PanelFrame):
     def set_zip_results_enabled(self, enabled: bool, *, running: bool = False) -> None:
         self._zip_results_enabled = enabled
         self._zip_results_running = running
-        self.zip_results_button.setText("正在打包..." if running else "打包成功结果")
+        self._sync_zip_button_text()
         self._sync_processing_buttons()
+
+    def set_recent_batch_results(
+        self,
+        summary: str,
+        *,
+        tooltip: str,
+        has_batch: bool,
+        has_successful_outputs: bool,
+    ) -> None:
+        self._has_recent_batch = has_batch
+        self._has_recent_batch_outputs = has_successful_outputs
+        self.recent_batch_summary_label.setText(summary)
+        self.recent_batch_summary_label.setToolTip(tooltip)
+        self.copy_batch_paths_button.setToolTip(
+            "复制最近批次所有成功输出路径" if has_successful_outputs else "最近批次没有可复制的成功输出"
+        )
+        self.open_batch_dir_button.setToolTip(
+            "打开最近批次输出目录" if has_batch else "暂无最近批次输出目录"
+        )
+        self.locate_batch_button.setToolTip(
+            "在任务表中定位最近批次结果" if has_batch else "暂无最近批次可定位"
+        )
+        self._sync_zip_button_text()
+        self._sync_processing_buttons()
+
+    def select_task_ids(self, task_ids: set[str]) -> int:
+        rows = [index for index, record in enumerate(self._task_model.records()) if record.task_id in task_ids]
+        selection_model = self.task_table.selectionModel()
+        if selection_model is None or not rows:
+            return 0
+        selection_model.clearSelection()
+        for row in rows:
+            selection = QItemSelection(
+                self._task_model.index(row, 0),
+                self._task_model.index(row, self._task_model.columnCount() - 1),
+            )
+            selection_model.select(
+                selection,
+                QItemSelectionModel.SelectionFlag.Select,
+            )
+        first_index = self._task_model.index(rows[0], 0)
+        selection_model.setCurrentIndex(first_index, QItemSelectionModel.SelectionFlag.NoUpdate)
+        self.task_table.scrollTo(first_index, QTableView.ScrollHint.PositionAtCenter)
+        return len(rows)
 
     def refresh_total_progress(self) -> None:
         summary = _total_progress_summary(self._task_model.records())
@@ -181,13 +233,71 @@ class TaskPanel(PanelFrame):
         copy_path_action.triggered.connect(self.copy_output_path_requested.emit)
         menu.exec(self.task_table.viewport().mapToGlobal(position))
 
+    def _create_result_action_bar(self) -> QWidget:
+        result_bar = QWidget()
+        result_bar.setObjectName("batchResultBar")
+        layout = QHBoxLayout(result_bar)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+
+        self.recent_batch_summary_label = QLabel("最近批次：暂无结果")
+        self.recent_batch_summary_label.setObjectName("recentBatchSummaryLabel")
+        self.recent_batch_summary_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        layout.addWidget(self.recent_batch_summary_label, 1)
+
+        self.locate_batch_button = QPushButton("定位最近批次")
+        self.locate_batch_button.setProperty("role", "quiet")
+        self.locate_batch_button.setProperty("density", "compact")
+        self.locate_batch_button.clicked.connect(lambda _checked=False: self.locate_batch_results_requested.emit())
+        layout.addWidget(self.locate_batch_button)
+
+        self.copy_batch_paths_button = QPushButton("复制成功路径")
+        self.copy_batch_paths_button.setProperty("role", "quiet")
+        self.copy_batch_paths_button.setProperty("density", "compact")
+        self.copy_batch_paths_button.clicked.connect(lambda _checked=False: self.copy_batch_output_paths_requested.emit())
+        layout.addWidget(self.copy_batch_paths_button)
+
+        self.open_batch_dir_button = QPushButton("打开输出目录")
+        self.open_batch_dir_button.setProperty("role", "quiet")
+        self.open_batch_dir_button.setProperty("density", "compact")
+        self.open_batch_dir_button.clicked.connect(lambda _checked=False: self.open_batch_output_dir_requested.emit())
+        layout.addWidget(self.open_batch_dir_button)
+
+        self.zip_results_button = QPushButton("无批次可打包")
+        self.zip_results_button.setProperty("role", "result")
+        self.zip_results_button.setProperty("density", "compact")
+        self.zip_results_button.clicked.connect(lambda _checked=False: self.zip_outputs_requested.emit())
+        layout.addWidget(self.zip_results_button)
+        return result_bar
+
+    def _sync_zip_button_text(self) -> None:
+        if self._zip_results_running:
+            text = "正在打包..."
+            tooltip = "正在打包最近批次成功结果"
+        elif not self._has_recent_batch:
+            text = "无批次可打包"
+            tooltip = "完成一次批处理后可打包成功结果"
+        elif not self._has_recent_batch_outputs:
+            text = "无成功结果"
+            tooltip = "最近批次没有存在的成功输出文件"
+        else:
+            text = "打包成功结果"
+            tooltip = "打包最近批次所有成功输出文件"
+        self.zip_results_button.setText(text)
+        self.zip_results_button.setToolTip(tooltip)
+
     def _sync_processing_buttons(self) -> None:
         self.start_button.setEnabled(self._start_enabled and not self._busy)
         self.cancel_button.setEnabled(self._busy)
         self.cancel_queue_button.setEnabled(self._batch_running)
         self.remove_pending_button.setEnabled(self._pending_count > 0 and not self._batch_running and not self._busy)
+        result_actions_enabled = self._has_recent_batch and not self._batch_running and not self._busy
+        self.locate_batch_button.setEnabled(result_actions_enabled)
+        self.open_batch_dir_button.setEnabled(result_actions_enabled)
+        self.copy_batch_paths_button.setEnabled(result_actions_enabled and self._has_recent_batch_outputs)
         self.zip_results_button.setEnabled(
             self._zip_results_enabled
+            and self._has_recent_batch_outputs
             and not self._zip_results_running
             and not self._batch_running
             and not self._busy

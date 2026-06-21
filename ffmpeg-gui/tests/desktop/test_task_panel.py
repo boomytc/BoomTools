@@ -121,14 +121,34 @@ def test_task_panel_processing_buttons_follow_task_state() -> None:
     assert panel.remove_pending_button.isEnabled()
 
     panel.set_zip_results_enabled(True)
-    assert panel.zip_results_button.isEnabled()
+    assert not panel.zip_results_button.isEnabled()
+    assert panel.zip_results_button.text() == "无批次可打包"
 
     panel.set_zip_results_enabled(False, running=True)
     assert not panel.zip_results_button.isEnabled()
     assert panel.zip_results_button.text() == "正在打包..."
 
+    panel.set_recent_batch_results(
+        "最近批次：成功 1 · 失败 0 · 取消 0 · 已打包 0",
+        tooltip="最近批次总数：1",
+        has_batch=True,
+        has_successful_outputs=True,
+    )
     panel.set_zip_results_enabled(True)
     assert panel.zip_results_button.text() == "打包成功结果"
+    assert panel.copy_batch_paths_button.isEnabled()
+    assert panel.open_batch_dir_button.isEnabled()
+    assert panel.locate_batch_button.isEnabled()
+
+    panel.set_recent_batch_results(
+        "最近批次：成功 0 · 失败 1 · 取消 0 · 已打包 0",
+        tooltip="最近批次总数：1",
+        has_batch=True,
+        has_successful_outputs=False,
+    )
+    panel.set_zip_results_enabled(False)
+    assert panel.zip_results_button.text() == "无成功结果"
+    assert not panel.copy_batch_paths_button.isEnabled()
 
 
 def test_task_panel_uses_text_delegate_for_action_column() -> None:
@@ -179,6 +199,22 @@ def test_task_panel_remove_column_emits_task_id_only_for_removable_rows() -> Non
     panel._handle_table_clicked(model.index(1, 4))
 
     assert emitted == [ready_record.task_id]
+
+
+def test_task_panel_selects_rows_by_task_ids() -> None:
+    _qt_app()
+    model = TaskTableModel()
+    first = TaskRecord(operation=Operation.convert, input_path=Path("first.mp4"), status=TaskStatus.succeeded)
+    second = TaskRecord(operation=Operation.convert, input_path=Path("second.mp4"), status=TaskStatus.failed)
+    third = TaskRecord(operation=Operation.convert, input_path=Path("third.mp4"), status=TaskStatus.succeeded)
+    for record in (first, second, third):
+        model.append_record(record)
+    panel = TaskPanel(model)
+
+    selected_count = panel.select_task_ids({first.task_id, third.task_id})
+
+    assert selected_count == 2
+    assert [index.row() for index in panel.task_table.selectionModel().selectedRows()] == [0, 2]
 
 
 def test_task_panel_places_total_progress_under_title() -> None:

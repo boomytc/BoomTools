@@ -39,7 +39,7 @@ class OperationParameterForm(PanelFrame):
         self.setObjectName("parameterFrame")
         self.setMinimumWidth(320)
         self.setMinimumHeight(236)
-        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
         self._controls: dict[str, QWidget] = {}
         self._operation = Operation.convert
         self._field_factory = OperationFieldFactory(
@@ -56,8 +56,9 @@ class OperationParameterForm(PanelFrame):
         self.selected_operation_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.body_layout().addWidget(self.selected_operation_label)
 
-        self.parameter_scroll_area = FixedScrollArea(height=164, right_gutter=PARAMETER_SCROLL_RIGHT_GUTTER)
+        self.parameter_scroll_area = FixedScrollArea(right_gutter=PARAMETER_SCROLL_RIGHT_GUTTER)
         self.parameter_scroll_area.setObjectName("parameterScroll")
+        self.parameter_scroll_area.setMinimumHeight(164)
         self.parameter_content_widget = QWidget()
         self.parameter_content_widget.setObjectName("parameterScrollContent")
         self.parameter_content_widget.setMaximumWidth(PARAMETER_CONTENT_MAX_WIDTH)
@@ -85,7 +86,6 @@ class OperationParameterForm(PanelFrame):
         parameter_content_layout.addWidget(self.fields_section)
         self.parameter_scroll_area.set_content_widget(self.parameter_content_widget)
         self.body_layout().addWidget(self.parameter_scroll_area)
-        self.body_layout().addStretch(1)
         self.set_operation(self._operation, emit=False)
 
     def controls(self) -> dict[str, QWidget]:

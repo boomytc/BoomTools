@@ -4,7 +4,7 @@ from collections.abc import Set as AbstractSet
 from pathlib import Path
 
 from PySide6.QtCore import Signal
-from PySide6.QtWidgets import QHBoxLayout, QSizePolicy, QWidget
+from PySide6.QtWidgets import QGridLayout, QSizePolicy, QWidget
 
 from desktop.app.ui.widgets.operation_parameter_form import OperationParameterForm
 from desktop.app.ui.widgets.operation_selector import OperationSelector
@@ -16,24 +16,32 @@ class OperationFormWidget(QWidget):
     spec_changed = Signal()
     stack_mode_toggled = Signal(bool)
 
-    def __init__(self) -> None:
+    def __init__(self, command_preview_widget: QWidget | None = None) -> None:
         super().__init__()
         self.setMinimumHeight(236)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
-        layout = QHBoxLayout(self)
+        layout = QGridLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(12)
+        layout.setHorizontalSpacing(12)
+        layout.setVerticalSpacing(8)
 
         self.operation_selector = OperationSelector()
         self.parameter_form = OperationParameterForm()
+        self.command_preview_widget = command_preview_widget
         self.operation_selector.operation_changed.connect(self._on_operation_changed)
         self.operation_selector.stack_mode_toggled.connect(self.stack_mode_toggled.emit)
         self.parameter_form.file_browse_requested.connect(self.file_browse_requested.emit)
         self.parameter_form.spec_changed.connect(self.spec_changed.emit)
 
-        layout.addWidget(self.operation_selector, 3)
-        layout.addWidget(self.parameter_form, 2)
+        layout.addWidget(self.operation_selector, 0, 0)
+        if command_preview_widget is not None:
+            layout.addWidget(command_preview_widget, 1, 0)
+            layout.addWidget(self.parameter_form, 0, 1, 2, 1)
+        else:
+            layout.addWidget(self.parameter_form, 0, 1)
+        layout.setColumnStretch(0, 3)
+        layout.setColumnStretch(1, 2)
 
     def selected_operation(self) -> Operation:
         return self.operation_selector.selected_operation()

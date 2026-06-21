@@ -178,7 +178,7 @@ def test_operation_form_uses_panel_frame_selectors() -> None:
     panel.close()
 
 
-def test_operation_form_does_not_expand_into_extra_window_height() -> None:
+def test_operation_form_places_command_preview_under_selector() -> None:
     app = _qt_app()
     app.setStyleSheet(QSS_PATH.read_text(encoding="utf-8"))
     panel = OperationPanel()
@@ -186,9 +186,19 @@ def test_operation_form_does_not_expand_into_extra_window_height() -> None:
     panel.show()
     app.processEvents()
 
+    selector = panel.operation_form.operation_selector
+    command_preview = panel.command_preview_panel
+    parameter_form = panel.operation_form.parameter_form
+
     assert panel.operation_form.geometry().top() == 0
     assert panel.operation_form.height() == panel.operation_form.sizeHint().height()
-    assert panel.operation_form.parameter_form.height() == panel.operation_form.parameter_form.sizeHint().height()
+    assert command_preview.geometry().left() == selector.geometry().left()
+    assert command_preview.geometry().top() > selector.geometry().bottom()
+    assert abs(command_preview.width() - selector.width()) <= 2
+    assert parameter_form.geometry().top() == selector.geometry().top()
+    assert abs(parameter_form.geometry().bottom() - command_preview.geometry().bottom()) <= 2
+    assert parameter_form.height() > parameter_form.sizeHint().height()
+    assert parameter_form.parameter_scroll_area.height() > 164
 
     panel.close()
 

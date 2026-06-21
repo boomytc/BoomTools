@@ -47,12 +47,19 @@ def test_main_window_default_panel_order_and_resize_bounds() -> None:
     operation_top = _top_in_window(window.operation_panel, window)
     command_top = _top_in_window(window.command_preview_panel, window)
     task_top = _top_in_window(window.task_panel, window)
-    operation_selector_top = _top_in_window(window.operation_panel.operation_form.operation_selector, window)
-    parameter_form_top = _top_in_window(window.operation_panel.operation_form.parameter_form, window)
+    operation_selector = window.operation_panel.operation_form.operation_selector
+    parameter_form = window.operation_panel.operation_form.parameter_form
+    operation_selector_top = _top_in_window(operation_selector, window)
+    parameter_form_top = _top_in_window(parameter_form, window)
+    command_bottom = _bottom_in_window(window.command_preview_panel, window)
+    parameter_bottom = _bottom_in_window(parameter_form, window)
 
     assert runtime_top > _top_in_window(masthead, window)
     assert runtime_top < operation_top < command_top < task_top
+    assert command_top < _bottom_in_window(window.operation_panel, window)
     assert abs(operation_selector_top - parameter_form_top) <= 2
+    assert abs(parameter_bottom - command_bottom) <= 2
+    assert abs(window.command_preview_panel.width() - operation_selector.width()) <= 2
     assert window.task_panel.height() > window.task_panel.minimumHeight()
     assert window.operation_panel.height() <= window.operation_panel.sizeHint().height() + 2
 
@@ -67,6 +74,10 @@ def test_main_window_default_panel_order_and_resize_bounds() -> None:
 
 def _top_in_window(widget: QWidget, window: MainWindow) -> int:
     return widget.mapTo(window, QPoint(0, 0)).y()
+
+
+def _bottom_in_window(widget: QWidget, window: MainWindow) -> int:
+    return widget.mapTo(window, QPoint(0, widget.height())).y()
 
 
 def _qt_app() -> QApplication:

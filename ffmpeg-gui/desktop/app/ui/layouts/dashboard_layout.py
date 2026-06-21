@@ -28,7 +28,6 @@ class DashboardLayout(QWidget):
         layout.setSpacing(8)
         layout.addWidget(self.runtime_panel)
         layout.addWidget(self.operation_panel)
-        layout.addWidget(self.command_preview_panel)
         layout.addWidget(self.task_panel, 1)
 
     def _assign_panel_ids(self) -> None:

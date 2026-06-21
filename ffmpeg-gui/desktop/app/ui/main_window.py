@@ -67,8 +67,8 @@ class MainWindow(QMainWindow):
         root.setSpacing(10)
 
         self.runtime_panel = RuntimePanel()
-        self.operation_panel = OperationPanel()
         self.command_preview_panel = CommandPreviewPanel()
+        self.operation_panel = OperationPanel(command_preview_panel=self.command_preview_panel)
         self.task_panel = TaskPanel(task_model)
         self.dashboard_layout = DashboardLayout(
             runtime_panel=self.runtime_panel,

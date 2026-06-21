@@ -6,6 +6,7 @@ from pathlib import Path
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QSizePolicy, QVBoxLayout, QWidget
 
+from desktop.app.ui.panels.command_preview_panel import CommandPreviewPanel
 from desktop.app.ui.panels.stack_panel import StackPanel
 from desktop.app.ui.widgets.operation_form import OperationFormWidget
 from shared.contracts import MediaInfo, Operation, STACK_FILTER_OPERATIONS
@@ -22,7 +23,7 @@ class OperationPanel(QWidget):
     stack_item_selected = Signal(int)
     command_preview_requested = Signal()
 
-    def __init__(self) -> None:
+    def __init__(self, command_preview_panel: CommandPreviewPanel | None = None) -> None:
         super().__init__()
         self.setObjectName("operationPanel")
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
@@ -32,7 +33,8 @@ class OperationPanel(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
 
-        self.operation_form = OperationFormWidget()
+        self.command_preview_panel = command_preview_panel or CommandPreviewPanel()
+        self.operation_form = OperationFormWidget(command_preview_widget=self.command_preview_panel)
         self.operation_form.file_browse_requested.connect(self.file_browse_requested.emit)
         self.operation_form.spec_changed.connect(self.refresh_stack_controls)
         self.operation_form.spec_changed.connect(self.command_preview_requested.emit)

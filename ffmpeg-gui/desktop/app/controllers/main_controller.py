@@ -73,6 +73,9 @@ class MainController(QObject):
         self._probe_context: str | None = None
         self._batch_probe_record: TaskRecord | None = None
         self._batch_probe_error: str | None = None
+        self._selection_probe_queue: list[TaskRecord] = []
+        self._selection_probe_record: TaskRecord | None = None
+        self._selection_probe_error: str | None = None
         self._zip_thread: QThread | None = None
         self._zip_worker: ZipResultsWorker | None = None
         self._zip_running = False
@@ -134,17 +137,12 @@ class MainController(QObject):
         added_records = self._append_prepared_inputs(batch_paths, status=TaskStatus.ready, message="已添加到任务队列")
         input_paths = self._prepared_input_paths()
         self._sync_input_state(input_paths)
-        self.state.media_info = None
-        self.window.set_media_info(None)
+        self.state.media_info = self._media_info_for_path(self.state.input_path) if self.state.input_path else None
+        self.window.set_media_info(self.state.media_info)
         self.window.reset_progress()
         self.window.set_current_output(None)
         self.window.set_batch_progress(0, len(input_paths))
-        if len(input_paths) == 1 and len(added_records) == 1:
-            added_records[0].status = TaskStatus.probing
-            added_records[0].message = "正在读取媒体信息"
-            added_records[0].touch()
-            self.task_model.notify_record_changed(added_records[0])
-            self._start_probe(input_paths[0])
+        self._queue_selection_probes(added_records)
         self._refresh_start_state()
         self._refresh_command_preview()
 
@@ -156,10 +154,11 @@ class MainController(QObject):
             self.state.batch_input_paths = selected_batch_paths
             if selected_batch_paths:
                 self.state.input_path = selected_batch_paths[0]
-                self.state.media_info = None
-                self.window.set_media_info(None)
+                self.state.media_info = self._media_info_for_path(self.state.input_path)
+                self.window.set_media_info(self.state.media_info)
                 self.window.set_batch_progress(0, len(selected_batch_paths))
                 self._set_prepared_inputs(selected_batch_paths, status=TaskStatus.ready, message="已选择")
+                self._queue_selection_probes(self._prepared_records)
             else:
                 self._clear_prepared_records()
                 self.window.set_batch_progress(0, 0)
@@ -167,6 +166,7 @@ class MainController(QObject):
             self.state.input_path = self.window.selected_input_path()
             if self.state.input_path and self.state.input_path.exists():
                 self._set_prepared_inputs([self.state.input_path], status=TaskStatus.ready, message="已选择")
+                self._queue_selection_probes(self._prepared_records)
             else:
                 self._clear_prepared_records()
         self._refresh_start_state()
@@ -177,6 +177,7 @@ class MainController(QObject):
         if self.state.input_mode == "batch":
             self.state.input_path = None
         self._clear_prepared_records()
+        self._cancel_selection_probes()
         self.window.set_batch_progress(0, 0)
         self._refresh_start_state()
         self._refresh_command_preview()
@@ -217,6 +218,7 @@ class MainController(QObject):
         if use_stack and not stack_specs:
             self.window.show_error("Stack 需要至少添加一个可链式操作")
             return
+        self._cancel_selection_probes()
 
         if len(input_paths) > 1:
             if use_stack:
@@ -299,6 +301,7 @@ class MainController(QObject):
 
         was_prepared = any(prepared.task_id == task_id for prepared in self._prepared_records)
         self._prepared_records = [prepared for prepared in self._prepared_records if prepared.task_id != task_id]
+        self._selection_probe_queue = [record for record in self._selection_probe_queue if record.task_id != task_id]
 
         previous_queue_count = len(self._batch_queue)
         self._batch_queue = [(queued_record, path) for queued_record, path in self._batch_queue if queued_record.task_id != task_id]
@@ -386,6 +389,7 @@ class MainController(QObject):
         self.cancel_current_task()
         self.cancel_batch()
         self.task_manager.cancel_current(preserve_batch_cancel=True, wait=True)
+        self._cancel_selection_probes()
         self._stop_health_thread()
         self._stop_probe_thread()
         self._stop_zip_thread()
@@ -666,12 +670,78 @@ class MainController(QObject):
         return added_records
 
     def _clear_prepared_records(self) -> None:
+        self._cancel_selection_probes()
         if not self._prepared_records:
             return
         task_ids = {record.task_id for record in self._prepared_records}
         self.task_model.remove_records(task_ids)
         self.task_state.remove_records(task_ids)
         self._prepared_records.clear()
+
+    def _queue_selection_probes(self, records: list[TaskRecord]) -> None:
+        if self.state.is_batch_running:
+            return
+        for record in records:
+            if record.input_path in self._media_info_cache:
+                media_info = self._media_info_cache[record.input_path]
+                self._apply_selection_media_info(record, media_info, show_status=False)
+                continue
+            if record is self._selection_probe_record:
+                continue
+            if any(queued.task_id == record.task_id for queued in self._selection_probe_queue):
+                continue
+            if record.status in {TaskStatus.running, TaskStatus.succeeded, TaskStatus.failed, TaskStatus.cancelled}:
+                continue
+            self._selection_probe_queue.append(record)
+        self._start_next_selection_probe()
+
+    def _start_next_selection_probe(self) -> None:
+        if self.state.is_batch_running:
+            return
+        if self._selection_probe_record is not None:
+            return
+        if self._probe_thread and self._probe_thread.isRunning():
+            return
+        if not self._selection_probe_supported():
+            return
+        while self._selection_probe_queue:
+            record = self._selection_probe_queue.pop(0)
+            if record not in self._prepared_records:
+                continue
+            if not record.input_path.exists():
+                continue
+            cached = self._media_info_cache.get(record.input_path)
+            if cached is not None:
+                self._apply_selection_media_info(record, cached, show_status=False)
+                continue
+            self._selection_probe_record = record
+            record.status = TaskStatus.probing
+            record.message = "正在读取媒体信息"
+            record.progress = None
+            record.touch()
+            self.task_model.notify_record_changed(record)
+            self._start_probe(record.input_path, context="selection", selection_record=record)
+            return
+
+    def _selection_probe_supported(self) -> bool:
+        health = self.state.runtime_health
+        return bool(health and health.ffprobe_available)
+
+    def _cancel_selection_probes(self) -> None:
+        self._selection_probe_queue.clear()
+        record = self._selection_probe_record
+        self._selection_probe_record = None
+        self._selection_probe_error = None
+        if self._probe_context == "selection":
+            self._stop_probe_thread()
+        if record is None:
+            return
+        if record.status is TaskStatus.probing:
+            record.status = TaskStatus.ready
+            record.message = "已添加到任务队列"
+            record.progress = 0.0
+            record.touch()
+            self.task_model.notify_record_changed(record)
 
     def _task_record_by_id(self, task_id: str) -> TaskRecord | None:
         for record in self.task_model.records():
@@ -1077,13 +1147,25 @@ class MainController(QObject):
     def _on_probe_task_path(self, path: Path) -> bool:
         return self.state.input_path == path
 
-    def _start_probe(self, path: Path, *, context: str = "selection", batch_record: TaskRecord | None = None) -> None:
+    def _start_probe(
+        self,
+        path: Path,
+        *,
+        context: str = "direct",
+        batch_record: TaskRecord | None = None,
+        selection_record: TaskRecord | None = None,
+    ) -> None:
         if self._probe_thread and self._probe_thread.isRunning():
             self._stop_probe_thread()
         self._probe_context = context
         self._batch_probe_record = batch_record
         self._batch_probe_error = None
-        self.window.show_status(f"{path.name}：正在读取媒体信息..." if context == "batch" else "正在读取媒体信息...")
+        self._selection_probe_record = selection_record
+        self._selection_probe_error = None
+        if context in {"batch", "selection"}:
+            self.window.show_status(f"{path.name}：正在读取媒体信息...")
+        else:
+            self.window.show_status("正在读取媒体信息...")
         thread = QThread()
         worker = ProbeWorker(self.ffmpeg_service, self.window.selected_ffprobe_bin(), path)
         worker.moveToThread(thread)
@@ -1246,12 +1328,18 @@ class MainController(QObject):
         self._probe_worker = None
         self._probe_context = None
         self._batch_probe_error = None
+        self._selection_probe_error = None
+        if not self.state.is_batch_running:
+            self._start_next_selection_probe()
 
     @Slot(object, str)
     def _on_probe_error(self, path: Path, message: str) -> None:
         if self._probe_context == "batch":
             self._batch_probe_error = message
             self.window.show_status(message)
+            return
+        if self._probe_context == "selection":
+            self._selection_probe_error = message
             return
         if self.state.input_path != path:
             return
@@ -1270,6 +1358,9 @@ class MainController(QObject):
         self._cache_media_info(path, media_info)
         if self._probe_context == "batch":
             self._on_batch_media_info(path, media_info)
+            return
+        if self._probe_context == "selection":
+            self._on_selection_media_info(path, media_info)
             return
         if self.state.input_path != path:
             return
@@ -1291,6 +1382,14 @@ class MainController(QObject):
 
     @Slot()
     def _on_probe_finished(self) -> None:
+        if self._probe_context == "selection" and self._selection_probe_record is not None:
+            record = self._selection_probe_record
+            self._selection_probe_record = None
+            message = self._selection_probe_error or "媒体信息读取失败"
+            media_info = MediaInfo(raw={"error": message}, duration_seconds=None)
+            self._cache_media_info(record.input_path, media_info)
+            self._apply_selection_media_info(record, media_info)
+            return
         if self._probe_context != "batch" or self._batch_probe_record is None:
             return
         record = self._batch_probe_record
@@ -1318,6 +1417,34 @@ class MainController(QObject):
         record.touch()
         self.task_model.notify_record_changed(record)
         self._start_batch_record(record, path)
+
+    def _on_selection_media_info(self, path: Path, media_info: MediaInfo) -> None:
+        record = self._selection_probe_record
+        if record is None or record.input_path != path:
+            record = self._prepared_record_for_path(path)
+        if record is None:
+            return
+        self._selection_probe_record = None
+        self._apply_selection_media_info(record, media_info)
+        self._start_next_selection_probe()
+
+    def _apply_selection_media_info(self, record: TaskRecord, media_info: MediaInfo, *, show_status: bool = True) -> None:
+        record.media_info = media_info
+        record.status = TaskStatus.ready
+        record.progress = 0.0
+        record.message = "媒体信息读取失败" if media_info.has_error else "已读取媒体信息"
+        record.touch()
+        self.task_model.notify_record_changed(record)
+        if self.state.input_path == record.input_path:
+            self.state.media_info = media_info
+            self.window.set_media_info(media_info)
+            self._refresh_command_preview()
+        if not show_status:
+            return
+        if media_info.has_error:
+            self.window.show_status(f"{record.input_path.name}：{media_info.error_message or '媒体信息读取失败'}")
+        else:
+            self.window.show_status(f"{record.input_path.name}：媒体信息读取完成")
 
     def _on_task_status(self, task: TaskRecord, status: TaskStatus) -> None:
         task.status = status

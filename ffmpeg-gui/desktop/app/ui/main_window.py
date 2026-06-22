@@ -131,7 +131,6 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(version)
 
     def set_media_info(self, media_info: MediaInfo | None) -> None:
-        self.runtime_panel.set_media_info(media_info)
         if media_info is not None:
             self.operation_panel.apply_media_defaults(media_info)
 

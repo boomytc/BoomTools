@@ -265,27 +265,6 @@ QLabel#outputDirSummary {
   padding: 0 2px;
 }
 
-QLabel#mediaChip {
-  color: #d8e6ff;
-  background: #202638;
-  border: 1px solid #4a536a;
-  border-radius: 6px;
-  padding: 4px 8px;
-  font-weight: 700;
-}
-
-QLabel#mediaChip[state="muted"] {
-  color: #91a0b8;
-  background: #171b26;
-  border-color: #30364a;
-}
-
-QLabel#mediaChip[state="error"] {
-  color: #ff8a9a;
-  background: #3a2028;
-  border-color: #74404a;
-}
-
 QLabel#healthLabel {
   color: #ff6b6b;
   background: #321d24;

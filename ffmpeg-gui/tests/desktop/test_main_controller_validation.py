@@ -1065,6 +1065,115 @@ def test_batch_selection_creates_ready_queue_rows(tmp_path: Path) -> None:
     assert [record.status for record in task_model.records()] == [TaskStatus.ready, TaskStatus.ready]
 
 
+def test_batch_selection_probes_each_added_file_in_sequence(tmp_path: Path) -> None:
+    window = _FakeWindow()
+    first = tmp_path / "first.mp4"
+    second = tmp_path / "second.mov"
+    first.write_bytes(b"\x00")
+    second.write_bytes(b"\x00")
+    task_model = _TaskModel()
+    controller = _make_controller(window, task_model=task_model)
+    controller.state.runtime_health = RuntimeHealth(
+        ok=True,
+        ffmpeg_available=True,
+        ffprobe_available=True,
+        ffmpeg_path="ffmpeg",
+        ffprobe_path="ffprobe",
+    )
+    started: list[tuple[Path, str, str | None]] = []
+
+    def fake_start_probe(
+        path: Path,
+        *,
+        context: str = "direct",
+        batch_record: TaskRecord | None = None,
+        selection_record: TaskRecord | None = None,
+    ) -> None:
+        del batch_record
+        started.append((path, context, selection_record.task_id if selection_record else None))
+
+    controller._start_probe = fake_start_probe  # type: ignore[method-assign]
+
+    controller.on_batch_files_selected([str(first), str(second)])
+
+    records = task_model.records()
+    assert [record.input_path for record in records] == [first, second]
+    assert records[0].status is TaskStatus.probing
+    assert records[1].status is TaskStatus.ready
+    assert started == [(first, "selection", records[0].task_id)]
+
+    controller._on_selection_media_info(
+        first,
+        MediaInfo(
+            raw={
+                "streams": [
+                    {"codec_type": "video", "height": 1080, "codec_name": "h264"},
+                    {"codec_type": "audio", "codec_name": "aac"},
+                ]
+            },
+            duration_seconds=53.0,
+        ),
+    )
+
+    assert records[0].status is TaskStatus.ready
+    assert isinstance(records[0].media_info, MediaInfo)
+    assert records[1].status is TaskStatus.probing
+    assert started[-1] == (second, "selection", records[1].task_id)
+
+    controller._on_selection_media_info(
+        second,
+        MediaInfo(
+            raw={"streams": [{"codec_type": "video", "height": 720, "codec_name": "hevc"}]},
+            duration_seconds=12.0,
+        ),
+    )
+
+    assert records[1].status is TaskStatus.ready
+    assert isinstance(records[1].media_info, MediaInfo)
+
+
+def test_appending_file_after_single_selection_probes_new_record(tmp_path: Path) -> None:
+    window = _FakeWindow()
+    first = tmp_path / "first.mp4"
+    second = tmp_path / "second.mov"
+    first.write_bytes(b"\x00")
+    second.write_bytes(b"\x00")
+    task_model = _TaskModel()
+    controller = _make_controller(window, task_model=task_model)
+    controller.state.runtime_health = RuntimeHealth(
+        ok=True,
+        ffmpeg_available=True,
+        ffprobe_available=True,
+        ffmpeg_path="ffmpeg",
+        ffprobe_path="ffprobe",
+    )
+    started: list[Path] = []
+
+    def fake_start_probe(
+        path: Path,
+        *,
+        context: str = "direct",
+        batch_record: TaskRecord | None = None,
+        selection_record: TaskRecord | None = None,
+    ) -> None:
+        del context, batch_record, selection_record
+        started.append(path)
+
+    controller._start_probe = fake_start_probe  # type: ignore[method-assign]
+
+    controller.on_batch_files_selected([str(first)])
+    first_record = task_model.records()[0]
+    controller._on_selection_media_info(first, MediaInfo(raw={"streams": []}, duration_seconds=53.0))
+    controller.on_batch_files_selected([str(second)])
+
+    records = task_model.records()
+    assert [record.input_path for record in records] == [first, second]
+    assert records[0] is first_record
+    assert isinstance(records[0].media_info, MediaInfo)
+    assert records[1].status is TaskStatus.probing
+    assert started == [first, second]
+
+
 def test_file_selection_appends_to_existing_queue_rows(tmp_path: Path) -> None:
     window = _FakeWindow()
     first = tmp_path / "first.mp4"

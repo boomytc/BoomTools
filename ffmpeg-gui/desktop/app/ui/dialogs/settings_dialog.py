@@ -100,7 +100,7 @@ class SettingsDialog(QDialog):
         form_layout.addWidget(self.ffprobe_browse_button, 1, 2)
         self.prevent_sleep_checkbox = QCheckBox("长任务期间防止系统睡眠")
         self.prevent_sleep_checkbox.setObjectName("preventSleepCheckbox")
-        self.prevent_sleep_checkbox.setToolTip("macOS 下使用 caffeinate -dimsu；其他平台自动降级为空操作。")
+        self.prevent_sleep_checkbox.setToolTip("macOS 使用 caffeinate；Windows 使用系统执行状态 API；Linux 使用 systemd-inhibit。")
         form_layout.addWidget(self.prevent_sleep_checkbox, 2, 1, 1, 2)
         form_layout.addWidget(hint, 3, 1, 1, 2)
         form_layout.setColumnStretch(1, 1)

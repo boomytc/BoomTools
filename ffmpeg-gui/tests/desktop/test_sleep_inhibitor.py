@@ -2,7 +2,13 @@ from __future__ import annotations
 
 import subprocess
 
-from desktop.app.services.sleep_inhibitor import CaffeinateSleepInhibitor, NoopSleepInhibitor, create_sleep_inhibitor
+from desktop.app.services.sleep_inhibitor import (
+    CaffeinateSleepInhibitor,
+    NoopSleepInhibitor,
+    SystemdInhibitSleepInhibitor,
+    WindowsSleepInhibitor,
+    create_sleep_inhibitor,
+)
 
 
 class _FakeProcess:
@@ -140,8 +146,140 @@ def test_disabling_caffeinate_inhibitor_stops_running_process() -> None:
     assert not inhibitor.active
 
 
-def test_create_sleep_inhibitor_uses_noop_off_macos() -> None:
+def test_systemd_inhibitor_start_stop_are_idempotent() -> None:
+    created_args: list[list[str]] = []
+    processes: list[_FakeProcess] = []
+
+    def command_resolver(name: str) -> str | None:
+        return {
+            "systemd-inhibit": "/usr/bin/systemd-inhibit",
+            "sleep": "/usr/bin/sleep",
+        }.get(name)
+
+    def popen_factory(args: list[str], **_: object) -> _FakeProcess:
+        process = _FakeProcess()
+        created_args.append(args)
+        processes.append(process)
+        return process
+
+    inhibitor = SystemdInhibitSleepInhibitor(
+        command_resolver=command_resolver,
+        popen_factory=popen_factory,
+    )
+
+    first = inhibitor.start()
+    second = inhibitor.start()
+    inhibitor.stop()
+    inhibitor.stop()
+
+    assert first.supported
+    assert first.active
+    assert first.changed
+    assert second.supported
+    assert second.active
+    assert not second.changed
+    assert created_args == [
+        [
+            "/usr/bin/systemd-inhibit",
+            "--what=sleep:idle",
+            "--who=ffmpeg-gui",
+            "--why=ffmpeg-gui long-running task",
+            "--mode=block",
+            "/usr/bin/sleep",
+            "infinity",
+        ]
+    ]
+    assert processes[0].terminate_count == 1
+    assert processes[0].kill_count == 0
+
+
+def test_systemd_inhibitor_reports_missing_command_without_blocking() -> None:
+    inhibitor = SystemdInhibitSleepInhibitor(command_resolver=lambda _: None)
+
+    result = inhibitor.start()
+
+    assert result.supported
+    assert not result.active
+    assert result.error == "未找到 systemd-inhibit"
+
+
+def test_systemd_inhibitor_reports_missing_sleep_without_blocking() -> None:
+    def command_resolver(name: str) -> str | None:
+        return "/usr/bin/systemd-inhibit" if name == "systemd-inhibit" else None
+
+    inhibitor = SystemdInhibitSleepInhibitor(command_resolver=command_resolver)
+
+    result = inhibitor.start()
+
+    assert result.supported
+    assert not result.active
+    assert result.error == "未找到 sleep"
+
+
+def test_windows_inhibitor_start_stop_are_idempotent() -> None:
+    calls: list[int] = []
+
+    def execution_state_setter(flags: int) -> int:
+        calls.append(flags)
+        return 1
+
+    inhibitor = WindowsSleepInhibitor(execution_state_setter=execution_state_setter)
+
+    first = inhibitor.start()
+    second = inhibitor.start()
+    inhibitor.stop()
+    inhibitor.stop()
+
+    assert first.supported
+    assert first.active
+    assert first.changed
+    assert second.supported
+    assert second.active
+    assert not second.changed
+    assert calls == [WindowsSleepInhibitor.INHIBIT_FLAGS, WindowsSleepInhibitor.ES_CONTINUOUS]
+    assert not inhibitor.active
+
+
+def test_windows_inhibitor_reports_api_failure_without_blocking() -> None:
+    inhibitor = WindowsSleepInhibitor(execution_state_setter=lambda _: 0)
+
+    result = inhibitor.start()
+
+    assert result.supported
+    assert not result.active
+    assert result.error == "SetThreadExecutionState 调用失败"
+
+
+def test_disabling_windows_inhibitor_clears_execution_state() -> None:
+    calls: list[int] = []
+
+    def execution_state_setter(flags: int) -> int:
+        calls.append(flags)
+        return 1
+
+    inhibitor = WindowsSleepInhibitor(execution_state_setter=execution_state_setter)
+
+    inhibitor.start()
+    inhibitor.set_enabled(False)
+
+    assert calls == [WindowsSleepInhibitor.INHIBIT_FLAGS, WindowsSleepInhibitor.ES_CONTINUOUS]
+    assert not inhibitor.active
+
+
+def test_create_sleep_inhibitor_uses_systemd_on_linux() -> None:
     inhibitor = create_sleep_inhibitor(platform="linux")
+
+    assert isinstance(inhibitor, SystemdInhibitSleepInhibitor)
+
+
+def test_create_sleep_inhibitor_uses_windows_api_on_windows() -> None:
+    inhibitor = create_sleep_inhibitor(platform="win32")
+
+    assert isinstance(inhibitor, WindowsSleepInhibitor)
+
+
+def test_create_sleep_inhibitor_uses_noop_on_unknown_platform() -> None:
+    inhibitor = create_sleep_inhibitor(platform="freebsd")
 
     result = inhibitor.start()
     inhibitor.stop()

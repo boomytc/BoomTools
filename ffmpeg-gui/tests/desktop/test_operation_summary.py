@@ -15,6 +15,17 @@ def test_operation_summary_includes_crop_region_and_output_format() -> None:
     assert summary == "裁剪 · 640x360+20+10 · MP4"
 
 
+def test_operation_summary_preserves_zero_values() -> None:
+    crop_summary = format_operation_summary(
+        Operation.crop,
+        {"width": 320, "height": 180, "x": 0, "y": 0, "output_format": "mp4"},
+    )
+    loop_summary = format_operation_summary(Operation.loop, {"plays": 0, "output_format": "mp4"})
+
+    assert crop_summary == "裁剪 · 320x180+0+0 · MP4"
+    assert loop_summary == "循环 · 0次 · MP4"
+
+
 def test_operation_summary_includes_range_and_extra_input_name() -> None:
     summary = format_operation_summary(
         Operation.overlay,

@@ -64,6 +64,10 @@ class TaskPanel(PanelFrame):
         self.cancel_button = action_bar.add_button("取消当前", role="danger")
         self.cancel_queue_button = action_bar.add_button("取消队列", role="danger")
         self.remove_pending_button = action_bar.add_button("移除未运行", role="quiet")
+        self.batch_results_button = action_bar.add_button("批次结果", role="result")
+        self.batch_results_button.setToolTip("查看最近批次结果操作")
+        self.batch_results_button.setMenu(self._create_batch_results_menu())
+        self.batch_results_button.setVisible(False)
         self.add_action(action_bar)
 
         layout = self.body_layout()
@@ -135,6 +139,7 @@ class TaskPanel(PanelFrame):
 
     def _sync_result_action_bar_visibility(self) -> None:
         self.result_action_bar.setVisible(self._has_recent_batch and not self._dense_mode)
+        self.batch_results_button.setVisible(self._has_recent_batch and self._dense_mode)
 
     def set_busy(self, busy: bool) -> None:
         self._busy = busy
@@ -167,6 +172,7 @@ class TaskPanel(PanelFrame):
         self._has_recent_batch_outputs = has_successful_outputs
         self.recent_batch_summary_label.setText(summary)
         self.recent_batch_summary_label.setToolTip(tooltip)
+        self.batch_results_button.setToolTip(tooltip if has_batch else "暂无最近批次结果")
         self.copy_batch_paths_button.setToolTip(
             "复制最近批次所有成功输出路径" if has_successful_outputs else "最近批次没有可复制的成功输出"
         )
@@ -280,6 +286,18 @@ class TaskPanel(PanelFrame):
         copy_path_action.triggered.connect(self.copy_output_path_requested.emit)
         menu.exec(self.task_table.viewport().mapToGlobal(position))
 
+    def _create_batch_results_menu(self) -> QMenu:
+        menu = QMenu(self)
+        self.locate_batch_menu_action = menu.addAction("定位最近批次")
+        self.copy_batch_paths_menu_action = menu.addAction("复制成功路径")
+        self.open_batch_dir_menu_action = menu.addAction("打开输出目录")
+        self.zip_results_menu_action = menu.addAction("无批次可打包")
+        self.locate_batch_menu_action.triggered.connect(self.locate_batch_results_requested.emit)
+        self.copy_batch_paths_menu_action.triggered.connect(self.copy_batch_output_paths_requested.emit)
+        self.open_batch_dir_menu_action.triggered.connect(self.open_batch_output_dir_requested.emit)
+        self.zip_results_menu_action.triggered.connect(self.zip_outputs_requested.emit)
+        return menu
+
     def _create_result_action_bar(self) -> QWidget:
         result_bar = QWidget()
         result_bar.setObjectName("batchResultBar")
@@ -332,6 +350,8 @@ class TaskPanel(PanelFrame):
             tooltip = "打包最近批次所有成功输出文件"
         self.zip_results_button.setText(text)
         self.zip_results_button.setToolTip(tooltip)
+        self.zip_results_menu_action.setText(text)
+        self.zip_results_menu_action.setToolTip(tooltip)
 
     def _sync_processing_buttons(self) -> None:
         self.start_button.setEnabled(self._start_enabled and not self._busy)
@@ -339,16 +359,22 @@ class TaskPanel(PanelFrame):
         self.cancel_queue_button.setEnabled(self._batch_running)
         self.remove_pending_button.setEnabled(self._pending_count > 0 and not self._batch_running and not self._busy)
         result_actions_enabled = self._has_recent_batch and not self._batch_running and not self._busy
+        self.batch_results_button.setEnabled(self._has_recent_batch)
         self.locate_batch_button.setEnabled(result_actions_enabled)
         self.open_batch_dir_button.setEnabled(result_actions_enabled)
         self.copy_batch_paths_button.setEnabled(result_actions_enabled and self._has_recent_batch_outputs)
-        self.zip_results_button.setEnabled(
+        zip_enabled = (
             self._zip_results_enabled
             and self._has_recent_batch_outputs
             and not self._zip_results_running
             and not self._batch_running
             and not self._busy
         )
+        self.zip_results_button.setEnabled(zip_enabled)
+        self.locate_batch_menu_action.setEnabled(result_actions_enabled)
+        self.open_batch_dir_menu_action.setEnabled(result_actions_enabled)
+        self.copy_batch_paths_menu_action.setEnabled(result_actions_enabled and self._has_recent_batch_outputs)
+        self.zip_results_menu_action.setEnabled(zip_enabled)
 
 
 class _TotalProgressSummary:

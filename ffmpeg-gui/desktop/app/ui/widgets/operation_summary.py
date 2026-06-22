@@ -169,7 +169,7 @@ def _short_raw_args(value: object) -> str:
     if isinstance(value, list):
         text = " ".join(str(item) for item in value)
     else:
-        text = str(value or "")
+        text = _text(value)
     text = " ".join(text.split())
     if not text:
         return "自定义参数"
@@ -214,7 +214,7 @@ def _mode_label(value: object) -> str:
 
 
 def _upper(value: object) -> str:
-    return str(value or "").upper()
+    return _text(value).upper()
 
 
 def _optional_text(value: object) -> str | None:
@@ -225,12 +225,14 @@ def _optional_text(value: object) -> str | None:
 
 
 def _text(value: object) -> str:
-    return str(value or "")
+    if value is None:
+        return ""
+    return str(value)
 
 
 def _number(value: object) -> str:
     try:
         number = float(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
-        return str(value or "")
+        return _text(value)
     return f"{number:.3f}".rstrip("0").rstrip(".")

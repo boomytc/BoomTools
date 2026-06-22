@@ -102,6 +102,7 @@ def test_task_panel_processing_buttons_follow_task_state() -> None:
     assert not panel.remove_pending_button.isEnabled()
     assert not panel.zip_results_button.isEnabled()
     assert panel.result_action_bar.isHidden()
+    assert panel.batch_results_button.isHidden()
 
     panel.set_start_enabled(True)
     assert panel.start_button.isEnabled()
@@ -137,6 +138,7 @@ def test_task_panel_processing_buttons_follow_task_state() -> None:
     )
     panel.set_zip_results_enabled(True)
     assert not panel.result_action_bar.isHidden()
+    assert panel.batch_results_button.isHidden()
     assert panel.zip_results_button.text() == "打包成功结果"
     assert panel.copy_batch_paths_button.isEnabled()
     assert panel.open_batch_dir_button.isEnabled()
@@ -154,6 +156,42 @@ def test_task_panel_processing_buttons_follow_task_state() -> None:
 
     panel.set_dense_mode(True)
     assert panel.result_action_bar.isHidden()
+    assert not panel.batch_results_button.isHidden()
+    assert panel.batch_results_button.isEnabled()
+    assert panel.zip_results_menu_action.text() == "无成功结果"
+
+
+def test_task_panel_dense_batch_results_menu_keeps_actions_available() -> None:
+    _qt_app()
+    panel = TaskPanel(TaskTableModel())
+    emitted: list[str] = []
+    panel.locate_batch_results_requested.connect(lambda: emitted.append("locate"))
+    panel.copy_batch_output_paths_requested.connect(lambda: emitted.append("copy"))
+    panel.open_batch_output_dir_requested.connect(lambda: emitted.append("open"))
+    panel.zip_outputs_requested.connect(lambda: emitted.append("zip"))
+
+    panel.set_recent_batch_results(
+        "最近批次：成功 2 · 失败 0 · 取消 0 · 已打包 0",
+        tooltip="最近批次总数：2",
+        has_batch=True,
+        has_successful_outputs=True,
+    )
+    panel.set_zip_results_enabled(True)
+    panel.set_dense_mode(True)
+
+    assert panel.result_action_bar.isHidden()
+    assert not panel.batch_results_button.isHidden()
+    assert panel.locate_batch_menu_action.isEnabled()
+    assert panel.copy_batch_paths_menu_action.isEnabled()
+    assert panel.open_batch_dir_menu_action.isEnabled()
+    assert panel.zip_results_menu_action.isEnabled()
+
+    panel.locate_batch_menu_action.trigger()
+    panel.copy_batch_paths_menu_action.trigger()
+    panel.open_batch_dir_menu_action.trigger()
+    panel.zip_results_menu_action.trigger()
+
+    assert emitted == ["locate", "copy", "open", "zip"]
 
 
 def test_task_panel_uses_text_delegate_for_action_column() -> None:

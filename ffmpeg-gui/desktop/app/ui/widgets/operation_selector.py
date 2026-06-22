@@ -149,10 +149,10 @@ class OperationSelector(PanelFrame):
 
     def _sync_operation_hint(self) -> None:
         if self._stack_mode and self._batch_mode:
-            self.set_description("Stack + 批量仅启用可重复执行的链式动作。")
+            self.set_description("Stack + 批量仅显示可重复执行的链式动作。")
             return
         if self._stack_mode:
-            self.set_description("Stack 仅启用可链式的单输入动作。")
+            self.set_description("Stack 仅显示可链式单输入动作。")
             return
         if self._batch_mode:
             self.set_description("多个文件仅启用可重复执行的动作。")

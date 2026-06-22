@@ -82,6 +82,7 @@ def test_operation_selector_disables_unsupported_stack_operations() -> None:
     assert selector.operation_buttons()[Operation.crop].isEnabled()
     assert not selector.operation_buttons()[Operation.convert].isEnabled()
     assert not selector.operation_buttons()[Operation.raw].isEnabled()
+    assert selector.description_label.text() == "Stack 仅显示可链式单输入动作。"
     assert "Stack 仅支持可链式单输入动作" in selector.operation_buttons()[Operation.convert].toolTip()
 
 

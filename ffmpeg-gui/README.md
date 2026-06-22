@@ -2,6 +2,11 @@
 
 本机个人使用的 PySide6 桌面版 ffmpeg 工具。应用直接选择本机文件路径，调用本机 `ffmpeg` / `ffprobe` 处理媒体，不使用 FastAPI、WebView、Electron、Tauri、QML、ffmpeg.wasm 或 Whisper。
 
+当前稳定基线聚焦本机文件处理、批处理、Stack 链式处理、结果管理和长任务生命周期保护。功能覆盖和验收方式见：
+
+- [功能矩阵](docs/功能矩阵.md)
+- [手工验收清单](docs/手工验收清单.md)
+
 ## 功能
 
 - 查看 `ffprobe` 媒体信息
@@ -20,6 +25,7 @@
 - 按 `ffmpeg` 原生能力完成非模型功能复现，不接入 Whisper / 自动字幕模型 / Transformers.js / ffmpeg.wasm。
 - 操作名使用本项目 `snake_case`：`resize_compress`、`side_by_side`、`picture_in_picture`、`media_info` 等，按本项目单一命名规范实现。
 - 不引入 FastAPI、WebUI、数据库、远程服务或持久任务系统。
+- 不做 Auto-Caption / Whisper 自动字幕、PWA、浏览器下载中心或内嵌 Web 播放器。
 
 ## UI 结构
 
@@ -35,7 +41,7 @@
 需要 `uv`、Python 3.14、本机 `ffmpeg` 和 `ffprobe`。
 
 ```bash
-cd /Users/boom/workspace/BoomTools/ffmpeg-gui
+cd ffmpeg-gui
 uv venv --python 3.14
 uv pip install -r requirements.txt
 ```
@@ -56,7 +62,7 @@ FFMPEG_BIN=/opt/homebrew/bin/ffmpeg FFPROBE_BIN=/opt/homebrew/bin/ffprobe uv run
 ## 启动
 
 ```bash
-cd /Users/boom/workspace/BoomTools/ffmpeg-gui
+cd ffmpeg-gui
 uv run python -m desktop.app.main
 ```
 
@@ -84,12 +90,12 @@ uv run python -m desktop.app.main
 ## 验证
 
 ```bash
-cd /Users/boom/workspace/BoomTools/ffmpeg-gui
+cd ffmpeg-gui
 uv run python -m compileall desktop shared tests
 uv run python -m pytest
 ```
 
-集成 smoke 会真实调用本机 `ffmpeg`，默认跳过。如需运行：
+真实 ffmpeg smoke 会调用本机 `ffmpeg` / `ffprobe` 并生成临时媒体，默认跳过。如需执行稳定基线验证：
 
 ```bash
 RUN_FFMPEG_GUI_SMOKE=1 uv run python -m pytest tests/integration

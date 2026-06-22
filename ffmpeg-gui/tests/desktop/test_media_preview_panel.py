@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+import wave
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -36,6 +37,115 @@ def test_media_preview_panel_loads_task_record_and_switches_output(tmp_path: Pat
     assert panel.current_task_id() == record.task_id
     assert panel.source_toggle.button("output").isEnabled()
     assert panel.description_label.text() == "当前任务 · 输出"
+    panel.close()
+
+
+def test_media_preview_panel_auto_switches_to_output_when_result_appears(tmp_path: Path) -> None:
+    _qt_app()
+    input_path = tmp_path / "input.wav"
+    output_path = tmp_path / "output.wav"
+    _write_wav(input_path)
+    record = TaskRecord(
+        operation=Operation.convert,
+        input_path=input_path,
+        output_path=output_path,
+        media_info=MediaInfo(
+            raw={"streams": [{"codec_type": "audio", "codec_name": "pcm_s16le"}]},
+            duration_seconds=2.5,
+        ),
+        status=TaskStatus.running,
+    )
+    panel = MediaPreviewPanel()
+    _disable_player_source(panel)
+    panel.set_record(record)
+
+    _write_wav(output_path)
+    record.status = TaskStatus.succeeded
+    panel.set_record(record)
+
+    assert panel.source_toggle.value() == "output"
+    assert panel.description_label.text() == "当前任务 · 输出"
+    assert panel.player_widget.file_label.text() == "输出：output.wav"
+    panel.close()
+
+
+def test_media_preview_panel_preserves_manual_input_choice_after_output_exists(tmp_path: Path) -> None:
+    _qt_app()
+    input_path = tmp_path / "input.wav"
+    output_path = tmp_path / "output.wav"
+    _write_wav(input_path)
+    _write_wav(output_path)
+    record = TaskRecord(
+        operation=Operation.convert,
+        input_path=input_path,
+        output_path=output_path,
+        media_info=MediaInfo(
+            raw={"streams": [{"codec_type": "audio", "codec_name": "pcm_s16le"}]},
+            duration_seconds=2.5,
+        ),
+        status=TaskStatus.succeeded,
+    )
+    panel = MediaPreviewPanel()
+    _disable_player_source(panel)
+    panel.set_record(record)
+    panel.source_toggle.set_value("input", emit=True)
+
+    panel.set_record(record)
+
+    assert panel.source_toggle.value() == "input"
+    assert panel.description_label.text() == "当前任务 · 输入"
+    panel.close()
+
+
+def test_media_preview_panel_uses_audio_placeholder_for_audio_only_input(tmp_path: Path) -> None:
+    _qt_app()
+    input_path = tmp_path / "voice.wav"
+    _write_wav(input_path)
+    record = TaskRecord(
+        operation=Operation.convert,
+        input_path=input_path,
+        media_info=MediaInfo(
+            raw={"streams": [{"codec_type": "audio", "codec_name": "mp3"}]},
+            duration_seconds=3.0,
+        ),
+        status=TaskStatus.ready,
+    )
+    panel = MediaPreviewPanel()
+    _disable_player_source(panel)
+
+    panel.set_record(record)
+
+    assert panel.player_widget.display_stack.currentWidget() is panel.player_widget.placeholder_label
+    assert panel.player_widget.placeholder_label.text() == "音频预览 · 无画面"
+    assert panel.player_widget.status_label.text() == "音频预览已载入"
+    assert panel.player_widget.play_button.isEnabled()
+    assert panel.player_widget.position_slider.isEnabled()
+    panel.close()
+
+
+def test_media_preview_panel_missing_output_falls_back_to_input(tmp_path: Path) -> None:
+    _qt_app()
+    input_path = tmp_path / "input.wav"
+    missing_output_path = tmp_path / "missing-output.wav"
+    _write_wav(input_path)
+    record = TaskRecord(
+        operation=Operation.convert,
+        input_path=input_path,
+        output_path=missing_output_path,
+        media_info=MediaInfo(
+            raw={"streams": [{"codec_type": "audio", "codec_name": "pcm_s16le"}]},
+            duration_seconds=2.5,
+        ),
+        status=TaskStatus.succeeded,
+    )
+    panel = MediaPreviewPanel()
+    _disable_player_source(panel)
+
+    panel.set_record(record)
+
+    assert panel.source_toggle.value() == "input"
+    assert not panel.source_toggle.button("output").isEnabled()
+    assert panel.description_label.text() == "当前任务 · 输入"
     panel.close()
 
 
@@ -127,6 +237,19 @@ def _qt_app() -> QApplication:
 def _disable_player_backend(panel: MediaPreviewPanel) -> None:
     panel.player_widget.set_media = lambda *_args, **_kwargs: None  # type: ignore[method-assign]
     panel.player_widget.clear = lambda *_args, **_kwargs: None  # type: ignore[method-assign]
+
+
+def _disable_player_source(panel: MediaPreviewPanel) -> None:
+    player = panel.player_widget
+    player._player.setSource = lambda *_args, **_kwargs: None  # type: ignore[method-assign]
+
+
+def _write_wav(path: Path) -> None:
+    with wave.open(str(path), "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(8000)
+        handle.writeframes(b"\x00\x00" * 32)
 
 
 def _opaque_icon_colors(icon: QIcon, size) -> list:

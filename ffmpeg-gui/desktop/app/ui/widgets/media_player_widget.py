@@ -105,7 +105,14 @@ class MediaPlayerWidget(QWidget):
         self._player.playbackStateChanged.connect(lambda _state: self._sync_control_state())
         self._sync_control_state()
 
-    def set_media(self, path: Path | None, *, duration_seconds: float | None = None, label: str = "") -> None:
+    def set_media(
+        self,
+        path: Path | None,
+        *,
+        duration_seconds: float | None = None,
+        label: str = "",
+        has_video: bool | None = None,
+    ) -> None:
         if path is None:
             self.clear()
             return
@@ -118,8 +125,13 @@ class MediaPlayerWidget(QWidget):
         self._duration_ms = self._fallback_duration_ms
         self.file_label.setText(label or path.name)
         self.file_label.setToolTip(str(path))
-        self.status_label.setText("预览已载入")
-        self.display_stack.setCurrentWidget(self.video_widget)
+        if has_video is False:
+            self.status_label.setText("音频预览已载入")
+            self.placeholder_label.setText("音频预览 · 无画面")
+            self.display_stack.setCurrentWidget(self.placeholder_label)
+        else:
+            self.status_label.setText("预览已载入")
+            self.display_stack.setCurrentWidget(self.video_widget)
         self._player.setSource(QUrl.fromLocalFile(str(path)))
         self._sync_duration_range()
         self._sync_time_label(self._player.position())

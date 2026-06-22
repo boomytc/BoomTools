@@ -48,6 +48,7 @@ class OperationPanel(QWidget):
         self.stack_panel.clear_requested.connect(self.stack_clear_requested.emit)
         self.stack_panel.item_selected.connect(self.stack_item_selected.emit)
         self.stack_panel.item_moved.connect(self.stack_item_moved.emit)
+        self.stack_panel.output_options_changed.connect(self.command_preview_requested.emit)
         self.stack_panel.setVisible(False)
         layout.addWidget(self.stack_panel)
         layout.addStretch(1)
@@ -91,6 +92,9 @@ class OperationPanel(QWidget):
     def set_stack_items(self, items: list[str]) -> None:
         self.stack_panel.set_items(items)
         self.refresh_stack_controls()
+
+    def stack_output_options(self) -> dict[str, object]:
+        return self.stack_panel.stack_output_options()
 
     def set_operation_payload(
         self,

@@ -88,6 +88,8 @@ uv run python -m desktop.app.main
 
 两种模式都继续支持帧率、宽度和可选开始/结束时间范围。
 
+Stack 模式额外提供 Stack 级输出设置：默认“跟随最后一步”，也可以直接输出 `gif`。选择 GIF 后可设置 `fast/palette`、帧率和宽度；palette 模式沿用同一套两阶段 palette 临时文件和清理流程。该能力只作用于 Stack 输出，不把 GIF 扩展为所有普通视频操作的常规输出格式。
+
 ## 批量结果打包
 
 任务队列提供“打包成功结果”入口。它只收集最近一次批处理中状态为 `succeeded` 且文件仍存在的输出文件，失败、取消、无输出或已删除的结果会跳过。ZIP 写入当前输出目录，命名格式为 `ffmpeg-gui-batch-YYYYMMDD-HHMMSS.zip`。

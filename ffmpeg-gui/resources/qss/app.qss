@@ -180,6 +180,7 @@ QWidget#panelActionBar,
 QWidget#batchResultBar,
 QWidget#mediaPreviewSourceBar,
 QWidget#mediaPreviewActionRow,
+QWidget#stackOutputOptions,
 QWidget#segmentedToggle,
 QWidget#formSection {
   background: transparent;
@@ -305,6 +306,12 @@ QLabel#outputDirSummary {
   color: #91a0b8;
   font-size: 12px;
   padding: 0 2px;
+}
+
+QLabel#stackOutputLabel {
+  color: #91a0b8;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 QLabel#healthLabel {

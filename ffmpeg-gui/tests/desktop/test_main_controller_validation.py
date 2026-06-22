@@ -30,6 +30,7 @@ class _FakeWindow:
         self._ffprobe_bin = "ffprobe"
         self._prevent_sleep_during_tasks = True
         self.stack_mode_enabled = False
+        self.stack_output_options_value: dict[str, object] = {"output_format": "inherit"}
         self.batch_input_mode_enabled = False
         self.error_messages: list[str] = []
         self.status_messages: list[str] = []
@@ -131,6 +132,9 @@ class _FakeWindow:
 
     def stack_mode(self) -> bool:
         return self.stack_mode_enabled
+
+    def stack_output_options(self) -> dict[str, object]:
+        return dict(self.stack_output_options_value)
 
     def set_start_enabled(self, enabled: bool) -> None:
         self.start_enabled_values.append(enabled)
@@ -873,6 +877,43 @@ def test_stack_batch_crop_skips_file_when_crop_exceeds_resolution(tmp_path: Path
     assert records[1].status is TaskStatus.failed
     assert "裁剪区域超出文件分辨率" in records[1].message
     assert window.batch_progress_values[-1] == (2, 2, "处理结束（有失败）")
+
+
+def test_batch_stack_applies_stack_gif_output_options_to_each_file(tmp_path: Path) -> None:
+    window = _FakeWindow()
+    window.stack_mode_enabled = True
+    window.stack_output_options_value = {"output_format": "gif", "quality": "fast", "fps": 8, "width": 240}
+    first = tmp_path / "first.mp4"
+    second = tmp_path / "second.mp4"
+    first.write_bytes(b"\x00")
+    second.write_bytes(b"\x00")
+    window.set_operation_payload(Operation.rotate, {"mode": "cw90", "output_format": "mp4"}, {})
+    window.set_batch_paths([first, second])
+    task_manager = _RecordingTaskManager()
+
+    controller = _make_controller(window, task_manager=task_manager)
+    controller._on_stack_add_requested()
+    controller.state.input_mode = "batch"
+    controller.state.batch_input_paths = [first, second]
+    controller.state.input_path = first
+    window.set_batch_input_mode(True)
+    controller.start_task()
+
+    assert len(task_manager.created_workers) == 1
+    first_spec = task_manager.created_workers[0][0]
+    assert first_spec.output_path is not None
+    assert first_spec.output_path.suffix == ".gif"
+    assert "fps=8,scale=240" in first_spec.args[first_spec.args.index("-vf") + 1]
+
+    first_record = controller.state.current_task
+    assert first_record is not None
+    controller._on_task_finished(first_record, task_manager.created_workers[0][2], TaskStatus.succeeded)
+
+    assert len(task_manager.created_workers) == 2
+    second_spec = task_manager.created_workers[1][0]
+    assert second_spec.output_path is not None
+    assert second_spec.output_path.suffix == ".gif"
+    assert "fps=8,scale=240" in second_spec.args[second_spec.args.index("-vf") + 1]
 
 
 def test_finish_batch_reports_cancelled_terminal_label() -> None:

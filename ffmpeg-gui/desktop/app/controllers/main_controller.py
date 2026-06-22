@@ -85,6 +85,7 @@ class MainController(QObject):
         self._batch_options: dict[str, object] = {}
         self._batch_extra_inputs: dict[str, Path] = {}
         self._batch_stack_items: list[tuple[Operation, dict[str, object], dict[str, Path]]] = []
+        self._batch_stack_output_options: dict[str, object] = {"output_format": "inherit"}
         self._batch_records: list[TaskRecord] = []
         self._is_batch_stack_mode: bool = False
         self._pending_total: int = 0
@@ -248,12 +249,18 @@ class MainController(QObject):
 
         if use_stack:
             self._batch_stack_items = stack_specs
+            self._batch_stack_output_options = self.window.stack_output_options()
             self._is_batch_stack_mode = True
             self._batch_operation = operation
             self._batch_options = options
             self._batch_extra_inputs = extra_inputs
             if len(input_paths) == 1:
-                self._start_single_stack_task(input_paths[0], self._batch_stack_items, media_info=self.state.media_info)
+                self._start_single_stack_task(
+                    input_paths[0],
+                    self._batch_stack_items,
+                    media_info=self.state.media_info,
+                    output_options=self._batch_stack_output_options,
+                )
                 return
 
             self.state.batch_input_paths = input_paths
@@ -266,6 +273,7 @@ class MainController(QObject):
 
         self._is_batch_stack_mode = False
         self._batch_stack_items = []
+        self._batch_stack_output_options = {"output_format": "inherit"}
         self._batch_operation = operation
         self._batch_options = options
         self._batch_extra_inputs = extra_inputs
@@ -618,6 +626,7 @@ class MainController(QObject):
                     output_dir=self.output_service.default_output_dir(),
                     stack=stack_specs,
                     media_info=self.state.media_info,
+                    output_options=self.window.stack_output_options(),
                 )
             else:
                 spec = self.ffmpeg_service.build_command(
@@ -927,6 +936,7 @@ class MainController(QObject):
         input_path: Path,
         stack_specs: list[tuple[Operation, dict[str, object], dict[str, Path]]],
         media_info: MediaInfo | None = None,
+        output_options: dict[str, object] | None = None,
     ) -> None:
         try:
             spec = build_stack_command(
@@ -935,6 +945,7 @@ class MainController(QObject):
                 output_dir=self.state.output_dir,
                 stack=stack_specs,
                 media_info=media_info,
+                output_options=output_options,
             )
         except (CommandError, ValueError) as exc:
             self.window.show_error(str(exc))
@@ -1048,6 +1059,7 @@ class MainController(QObject):
                     output_dir=self.state.output_dir,
                     stack=stack_items,
                     media_info=self._media_info_for_path(input_path),
+                    output_options=self._batch_stack_output_options,
                 )
             else:
                 options = self._options_with_media_duration(self._batch_operation, self._batch_options, input_path)

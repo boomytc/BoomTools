@@ -4,15 +4,19 @@ from PySide6.QtCore import QEvent, QPoint, QRect, Qt, Signal
 from PySide6.QtGui import QColor, QMouseEvent, QPaintEvent, QPainter
 from PySide6.QtWidgets import (
     QApplication,
+    QComboBox,
     QFrame,
     QGraphicsOpacityEffect,
     QHBoxLayout,
     QLabel,
     QPushButton,
     QSizePolicy,
+    QSpinBox,
+    QWidget,
 )
 
 from desktop.app.ui.components import PanelFrame
+from desktop.app.ui.widgets.operation_field_factory import NoWheelSpinBox, create_styled_combo_box
 from shared.contracts import STACK_MAX_ITEMS
 
 
@@ -27,6 +31,7 @@ class StackPanel(PanelFrame):
     clear_requested = Signal()
     item_selected = Signal(int)
     item_moved = Signal(int, int)
+    output_options_changed = Signal()
 
     def __init__(self) -> None:
         super().__init__("Stack 队列", description=STACK_HINT, density="compact")
@@ -34,8 +39,8 @@ class StackPanel(PanelFrame):
         self._busy = False
         self.setObjectName("stackPanel")
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.setMinimumHeight(96)
-        self.setMaximumHeight(118)
+        self.setMinimumHeight(136)
+        self.setMaximumHeight(156)
 
         self.count_label = QLabel(f"0/{STACK_MAX_ITEMS}")
         self.count_label.setObjectName("stackCountLabel")
@@ -56,6 +61,8 @@ class StackPanel(PanelFrame):
         self.stack_chain.item_removed.connect(self.remove_requested.emit)
 
         layout.addWidget(self.stack_chain)
+        self.output_options_row = self._create_output_options_row()
+        layout.addWidget(self.output_options_row)
 
         self.setVisible(False)
         self.set_busy(False)
@@ -73,9 +80,23 @@ class StackPanel(PanelFrame):
     def has_items(self) -> bool:
         return bool(self._items)
 
+    def stack_output_options(self) -> dict[str, object]:
+        output_format = str(self.output_format_combo.currentData() or "inherit")
+        options: dict[str, object] = {"output_format": output_format}
+        if output_format == "gif":
+            options.update(
+                {
+                    "quality": str(self.gif_quality_combo.currentData() or "fast"),
+                    "fps": self.gif_fps_spin.value(),
+                    "width": self.gif_width_spin.value(),
+                }
+            )
+        return options
+
     def set_busy(self, busy: bool) -> None:
         self._busy = busy
         self.stack_chain.set_busy(busy)
+        self.output_options_row.setEnabled(not busy)
         self.set_actions_enabled(self.has_items())
 
     def set_actions_enabled(self, has_items: bool) -> None:
@@ -87,6 +108,90 @@ class StackPanel(PanelFrame):
             self.set_description(STACK_HINT)
             return
         self.set_description(STACK_LIMITED_HINT)
+
+    def _create_output_options_row(self) -> QWidget:
+        row = QWidget()
+        row.setObjectName("stackOutputOptions")
+        layout = QHBoxLayout(row)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+
+        layout.addWidget(_stack_option_label("输出"))
+        self.output_format_combo = _stack_combo(
+            [
+                ("跟随最后一步", "inherit"),
+                ("MP4", "mp4"),
+                ("WebM", "webm"),
+                ("MOV", "mov"),
+                ("MKV", "mkv"),
+                ("AVI", "avi"),
+                ("GIF", "gif"),
+            ]
+        )
+        self.output_format_combo.currentIndexChanged.connect(self._on_output_format_changed)
+        layout.addWidget(self.output_format_combo)
+
+        self.gif_quality_label = _stack_option_label("质量")
+        self.gif_quality_combo = _stack_combo([("fast", "fast"), ("palette", "palette")])
+        self.gif_quality_combo.currentIndexChanged.connect(lambda _index: self.output_options_changed.emit())
+        layout.addWidget(self.gif_quality_label)
+        layout.addWidget(self.gif_quality_combo)
+
+        self.gif_fps_label = _stack_option_label("FPS")
+        self.gif_fps_spin = _stack_spin(1, 30, 10)
+        self.gif_fps_spin.valueChanged.connect(lambda _value: self.output_options_changed.emit())
+        layout.addWidget(self.gif_fps_label)
+        layout.addWidget(self.gif_fps_spin)
+
+        self.gif_width_label = _stack_option_label("宽度")
+        self.gif_width_spin = _stack_spin(64, 1920, 480)
+        self.gif_width_spin.valueChanged.connect(lambda _value: self.output_options_changed.emit())
+        layout.addWidget(self.gif_width_label)
+        layout.addWidget(self.gif_width_spin)
+
+        layout.addStretch(1)
+        self._sync_output_options_visibility()
+        return row
+
+    def _on_output_format_changed(self, _index: int) -> None:
+        self._sync_output_options_visibility()
+        self.output_options_changed.emit()
+
+    def _sync_output_options_visibility(self) -> None:
+        is_gif = self.output_format_combo.currentData() == "gif"
+        for widget in (
+            self.gif_quality_label,
+            self.gif_quality_combo,
+            self.gif_fps_label,
+            self.gif_fps_spin,
+            self.gif_width_label,
+            self.gif_width_spin,
+        ):
+            widget.setVisible(is_gif)
+
+
+def _stack_combo(items: list[tuple[str, str]]) -> QComboBox:
+    combo = create_styled_combo_box()
+    combo.setProperty("density", "compact")
+    for label, value in items:
+        combo.addItem(label, value)
+    combo.setMaximumWidth(136)
+    return combo
+
+
+def _stack_spin(minimum: int, maximum: int, value: int) -> QSpinBox:
+    spin = NoWheelSpinBox()
+    spin.setRange(minimum, maximum)
+    spin.setValue(value)
+    spin.setMaximumWidth(86)
+    spin.setProperty("density", "compact")
+    return spin
+
+
+def _stack_option_label(text: str) -> QLabel:
+    label = QLabel(text)
+    label.setObjectName("stackOutputLabel")
+    return label
 
 
 class _StackChainView(QFrame):

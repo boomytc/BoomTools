@@ -309,3 +309,57 @@ def test_ffmpeg_smoke_stack_chain_three_steps(tmp_path: Path) -> None:
         pytest.fail("Stack 命令应有明确输出文件")
     assert spec.output_path.exists()
     assert spec.output_path.stat().st_size > 0
+
+
+def test_ffmpeg_smoke_stack_palette_gif_output(tmp_path: Path) -> None:
+    if os.environ.get("RUN_FFMPEG_GUI_SMOKE") != "1":
+        pytest.skip("Set RUN_FFMPEG_GUI_SMOKE=1 to run real ffmpeg smoke tests")
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        pytest.skip("ffmpeg not available")
+
+    input_path = tmp_path / "input.mp4"
+    _ffmpeg_run(
+        [
+            ffmpeg,
+            "-hide_banner",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=size=160x90:rate=12",
+            "-t",
+            "1",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            str(input_path),
+        ]
+    )
+
+    stack = [
+        (Operation.crop, {"x": 0, "y": 0, "width": 120, "height": 80, "output_format": "mp4"}, {}),
+        (Operation.adjust, {"brightness": 0.0, "contrast": 1.1, "saturation": 1.2, "output_format": "mp4"}, {}),
+    ]
+    spec = build_stack_command(
+        ffmpeg_bin=ffmpeg,
+        input_path=input_path,
+        output_dir=tmp_path / "stack_gif",
+        stack=stack,
+        media_info=MediaInfo(
+            raw={"streams": [{"codec_type": "video", "width": 160, "height": 90}]},
+            duration_seconds=1.0,
+        ),
+        output_options={"output_format": "gif", "quality": "palette", "fps": 6, "width": 120},
+    )
+
+    try:
+        _run_command_spec(spec)
+        if spec.output_path is None:
+            pytest.fail("Stack GIF 命令应有明确输出文件")
+        assert spec.output_path.read_bytes()[:6] in {b"GIF87a", b"GIF89a"}
+        assert spec.output_path.stat().st_size > 0
+    finally:
+        for path in spec.cleanup_paths:
+            path.unlink(missing_ok=True)

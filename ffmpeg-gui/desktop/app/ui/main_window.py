@@ -213,6 +213,9 @@ class MainWindow(QMainWindow):
     def set_stack_items(self, items: list[str]) -> None:
         self.operation_panel.set_stack_items(items)
 
+    def stack_output_options(self) -> dict[str, object]:
+        return self.operation_panel.stack_output_options()
+
     def set_preview_record(self, record: TaskRecord) -> None:
         self.media_preview_panel.set_record(record)
 

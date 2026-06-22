@@ -123,8 +123,9 @@ def test_stack_panel_renders_steps_as_arrow_chain() -> None:
     assert panel.count_label.parentWidget() is panel.header_widget
     assert panel.count_label.text() == "3/6"
     assert panel.description_label.text() == "双击加入 · 拖动排序 · 最多 6 步"
-    assert panel.body_layout().count() == 1
-    assert panel.maximumHeight() <= 118
+    assert panel.body_layout().count() == 2
+    assert panel.maximumHeight() <= 156
+    assert panel.stack_output_options() == {"output_format": "inherit"}
     assert not hasattr(panel, "move_up_button")
     assert not hasattr(panel, "move_down_button")
     assert not hasattr(panel, "add_button")
@@ -140,6 +141,38 @@ def test_stack_panel_renders_steps_as_arrow_chain() -> None:
 
     assert moved == [(0, 2)]
     assert panel.stack_chain.selected_index() == 2
+    panel.close()
+
+
+def test_stack_panel_gif_output_options_reveal_quality_controls() -> None:
+    app = _qt_app()
+    app.setStyleSheet(QSS_PATH.read_text(encoding="utf-8"))
+    panel = StackPanel()
+    emitted: list[bool] = []
+    panel.output_options_changed.connect(lambda: emitted.append(True))
+    panel.show()
+    app.processEvents()
+
+    assert not panel.gif_quality_combo.isVisible()
+    assert not panel.gif_fps_spin.isVisible()
+    assert not panel.gif_width_spin.isVisible()
+
+    panel.output_format_combo.setCurrentIndex(panel.output_format_combo.findData("gif"))
+    panel.gif_quality_combo.setCurrentIndex(panel.gif_quality_combo.findData("palette"))
+    panel.gif_fps_spin.setValue(8)
+    panel.gif_width_spin.setValue(320)
+    app.processEvents()
+
+    assert panel.gif_quality_combo.isVisible()
+    assert panel.gif_fps_spin.isVisible()
+    assert panel.gif_width_spin.isVisible()
+    assert panel.stack_output_options() == {
+        "output_format": "gif",
+        "quality": "palette",
+        "fps": 8,
+        "width": 320,
+    }
+    assert emitted
     panel.close()
 
 

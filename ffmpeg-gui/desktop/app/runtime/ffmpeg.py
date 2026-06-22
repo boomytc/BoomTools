@@ -155,10 +155,27 @@ def _build_palette_gif_command(
     output_name: str,
     options: dict[str, Any],
 ) -> CommandSpec:
+    return build_palette_gif_command(
+        ffmpeg_bin=ffmpeg_bin,
+        input_path=input_path,
+        output_path=output_path,
+        output_name=output_name,
+        frame_filter=_gif_frame_filter(options),
+        trim_args=_trim_input_args(Operation.gif, options),
+    )
+
+
+def build_palette_gif_command(
+    *,
+    ffmpeg_bin: str,
+    input_path: Path,
+    output_path: Path,
+    output_name: str,
+    frame_filter: str,
+    trim_args: list[str] | tuple[str, ...] = (),
+) -> CommandSpec:
     TEMP_DIR.mkdir(parents=True, exist_ok=True)
     palette_path = _unique_output_path(TEMP_DIR / f"{output_path.stem}_palette.png")
-    trim_args = _trim_input_args(Operation.gif, options)
-    frame_filter = _gif_frame_filter(options)
 
     setup_args = [
         ffmpeg_bin,

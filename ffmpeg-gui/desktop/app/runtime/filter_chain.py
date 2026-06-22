@@ -9,9 +9,11 @@ from .ffmpeg import (
     _as_bool,
     _atempo_filter,
     _format_number,
+    _gif_frame_filter,
     _output_name,
     _unique_output_path,
     _video_codec_args,
+    build_palette_gif_command,
     CommandSpec,
     CommandError,
     _bounded_float,
@@ -30,6 +32,7 @@ def build_stack_command(
     output_dir: Path,
     stack: list[tuple[Operation, dict[str, object], dict[str, Path]]],
     media_info: MediaInfo | None = None,
+    output_options: dict[str, object] | None = None,
 ) -> CommandSpec:
     if not stack:
         raise CommandError("stack requires at least one operation")
@@ -53,26 +56,87 @@ def build_stack_command(
         "pipe:1",
         "-nostats",
     ]
-    args.extend(_trim_input_args(stack[0][0], stack[0][1]))
+    trim_args = _trim_input_args(stack[0][0], stack[0][1])
+    args.extend(trim_args)
     args.extend(["-i", str(input_path)])
 
     filters = _collect_filter_chains(stack=stack, media_info=media_info)
     video_filters = filters["vf"]
     audio_filters = filters["af"]
 
+    final_operation, final_options, _ = stack[-1]
+    stack_output = _stack_output_options(final_options=final_options, output_options=output_options)
+    if stack_output["output_format"] == "gif":
+        return _build_stack_gif_command(
+            ffmpeg_bin=ffmpeg_bin,
+            input_path=input_path,
+            output_dir=output_dir,
+            final_operation=final_operation,
+            base_args=args,
+            trim_args=trim_args,
+            video_filters=video_filters,
+            output_options=stack_output,
+        )
+
     if video_filters:
         args.extend(["-vf", ",".join(video_filters)])
     if audio_filters:
         args.extend(["-af", ",".join(audio_filters)])
 
-    final_operation, final_options, _ = stack[-1]
-    output_format = _choice(final_options.get("output_format", "mp4"), {"mp4", "webm", "mov", "mkv", "avi"}, "output_format")
+    output_format = str(stack_output["output_format"])
     args.extend(_video_codec_args(output_format))
 
     output_name = _output_name(input_path, final_operation, output_format)
     output_path = _unique_output_path(output_dir / output_name)
     args.append(str(output_path))
     return CommandSpec(args=args, output_path=output_path, output_name=output_path.name)
+
+
+def _build_stack_gif_command(
+    *,
+    ffmpeg_bin: str,
+    input_path: Path,
+    output_dir: Path,
+    final_operation: Operation,
+    base_args: list[str],
+    trim_args: list[str],
+    video_filters: list[str],
+    output_options: dict[str, object],
+) -> CommandSpec:
+    gif_filter = _gif_frame_filter(output_options)
+    frame_filter = ",".join([*video_filters, gif_filter])
+    output_name = _output_name(input_path, final_operation, "gif")
+    output_path = _unique_output_path(output_dir / output_name)
+    quality = _choice(output_options.get("quality", "fast"), {"fast", "palette"}, "quality")
+    if quality == "palette":
+        return build_palette_gif_command(
+            ffmpeg_bin=ffmpeg_bin,
+            input_path=input_path,
+            output_path=output_path,
+            output_name=output_path.name,
+            frame_filter=frame_filter,
+            trim_args=tuple(trim_args),
+        )
+
+    args = [*base_args, "-vf", frame_filter, "-an", "-loop", "0", str(output_path)]
+    return CommandSpec(args=args, output_path=output_path, output_name=output_path.name)
+
+
+def _stack_output_options(
+    *,
+    final_options: dict[str, object],
+    output_options: dict[str, object] | None,
+) -> dict[str, object]:
+    options = dict(output_options or {})
+    output_format = _choice(
+        options.get("output_format", "inherit"),
+        {"inherit", "mp4", "webm", "mov", "mkv", "avi", "gif"},
+        "output_format",
+    )
+    if output_format == "inherit":
+        output_format = _choice(final_options.get("output_format", "mp4"), {"mp4", "webm", "mov", "mkv", "avi"}, "output_format")
+    options["output_format"] = output_format
+    return options
 
 
 def validate_crop_media_context(

@@ -714,7 +714,7 @@ def test_stack_item_selection_syncs_operation_payload() -> None:
     window.set_operation_payload(Operation.adjust, {"brightness": 0.2, "contrast": 1.0, "saturation": 1.1}, {})
     controller._on_stack_item_selected(0)
 
-    assert window._stack_items == ["旋转翻转", "裁剪"]
+    assert window._stack_items == ["旋转翻转 · 顺90 · MP4", "裁剪 · 320x180+4+8 · MP4"]
     operation, options, extra_inputs = window.selected_operation_payload()
     assert operation is Operation.rotate
     assert options == {"mode": "cw90", "output_format": "mp4"}

@@ -21,6 +21,12 @@ from desktop.app.ui.widgets.task_table_model import ACTION_ENABLED_ROLE, TaskTab
 from shared.contracts import TERMINAL_STATUSES, TaskRecord, TaskStatus
 
 
+TASK_PANEL_DEFAULT_MIN_HEIGHT = 220
+TASK_PANEL_DENSE_MIN_HEIGHT = 170
+TASK_TABLE_DEFAULT_MIN_HEIGHT = 140
+TASK_TABLE_DENSE_MIN_HEIGHT = 90
+
+
 class TaskPanel(PanelFrame):
     start_requested = Signal()
     cancel_requested = Signal()
@@ -47,10 +53,11 @@ class TaskPanel(PanelFrame):
         self._zip_results_running = False
         self._has_recent_batch = False
         self._has_recent_batch_outputs = False
+        self._dense_mode = False
         self.setObjectName("taskPanel")
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.setMinimumHeight(158)
-        self.setMaximumHeight(420)
+        self.setMinimumHeight(TASK_PANEL_DEFAULT_MIN_HEIGHT)
+        self.setMaximumHeight(620)
 
         action_bar = PanelActionBar()
         self.start_button = action_bar.add_button("开始处理", role="primary")
@@ -69,7 +76,9 @@ class TaskPanel(PanelFrame):
         self.cancel_queue_button.clicked.connect(lambda _checked=False: self.cancel_queue_requested.emit())
         self.remove_pending_button.clicked.connect(lambda _checked=False: self.remove_pending_requested.emit())
         layout.addWidget(self.total_progress)
-        layout.addWidget(self._create_result_action_bar())
+        self.result_action_bar = self._create_result_action_bar()
+        layout.addWidget(self.result_action_bar)
+        self._sync_result_action_bar_visibility()
 
         self.task_table = QTableView()
         self.task_table.setObjectName("taskTable")
@@ -94,13 +103,13 @@ class TaskPanel(PanelFrame):
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
-        self.task_table.setColumnWidth(2, 130)
+        self.task_table.setColumnWidth(2, 190)
         self.task_table.setColumnWidth(3, 120)
         self.task_table.setColumnWidth(4, 72)
         self.task_table.verticalHeader().setDefaultSectionSize(54)
-        self.task_table.setMinimumHeight(90)
+        self.task_table.setMinimumHeight(TASK_TABLE_DEFAULT_MIN_HEIGHT)
         self.task_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        layout.addWidget(self.task_table)
+        layout.addWidget(self.task_table, 1)
         self.task_table.clicked.connect(self._handle_table_clicked)
         self.task_table.doubleClicked.connect(self._handle_table_double_clicked)
         self.task_table.customContextMenuRequested.connect(self._open_context_menu)
@@ -114,6 +123,18 @@ class TaskPanel(PanelFrame):
         task_model.dataChanged.connect(lambda *_args: self.refresh_total_progress())
         self._sync_processing_buttons()
         self.refresh_total_progress()
+
+    def set_dense_mode(self, dense: bool) -> None:
+        if dense == self._dense_mode:
+            return
+        self._dense_mode = dense
+        self.setMinimumHeight(TASK_PANEL_DENSE_MIN_HEIGHT if dense else TASK_PANEL_DEFAULT_MIN_HEIGHT)
+        self.task_table.setMinimumHeight(TASK_TABLE_DENSE_MIN_HEIGHT if dense else TASK_TABLE_DEFAULT_MIN_HEIGHT)
+        self._sync_result_action_bar_visibility()
+        self.updateGeometry()
+
+    def _sync_result_action_bar_visibility(self) -> None:
+        self.result_action_bar.setVisible(self._has_recent_batch and not self._dense_mode)
 
     def set_busy(self, busy: bool) -> None:
         self._busy = busy
@@ -156,6 +177,7 @@ class TaskPanel(PanelFrame):
             "在任务表中定位最近批次结果" if has_batch else "暂无最近批次可定位"
         )
         self._sync_zip_button_text()
+        self._sync_result_action_bar_visibility()
         self._sync_processing_buttons()
 
     def select_task_ids(self, task_ids: set[str]) -> int:

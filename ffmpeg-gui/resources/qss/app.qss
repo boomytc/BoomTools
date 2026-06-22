@@ -174,6 +174,21 @@ QFrame[role="panel"][density="standard"] {
   border-color: #535b72;
 }
 
+QFrame#taskPanel {
+  background: #171b28;
+  border-color: #5a657f;
+}
+
+QFrame#mediaPreviewPanel {
+  background: #121722;
+  border-color: #40506a;
+}
+
+QFrame#commandPreviewPanel {
+  background: #121621;
+  border-color: #3d465c;
+}
+
 QWidget#panelHeader,
 QWidget#panelBody,
 QWidget#panelActionBar,
@@ -800,11 +815,13 @@ QPlainTextEdit {
 }
 
 QPlainTextEdit#mediaInfoView,
-QLineEdit#commandPreview {
+QLineEdit#commandPreview,
+QPlainTextEdit#commandPreview {
   background: #101522;
 }
 
-QLineEdit#commandPreview {
+QLineEdit#commandPreview,
+QPlainTextEdit#commandPreview {
   color: #cfe0ff;
 }
 

@@ -32,9 +32,8 @@ class MediaPreviewPanel(PanelFrame):
     def __init__(self) -> None:
         super().__init__("媒体预览", description="当前任务 · 输入", density="compact")
         self.setObjectName("mediaPreviewPanel")
-        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
-        self.setMinimumWidth(320)
-        self.setMaximumWidth(460)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.setMinimumWidth(340)
         self._task_id: str | None = None
         self._input_path: Path | None = None
         self._output_path: Path | None = None

@@ -174,7 +174,7 @@ class TaskTableModel(QAbstractTableModel):
         if column == 2:
             operation = record.operation_text or operation_short_label(record.operation)
             category = operation_category_label(record.operation)
-            if record.operation_text:
+            if record.operation_text and record.operation_text.startswith("Stack"):
                 return f"动作：{operation}\n首个动作：{operation_short_label(record.operation)}\n分类：{category}"
             return f"动作：{operation}\n分类：{category}"
         if column == 3:

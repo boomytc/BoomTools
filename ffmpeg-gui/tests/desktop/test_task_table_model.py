@@ -27,6 +27,40 @@ def test_task_table_operation_column_uses_short_action_label() -> None:
     assert "分类：基础" in tooltip
 
 
+def test_task_table_operation_column_uses_parameter_summary_when_present() -> None:
+    record = TaskRecord(
+        operation=Operation.crop,
+        operation_text="裁剪 · 640x360+20+10 · MP4",
+        input_path=Path("clip.mov"),
+        status=TaskStatus.ready,
+    )
+    model = TaskTableModel()
+    model.append_record(record)
+
+    index = model.index(0, 2)
+
+    assert model.data(index, Qt.ItemDataRole.DisplayRole) == "裁剪 · 640x360+20+10 · MP4"
+    tooltip = str(model.data(index, Qt.ItemDataRole.ToolTipRole))
+    assert "动作：裁剪 · 640x360+20+10 · MP4" in tooltip
+    assert "首个动作" not in tooltip
+
+
+def test_task_table_stack_operation_tooltip_keeps_first_operation_context() -> None:
+    record = TaskRecord(
+        operation=Operation.crop,
+        operation_text="Stack x2 · 裁剪 640x360+20+10 -> 速度调整 1.25x",
+        input_path=Path("clip.mov"),
+        status=TaskStatus.ready,
+    )
+    model = TaskTableModel()
+    model.append_record(record)
+
+    tooltip = str(model.data(model.index(0, 2), Qt.ItemDataRole.ToolTipRole))
+
+    assert "动作：Stack x2 · 裁剪 640x360+20+10 -> 速度调整 1.25x" in tooltip
+    assert "首个动作：裁剪" in tooltip
+
+
 def test_task_table_remove_action_enabled_by_task_status() -> None:
     ready_record = TaskRecord(operation=Operation.convert, input_path=Path("ready.mov"), status=TaskStatus.ready)
     running_record = TaskRecord(operation=Operation.convert, input_path=Path("running.mov"), status=TaskStatus.running)

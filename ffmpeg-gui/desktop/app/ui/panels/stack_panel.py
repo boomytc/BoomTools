@@ -22,8 +22,8 @@ from shared.contracts import STACK_MAX_ITEMS
 
 STACK_HINT = f"双击加入 · 拖动排序 · 最多 {STACK_MAX_ITEMS} 步"
 STACK_LIMITED_HINT = f"仅可双击可链式动作 · 最多 {STACK_MAX_ITEMS} 步"
-STACK_CHIP_MAX_WIDTH = 136
-STACK_CHIP_TEXT_LIMIT = 12
+STACK_CHIP_MAX_WIDTH = 148
+STACK_CHIP_TEXT_LIMIT = 14
 
 
 class StackPanel(PanelFrame):
@@ -39,8 +39,8 @@ class StackPanel(PanelFrame):
         self._busy = False
         self.setObjectName("stackPanel")
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.setMinimumHeight(136)
-        self.setMaximumHeight(156)
+        self.setMinimumHeight(126)
+        self.setMaximumHeight(148)
 
         self.count_label = QLabel(f"0/{STACK_MAX_ITEMS}")
         self.count_label.setObjectName("stackCountLabel")
@@ -541,6 +541,12 @@ def _compact_chip_label(item: str) -> str:
     _category, separator, title = text.partition(" - ")
     if separator and title:
         text = title.strip()
+    parts = [part.strip() for part in text.split(" · ") if part.strip()]
+    if len(parts) > 1:
+        detail = parts[1]
+        if "x" in detail and "+" in detail:
+            detail = detail.split("+", 1)[0]
+        text = f"{parts[0]} {detail}"
     if len(text) > STACK_CHIP_TEXT_LIMIT and " (" in text:
         text = text.split(" (", 1)[0].strip()
     return text

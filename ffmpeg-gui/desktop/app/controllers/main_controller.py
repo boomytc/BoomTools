@@ -20,6 +20,7 @@ from desktop.app.tasks.probe_worker import ProbeWorker
 from desktop.app.tasks.task_manager import TaskManager
 from desktop.app.tasks.zip_results_worker import ZipResultsWorker
 from desktop.app.ui.main_window import MainWindow
+from desktop.app.ui.widgets.operation_summary import format_operation_summary, format_stack_summary
 from desktop.app.ui.widgets.task_table_model import TaskTableModel
 from desktop.app.viewmodels.app_state import AppState, RecentBatchState
 from desktop.app.viewmodels.task_state import TaskState
@@ -34,7 +35,6 @@ from shared.contracts import (
     TaskResult,
     TaskStatus,
     operation_label,
-    operation_short_label,
 )
 
 
@@ -691,8 +691,8 @@ class MainController(QObject):
         self,
         item: tuple[Operation, dict[str, object], dict[str, Path]],
     ) -> str:
-        operation, _options, _ = item
-        return operation_short_label(operation)
+        operation, options, extra_inputs = item
+        return format_operation_summary(operation, options, extra_inputs)
 
     def _set_prepared_inputs(self, input_paths: list[Path], *, status: TaskStatus, message: str) -> None:
         self._clear_prepared_records()
@@ -823,12 +823,25 @@ class MainController(QObject):
         return None
 
     def _queue_operation_display(self) -> tuple[Operation, str | None]:
-        selected_operation = self.window.selected_operation()
+        try:
+            operation, options, extra_inputs = self.window.selected_operation_payload()
+        except (ValueError, OSError, CommandError):
+            selected_operation = self.window.selected_operation()
+            return selected_operation, format_operation_summary(selected_operation)
+        return self._operation_display(operation, options, extra_inputs)
+
+    def _operation_display(
+        self,
+        operation: Operation,
+        options: dict[str, object],
+        extra_inputs: dict[str, Path],
+    ) -> tuple[Operation, str]:
         if not self.window.stack_mode():
-            return selected_operation, None
-        if self._stack_items:
-            return self._stack_items[0][0], f"Stack x{len(self._stack_items)}"
-        return selected_operation, "Stack"
+            return operation, format_operation_summary(operation, options, extra_inputs)
+        stack_specs = self._collect_stack_specs(operation, options, extra_inputs)
+        if not stack_specs:
+            return operation, "Stack"
+        return stack_specs[0][0], format_stack_summary(stack_specs)
 
     def _refresh_prepared_operation(self) -> None:
         if not self._prepared_records:
@@ -904,7 +917,7 @@ class MainController(QObject):
         task = self._start_record_for_path(
             input_path,
             operation=operation,
-            operation_text=None,
+            operation_text=format_operation_summary(operation, options, extra_inputs),
             output_path=spec.output_path,
             status=TaskStatus.running,
             message="Running ffmpeg",
@@ -954,7 +967,7 @@ class MainController(QObject):
         task = self._start_record_for_path(
             input_path,
             operation=stack_specs[0][0],
-            operation_text=f"Stack x{len(stack_specs)}",
+            operation_text=format_stack_summary(stack_specs),
             output_path=spec.output_path,
             status=TaskStatus.running,
             message="Running ffmpeg",
@@ -995,7 +1008,11 @@ class MainController(QObject):
         self.state.recent_batch = RecentBatchState()
         self._refresh_recent_batch_results_state()
         display_operation = self._batch_stack_items[0][0] if self._is_batch_stack_mode else self._batch_operation
-        operation_text = f"Stack x{len(self._batch_stack_items)}" if self._is_batch_stack_mode else None
+        operation_text = (
+            format_stack_summary(self._batch_stack_items)
+            if self._is_batch_stack_mode
+            else format_operation_summary(self._batch_operation, self._batch_options, self._batch_extra_inputs)
+        )
 
         for input_path in input_paths:
             task = self._start_record_for_path(
@@ -1634,7 +1651,7 @@ class MainController(QObject):
         task = self._start_record_for_path(
             input_path,
             operation=Operation.media_info,
-            operation_text=None,
+            operation_text=format_operation_summary(Operation.media_info),
             output_path=None,
             status=TaskStatus.succeeded,
             message="已读取媒体信息",

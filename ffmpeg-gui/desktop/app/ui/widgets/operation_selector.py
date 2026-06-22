@@ -26,6 +26,10 @@ STACK_MODE_FALLBACK_ORDER = (
 MAX_OPERATION_COLUMNS = 8
 MIN_OPERATION_CARD_WIDTH = 78
 OPERATION_GRID_SPACING = 6
+OPERATION_SELECTOR_HEIGHT = 236
+OPERATION_SCROLL_HEIGHT = 140
+STACK_OPERATION_SELECTOR_HEIGHT = 192
+STACK_OPERATION_SCROLL_HEIGHT = 104
 
 
 class OperationSelector(PanelFrame):
@@ -36,7 +40,7 @@ class OperationSelector(PanelFrame):
     def __init__(self) -> None:
         super().__init__("动作", description="选择动作后配置参数。")
         self.setObjectName("operationFrame")
-        self.setMinimumHeight(236)
+        self.setMinimumHeight(OPERATION_SELECTOR_HEIGHT)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._operation_buttons: dict[Operation, QPushButton] = {}
         self._selected_operation = Operation.convert
@@ -79,7 +83,7 @@ class OperationSelector(PanelFrame):
         self.operation_grid_widget.setMinimumWidth(0)
         self.operation_grid_widget.setLayout(self.operation_grid)
 
-        self.operation_scroll_area = FixedScrollArea(height=140)
+        self.operation_scroll_area = FixedScrollArea(height=OPERATION_SCROLL_HEIGHT)
         self.operation_scroll_area.setObjectName("operationScroll")
         self.operation_scroll_area.set_content_widget(self.operation_grid_widget)
         self.operation_scroll_area.viewport().installEventFilter(self)
@@ -188,9 +192,12 @@ class OperationSelector(PanelFrame):
 
     def _apply_stack_mode(self, enabled: bool) -> None:
         self._stack_mode = enabled
+        self._sync_mode_density()
         self._sync_operation_hint()
         self._ensure_selected_operation_available()
         self._sync_operation_button_states()
+        self._operation_columns = 0
+        self._relayout_operation_grid()
 
     def _ensure_selected_operation_available(self) -> None:
         if self._operation_allowed_by_modes(self._selected_operation):
@@ -217,11 +224,28 @@ class OperationSelector(PanelFrame):
         self._operation_columns = columns
         for button in self._operation_buttons.values():
             self.operation_grid.removeWidget(button)
-        for index, operation in enumerate(self._operation_order):
-            self.operation_grid.addWidget(self._operation_buttons[operation], index // columns, index % columns)
+            button.setVisible(False)
+        for index, operation in enumerate(self._visible_operation_order()):
+            button = self._operation_buttons[operation]
+            button.setVisible(True)
+            self.operation_grid.addWidget(button, index // columns, index % columns)
         for column in range(MAX_OPERATION_COLUMNS):
             self.operation_grid.setColumnStretch(column, 1 if column < columns else 0)
         self.operation_grid_widget.updateGeometry()
+
+    def _visible_operation_order(self) -> list[Operation]:
+        if self._stack_mode:
+            return [operation for operation in self._operation_order if operation in STACK_FILTER_OPERATIONS]
+        return list(self._operation_order)
+
+    def _sync_mode_density(self) -> None:
+        if self._stack_mode:
+            self.setMinimumHeight(STACK_OPERATION_SELECTOR_HEIGHT)
+            self.operation_scroll_area.setFixedHeight(STACK_OPERATION_SCROLL_HEIGHT)
+        else:
+            self.setMinimumHeight(OPERATION_SELECTOR_HEIGHT)
+            self.operation_scroll_area.setFixedHeight(OPERATION_SCROLL_HEIGHT)
+        self.updateGeometry()
 
     def _operation_grid_available_width(self) -> int:
         viewport_width = self.operation_scroll_area.viewport().width()

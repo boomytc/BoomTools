@@ -101,6 +101,7 @@ def test_task_panel_processing_buttons_follow_task_state() -> None:
     assert not panel.cancel_queue_button.isEnabled()
     assert not panel.remove_pending_button.isEnabled()
     assert not panel.zip_results_button.isEnabled()
+    assert panel.result_action_bar.isHidden()
 
     panel.set_start_enabled(True)
     assert panel.start_button.isEnabled()
@@ -135,6 +136,7 @@ def test_task_panel_processing_buttons_follow_task_state() -> None:
         has_successful_outputs=True,
     )
     panel.set_zip_results_enabled(True)
+    assert not panel.result_action_bar.isHidden()
     assert panel.zip_results_button.text() == "打包成功结果"
     assert panel.copy_batch_paths_button.isEnabled()
     assert panel.open_batch_dir_button.isEnabled()
@@ -149,6 +151,9 @@ def test_task_panel_processing_buttons_follow_task_state() -> None:
     panel.set_zip_results_enabled(False)
     assert panel.zip_results_button.text() == "无成功结果"
     assert not panel.copy_batch_paths_button.isEnabled()
+
+    panel.set_dense_mode(True)
+    assert panel.result_action_bar.isHidden()
 
 
 def test_task_panel_uses_text_delegate_for_action_column() -> None:

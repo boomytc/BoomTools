@@ -16,6 +16,7 @@ class OperationFormWidget(QWidget):
     spec_changed = Signal()
     stack_mode_toggled = Signal(bool)
     operation_activated = Signal(object)
+    minimum_height_changed = Signal()
 
     def __init__(self, command_preview_widget: QWidget | None = None) -> None:
         super().__init__()
@@ -34,6 +35,9 @@ class OperationFormWidget(QWidget):
         self.operation_selector.stack_mode_toggled.connect(self.stack_mode_toggled.emit)
         self.parameter_form.file_browse_requested.connect(self.file_browse_requested.emit)
         self.parameter_form.spec_changed.connect(self.spec_changed.emit)
+        height_mode_changed = getattr(command_preview_widget, "height_mode_changed", None)
+        if height_mode_changed is not None:
+            height_mode_changed.connect(self._sync_minimum_height)
 
         layout.addWidget(self.operation_selector, 0, 0)
         if command_preview_widget is not None:
@@ -67,6 +71,7 @@ class OperationFormWidget(QWidget):
 
     def set_stack_mode(self, enabled: bool) -> None:
         self.operation_selector.set_stack_mode(enabled)
+        self._sync_minimum_height()
 
     def stack_mode(self) -> bool:
         return self.operation_selector.stack_mode()
@@ -119,3 +124,5 @@ class OperationFormWidget(QWidget):
         if self.command_preview_widget is not None:
             minimum_height += self.layout().verticalSpacing() + self.command_preview_widget.minimumHeight()
         self.setMinimumHeight(minimum_height)
+        self.updateGeometry()
+        self.minimum_height_changed.emit()

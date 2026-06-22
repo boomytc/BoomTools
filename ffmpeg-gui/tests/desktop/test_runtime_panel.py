@@ -7,7 +7,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QFrame, QLabel, QPushButton
+from PySide6.QtWidgets import QApplication, QFrame, QLabel, QPlainTextEdit, QPushButton
 
 from desktop.app.core.paths import QSS_PATH
 from desktop.app.ui.components import PanelFrame
@@ -65,7 +65,8 @@ def test_command_preview_keeps_input_bottom_border_visible() -> None:
 
     edit_bottom = panel.preview_edit.mapTo(panel, QPoint(0, panel.preview_edit.height())).y()
 
-    assert panel.height() >= 96
+    assert isinstance(panel.preview_edit, QPlainTextEdit)
+    assert panel.height() >= 72
     assert panel.height() - edit_bottom >= 8
     panel.close()
 
@@ -81,6 +82,25 @@ def test_command_preview_displays_output_estimate_in_header() -> None:
 
     assert panel.description_label.text() == "输出大小保守估算：12.3 MB"
     assert panel.description_label.isVisible()
+    panel.close()
+
+
+def test_command_preview_expands_to_multiline_read_only_preview() -> None:
+    app = _qt_app()
+    panel = CommandPreviewPanel()
+    panel.show()
+    app.processEvents()
+
+    compact_maximum = panel.maximumHeight()
+    panel.set_command("$ ffmpeg -i input.mp4 output.mp4\n$ ffprobe input.mp4")
+    panel.set_expanded(True)
+    app.processEvents()
+
+    assert panel.is_expanded()
+    assert panel.expand_button.text() == "收起"
+    assert panel.maximumHeight() > compact_maximum
+    assert panel.preview_edit.toPlainText() == "$ ffmpeg -i input.mp4 output.mp4\n$ ffprobe input.mp4"
+    assert panel.preview_edit.isReadOnly()
     panel.close()
 
 
@@ -101,7 +121,7 @@ def test_stack_panel_renders_steps_as_arrow_chain() -> None:
     selected: list[int] = []
     panel.item_moved.connect(lambda from_index, to_index: moved.append((from_index, to_index)))
     panel.item_selected.connect(selected.append)
-    panel.set_items(["旋转翻转", "缩放压缩", "画面调整"])
+    panel.set_items(["裁剪 · 320x180+0+0 · MP4", "速度调整 · 1.25x · MP4", "淡入淡出 · 入1s · 出2s"])
     panel.resize(900, panel.maximumHeight())
     panel.show()
     app.processEvents()
@@ -111,7 +131,8 @@ def test_stack_panel_renders_steps_as_arrow_chain() -> None:
 
     assert len(chips) == 3
     assert len(arrows) == 2
-    assert [chip.text() for chip in chips] == ["1. 旋转翻转", "2. 缩放压缩", "3. 画面调整"]
+    assert [chip.text() for chip in chips] == ["1. 裁剪 320x180", "2. 速度调整 1.25x", "3. 淡入淡出 入1s"]
+    assert chips[0].toolTip().startswith("第 1 步：裁剪 · 320x180+0+0 · MP4")
     assert all(chip.property("role") == "stackChip" for chip in chips)
     assert all(chip.sizeHint().width() <= chip.width() for chip in chips)
     assert min(chip.height() for chip in chips) >= 26

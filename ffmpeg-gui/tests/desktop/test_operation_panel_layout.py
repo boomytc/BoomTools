@@ -37,8 +37,10 @@ def test_stack_mode_keeps_operation_form_readable() -> None:
     assert panel.operation_form.operation_selector.geometry().bottom() < panel.command_preview_panel.geometry().top()
     selector = panel.operation_form.operation_selector
     assert min(button.height() for button in selector.operation_buttons().values()) >= 28
-    assert selector.operation_scroll_area.verticalScrollBar().maximum() > 0
+    assert selector.operation_scroll_area.verticalScrollBar().maximum() == 0
     assert selector.operation_scroll_area.horizontalScrollBar().maximum() == 0
+    assert selector.operation_buttons()[Operation.crop].isVisible()
+    assert not selector.operation_buttons()[Operation.convert].isVisible()
 
     panel.close()
 

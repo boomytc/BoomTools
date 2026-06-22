@@ -21,6 +21,7 @@ class OperationPanel(QWidget):
     stack_item_selected = Signal(int)
     stack_item_moved = Signal(int, int)
     command_preview_requested = Signal()
+    minimum_height_changed = Signal()
 
     def __init__(self, command_preview_panel: CommandPreviewPanel | None = None) -> None:
         super().__init__()
@@ -39,6 +40,7 @@ class OperationPanel(QWidget):
         self.operation_form.file_browse_requested.connect(self.file_browse_requested.emit)
         self.operation_form.spec_changed.connect(self.refresh_stack_controls)
         self.operation_form.spec_changed.connect(self.command_preview_requested.emit)
+        self.operation_form.minimum_height_changed.connect(self._sync_minimum_height)
         self.operation_form.stack_mode_toggled.connect(self.stack_mode_toggled.emit)
         self.operation_form.operation_activated.connect(self._handle_operation_activated)
         layout.addWidget(self.operation_form)
@@ -152,3 +154,4 @@ class OperationPanel(QWidget):
             minimum_height += self._layout.spacing() + self.stack_panel.minimumHeight()
         self.setMinimumHeight(minimum_height)
         self.updateGeometry()
+        self.minimum_height_changed.emit()

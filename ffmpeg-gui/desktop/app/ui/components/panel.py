@@ -49,10 +49,11 @@ class PanelFrame(QFrame):
 
         self.body_widget = QWidget()
         self.body_widget.setObjectName("panelBody")
+        self.body_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._body_layout = QVBoxLayout(self.body_widget)
         self._body_layout.setContentsMargins(0, 0, 0, 0)
         self._body_layout.setSpacing(spacing)
-        self._root_layout.addWidget(self.body_widget)
+        self._root_layout.addWidget(self.body_widget, 1)
 
     def add_action(self, widget: QWidget) -> None:
         widget.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)

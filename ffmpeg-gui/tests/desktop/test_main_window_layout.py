@@ -33,6 +33,8 @@ def test_main_window_builds_dashboard_layout_host() -> None:
     assert window.command_preview_panel.property("panel_id") == "command_preview"
     assert window.media_preview_panel.property("panel_id") == "media_preview"
     assert window.task_panel.property("panel_id") == "tasks"
+    assert window.dashboard_layout.workflow_splitter.widget(0) is window.operation_panel
+    assert window.dashboard_layout.workflow_splitter.widget(1) is window.task_panel
     assert window.dashboard_layout.content_splitter.widget(1) is window.media_preview_panel
 
     window.close()
@@ -68,6 +70,7 @@ def test_main_window_default_panel_order_and_resize_bounds() -> None:
     assert abs(parameter_bottom - command_bottom) <= 2
     assert abs(window.command_preview_panel.width() - operation_selector.width()) <= 2
     assert window.task_panel.height() > window.task_panel.minimumHeight()
+    assert window.task_panel.task_table.height() >= 180
     assert window.operation_panel.height() <= window.operation_panel.sizeHint().height() + 2
 
     window.resize(1320, 760)
@@ -76,6 +79,7 @@ def test_main_window_default_panel_order_and_resize_bounds() -> None:
     assert window.runtime_panel.height() <= window.runtime_panel.maximumHeight()
     assert window.operation_panel.height() <= window.operation_panel.sizeHint().height() + 2
     assert window.task_panel.height() >= window.task_panel.minimumHeight()
+    assert window.dashboard_layout.workflow_splitter.sizes()[1] >= window.task_panel.minimumHeight()
     window.close()
 
 
@@ -117,6 +121,7 @@ def test_main_window_preview_layout_holds_across_common_widths(tmp_path: Path) -
 
         assert _left_in(preview_panel, central) >= 0
         assert _right_in(preview_panel, central) <= central.width()
+        assert preview_panel.maximumWidth() > 1000
         assert _right_in(preview_panel.source_toggle, preview_panel) <= preview_panel.width()
         assert _right_in(player.time_label, player) <= player.width()
         assert _right_in(player.position_slider, player) <= _left_in(player.time_label, player)

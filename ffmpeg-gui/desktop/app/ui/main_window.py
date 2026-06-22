@@ -21,9 +21,9 @@ from desktop.app.core.constants import WINDOW_TITLE
 from desktop.app.runtime.binaries import RuntimeHealth
 from desktop.app.ui.dialogs import LogDialog, SettingsDialog
 from desktop.app.ui.layouts import DashboardLayout
-from desktop.app.ui.panels import CommandPreviewPanel, OperationPanel, RuntimePanel, TaskPanel
+from desktop.app.ui.panels import CommandPreviewPanel, MediaPreviewPanel, OperationPanel, RuntimePanel, TaskPanel
 from desktop.app.ui.widgets.task_table_model import TaskTableModel
-from shared.contracts import BATCH_SUPPORTED_OPERATIONS, MediaInfo, Operation
+from shared.contracts import BATCH_SUPPORTED_OPERATIONS, MediaInfo, Operation, TaskRecord
 
 
 class MainWindow(QMainWindow):
@@ -52,6 +52,11 @@ class MainWindow(QMainWindow):
     stack_item_moved = Signal(int, int)
     command_preview_requested = Signal()
     copy_output_path_requested = Signal()
+    task_selected = Signal(str)
+    preview_trim_start_requested = Signal(float)
+    preview_trim_end_requested = Signal(float)
+    preview_trim_clear_requested = Signal()
+    preview_thumbnail_time_requested = Signal(float)
     closing = Signal()
 
     def __init__(self, task_model: TaskTableModel) -> None:
@@ -72,11 +77,13 @@ class MainWindow(QMainWindow):
         self.runtime_panel = RuntimePanel()
         self.command_preview_panel = CommandPreviewPanel()
         self.operation_panel = OperationPanel(command_preview_panel=self.command_preview_panel)
+        self.media_preview_panel = MediaPreviewPanel()
         self.task_panel = TaskPanel(task_model)
         self.dashboard_layout = DashboardLayout(
             runtime_panel=self.runtime_panel,
             operation_panel=self.operation_panel,
             command_preview_panel=self.command_preview_panel,
+            media_preview_panel=self.media_preview_panel,
             task_panel=self.task_panel,
         )
         self.settings_dialog = SettingsDialog(self)
@@ -133,6 +140,7 @@ class MainWindow(QMainWindow):
     def set_media_info(self, media_info: MediaInfo | None) -> None:
         if media_info is not None:
             self.operation_panel.apply_media_defaults(media_info)
+        self.media_preview_panel.set_trim_range(*self.operation_panel.trim_range())
 
     def apply_media_defaults_to_form(self, media_info: MediaInfo | None) -> None:
         if media_info is None:
@@ -204,6 +212,33 @@ class MainWindow(QMainWindow):
 
     def set_stack_items(self, items: list[str]) -> None:
         self.operation_panel.set_stack_items(items)
+
+    def set_preview_record(self, record: TaskRecord) -> None:
+        self.media_preview_panel.set_record(record)
+
+    def clear_preview(self, message: str = "暂无预览") -> None:
+        self.media_preview_panel.clear(message)
+
+    def preview_task_id(self) -> str | None:
+        return self.media_preview_panel.current_task_id()
+
+    def set_preview_operation(self, operation: Operation) -> None:
+        self.media_preview_panel.set_operation(operation)
+
+    def set_trim_start_seconds(self, seconds: float) -> None:
+        self.operation_panel.set_trim_start_seconds(seconds)
+        self.media_preview_panel.set_trim_range(*self.operation_panel.trim_range())
+
+    def set_trim_end_seconds(self, seconds: float) -> None:
+        self.operation_panel.set_trim_end_seconds(seconds)
+        self.media_preview_panel.set_trim_range(*self.operation_panel.trim_range())
+
+    def clear_trim_range(self) -> None:
+        self.operation_panel.clear_trim_range()
+        self.media_preview_panel.set_trim_range(*self.operation_panel.trim_range())
+
+    def set_thumbnail_timestamp_seconds(self, seconds: float) -> bool:
+        return self.operation_panel.set_thumbnail_timestamp_seconds(seconds)
 
     def set_operation_payload(
         self,
@@ -316,6 +351,7 @@ class MainWindow(QMainWindow):
         self.log_dialog.activateWindow()
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        self.media_preview_panel.player_widget.stop()
         self.closing.emit()
         super().closeEvent(event)
 
@@ -346,10 +382,15 @@ class MainWindow(QMainWindow):
         self.task_panel.open_batch_output_dir_requested.connect(self.open_batch_output_dir_requested.emit)
         self.task_panel.locate_batch_results_requested.connect(self.locate_batch_results_requested.emit)
         self.task_panel.remove_task_requested.connect(self.task_remove_requested.emit)
+        self.task_panel.task_selection_changed.connect(self.task_selected.emit)
         self.task_panel.start_requested.connect(self.start_requested.emit)
         self.task_panel.cancel_requested.connect(self.cancel_requested.emit)
         self.task_panel.cancel_queue_requested.connect(self.cancel_queue_requested.emit)
         self.task_panel.remove_pending_requested.connect(self.remove_pending_requested.emit)
+        self.media_preview_panel.trim_start_requested.connect(self.preview_trim_start_requested.emit)
+        self.media_preview_panel.trim_end_requested.connect(self.preview_trim_end_requested.emit)
+        self.media_preview_panel.trim_clear_requested.connect(self.preview_trim_clear_requested.emit)
+        self.media_preview_panel.thumbnail_time_requested.connect(self.preview_thumbnail_time_requested.emit)
         self.command_preview_panel.command_copied.connect(lambda: self.show_status("已复制命令预览到剪贴板"))
         self.log_dialog.cleared.connect(self._mark_log_cleared)
 

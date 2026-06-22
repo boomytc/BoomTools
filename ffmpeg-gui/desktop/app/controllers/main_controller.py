@@ -143,6 +143,8 @@ class MainController(QObject):
         self.window.set_current_output(None)
         self.window.set_batch_progress(0, len(input_paths))
         self._queue_selection_probes(added_records)
+        if added_records and self.window.preview_task_id() is None:
+            self.window.set_preview_record(added_records[0])
         self._refresh_start_state()
         self._refresh_command_preview()
 
@@ -159,6 +161,7 @@ class MainController(QObject):
                 self.window.set_batch_progress(0, len(selected_batch_paths))
                 self._set_prepared_inputs(selected_batch_paths, status=TaskStatus.ready, message="已选择")
                 self._queue_selection_probes(self._prepared_records)
+                self._sync_preview_after_prepared_change()
             else:
                 self._clear_prepared_records()
                 self.window.set_batch_progress(0, 0)
@@ -167,6 +170,7 @@ class MainController(QObject):
             if self.state.input_path and self.state.input_path.exists():
                 self._set_prepared_inputs([self.state.input_path], status=TaskStatus.ready, message="已选择")
                 self._queue_selection_probes(self._prepared_records)
+                self._sync_preview_after_prepared_change()
             else:
                 self._clear_prepared_records()
         self._refresh_start_state()
@@ -178,6 +182,8 @@ class MainController(QObject):
             self.state.input_path = None
         self._clear_prepared_records()
         self._cancel_selection_probes()
+        if not self.task_model.records():
+            self.window.clear_preview()
         self.window.set_batch_progress(0, 0)
         self._refresh_start_state()
         self._refresh_command_preview()
@@ -309,6 +315,7 @@ class MainController(QObject):
 
         self.task_model.remove_records({task_id})
         self.task_state.remove_records({task_id})
+        self._sync_preview_after_task_removal({task_id})
         if self.state.current_task and self.state.current_task.task_id == task_id:
             self.state.current_task = None
             self.window.set_current_output(None)
@@ -421,6 +428,11 @@ class MainController(QObject):
         self.window.stack_item_selected.connect(self._on_stack_item_selected)
         self.window.stack_item_moved.connect(self._on_stack_item_moved)
         self.window.command_preview_requested.connect(self._refresh_command_preview)
+        self.window.task_selected.connect(self._on_task_selected)
+        self.window.preview_trim_start_requested.connect(self._apply_preview_trim_start)
+        self.window.preview_trim_end_requested.connect(self._apply_preview_trim_end)
+        self.window.preview_trim_clear_requested.connect(self._clear_preview_trim_range)
+        self.window.preview_thumbnail_time_requested.connect(self._apply_preview_thumbnail_time)
         self.window.open_output_requested.connect(self.open_output)
         self.window.open_output_dir_requested.connect(self.open_output_dir)
         self.window.zip_outputs_requested.connect(self.zip_batch_outputs)
@@ -429,6 +441,35 @@ class MainController(QObject):
         self.window.locate_batch_results_requested.connect(self.locate_recent_batch_results)
         self.window.copy_output_path_requested.connect(self.copy_output_path)
         self.window.closing.connect(self.close)
+
+    def _on_task_selected(self, task_id: str) -> None:
+        record = self._task_record_by_id(task_id)
+        if record is None:
+            self.window.clear_preview()
+            return
+        self.window.set_preview_record(record)
+
+    def _apply_preview_trim_start(self, seconds: float) -> None:
+        self.window.set_trim_start_seconds(seconds)
+        self.window.show_status(f"已设置开始时间：{_format_seconds_label(seconds)}")
+        self._refresh_command_preview()
+
+    def _apply_preview_trim_end(self, seconds: float) -> None:
+        self.window.set_trim_end_seconds(seconds)
+        self.window.show_status(f"已设置结束时间：{_format_seconds_label(seconds)}")
+        self._refresh_command_preview()
+
+    def _clear_preview_trim_range(self) -> None:
+        self.window.clear_trim_range()
+        self.window.show_status("已清空处理范围")
+        self._refresh_command_preview()
+
+    def _apply_preview_thumbnail_time(self, seconds: float) -> None:
+        if not self.window.set_thumbnail_timestamp_seconds(seconds):
+            self.window.show_status("当前动作不是提取封面")
+            return
+        self.window.show_status(f"已设置封面时间：{_format_seconds_label(seconds)}")
+        self._refresh_command_preview()
 
     def _on_stack_mode_toggled(self, enabled: bool) -> None:
         self.window.set_stack_mode(enabled)
@@ -549,6 +590,7 @@ class MainController(QObject):
     def _refresh_command_preview(self) -> None:
         try:
             operation, options, extra_inputs = self.window.selected_operation_payload()
+            self.window.set_preview_operation(operation)
             self._refresh_prepared_operation()
             if operation is Operation.media_info:
                 args = [
@@ -677,6 +719,28 @@ class MainController(QObject):
         self.task_model.remove_records(task_ids)
         self.task_state.remove_records(task_ids)
         self._prepared_records.clear()
+        self._sync_preview_after_task_removal(task_ids)
+
+    def _sync_preview_after_prepared_change(self) -> None:
+        preview_task_id = self.window.preview_task_id()
+        if preview_task_id and self._task_record_by_id(preview_task_id) is not None:
+            return
+        if self._prepared_records:
+            self.window.set_preview_record(self._prepared_records[0])
+
+    def _sync_preview_after_task_removal(self, task_ids: set[str]) -> None:
+        preview_task_id = self.window.preview_task_id()
+        if preview_task_id not in task_ids:
+            return
+        records = self.task_model.records()
+        if records:
+            self.window.set_preview_record(records[0])
+            return
+        self.window.clear_preview()
+
+    def _refresh_preview_record(self, record: TaskRecord) -> None:
+        if self.window.preview_task_id() == record.task_id:
+            self.window.set_preview_record(record)
 
     def _queue_selection_probes(self, records: list[TaskRecord]) -> None:
         if self.state.is_batch_running:
@@ -1066,6 +1130,7 @@ class MainController(QObject):
         record.progress = 0.0
         record.touch()
         self.task_model.notify_record_changed(record)
+        self._refresh_preview_record(record)
 
     def _collect_input_paths(self) -> list[Path]:
         prepared_paths = self._prepared_input_paths()
@@ -1351,6 +1416,7 @@ class MainController(QObject):
             record.message = "媒体信息读取失败"
             record.touch()
             self.task_model.notify_record_changed(record)
+            self._refresh_preview_record(record)
         self.window.show_status(message)
 
     @Slot(object, object)
@@ -1373,6 +1439,7 @@ class MainController(QObject):
             record.message = "媒体信息读取失败" if media_info.has_error else "已读取媒体信息"
             record.touch()
             self.task_model.notify_record_changed(record)
+            self._refresh_preview_record(record)
         if media_info.has_error:
             self.window.show_status(media_info.error_message or "ffprobe failed")
         else:
@@ -1416,6 +1483,7 @@ class MainController(QObject):
         record.message = "已读取媒体信息"
         record.touch()
         self.task_model.notify_record_changed(record)
+        self._refresh_preview_record(record)
         self._start_batch_record(record, path)
 
     def _on_selection_media_info(self, path: Path, media_info: MediaInfo) -> None:
@@ -1435,6 +1503,7 @@ class MainController(QObject):
         record.message = "媒体信息读取失败" if media_info.has_error else "已读取媒体信息"
         record.touch()
         self.task_model.notify_record_changed(record)
+        self._refresh_preview_record(record)
         if self.state.input_path == record.input_path:
             self.state.media_info = media_info
             self.window.set_media_info(media_info)
@@ -1463,6 +1532,7 @@ class MainController(QObject):
         task.touch()
         self.window.set_current_output(result.output_path)
         self.task_model.notify_record_changed(task)
+        self._refresh_preview_record(task)
 
     def _on_task_error(self, task: TaskRecord, message: str) -> None:
         task.status = TaskStatus.failed
@@ -1471,6 +1541,7 @@ class MainController(QObject):
         self._append_log("ERROR: " + message)
         self.window.show_status(message)
         self.task_model.notify_record_changed(task)
+        self._refresh_preview_record(task)
 
     def _on_task_finished(self, task: TaskRecord, worker, status: TaskStatus) -> None:
         task.status = status
@@ -1483,6 +1554,7 @@ class MainController(QObject):
             task.message = "Failed"
         task.touch()
         self.task_model.notify_record_changed(task)
+        self._refresh_preview_record(task)
         self.log_service.save_task_log(task, self.state.logs)
         self.task_manager.clear_current(worker)
 
@@ -1680,6 +1752,10 @@ def _operation_needs_media_context(operation: Operation, options: dict[str, obje
 
 def _format_command_preview(spec: CommandSpec) -> str:
     return "\n".join(_format_command_lines(spec))
+
+
+def _format_seconds_label(seconds: float) -> str:
+    return f"{max(0.0, seconds):.3f}".rstrip("0").rstrip(".")
 
 
 def _format_command_lines(spec: CommandSpec) -> list[str]:

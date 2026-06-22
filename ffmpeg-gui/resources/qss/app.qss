@@ -57,7 +57,8 @@ QLabel[role="successBadge"] {
 }
 
 QToolButton#settingsButton,
-QToolButton#logButton {
+QToolButton#logButton,
+QToolButton#mediaToolButton {
   color: #b8c4d8;
   background: #202638;
   border: 1px solid #4a536a;
@@ -69,7 +70,8 @@ QToolButton#logButton {
 }
 
 QToolButton#settingsButton:hover,
-QToolButton#logButton:hover {
+QToolButton#logButton:hover,
+QToolButton#mediaToolButton:hover {
   color: #eef4ff;
   background: #273047;
   border-color: #6b7690;
@@ -103,6 +105,12 @@ QToolButton#logButton[state="error"] {
   color: #ff8a9a;
   background: #3a2028;
   border-color: #74404a;
+}
+
+QToolButton#mediaToolButton:disabled {
+  color: #687386;
+  background: #171b26;
+  border-color: #30364a;
 }
 
 /* Dialogs */
@@ -143,6 +151,7 @@ QLabel#settingsDescription {
 /* Containers */
 QFrame#runtimePanel,
 QFrame#commandPreviewPanel,
+QFrame#mediaPreviewPanel,
 QFrame#taskPanel,
 QFrame#panelFrame,
 QFrame[role="panel"] {
@@ -153,6 +162,7 @@ QFrame[role="panel"] {
 
 QFrame#runtimePanel,
 QFrame#commandPreviewPanel,
+QFrame#mediaPreviewPanel,
 QFrame#taskPanel,
 QFrame#panelFrame,
 QFrame[role="panel"] {
@@ -168,6 +178,8 @@ QWidget#panelHeader,
 QWidget#panelBody,
 QWidget#panelActionBar,
 QWidget#batchResultBar,
+QWidget#mediaPreviewSourceBar,
+QWidget#mediaPreviewActionRow,
 QWidget#segmentedToggle,
 QWidget#formSection {
   background: transparent;
@@ -198,6 +210,13 @@ QFrame#fileDropArea:focus {
 QFrame#fileDropArea:disabled {
   border-color: #30364a;
   background: #171b26;
+}
+
+QStackedWidget#mediaDisplayStack,
+QVideoWidget#mediaVideoWidget {
+  background: #05070b;
+  border: 1px solid #333a50;
+  border-radius: 8px;
 }
 
 QSplitter::handle {
@@ -237,7 +256,11 @@ QLabel#dropTitle {
 QLabel#mutedLabel,
 QLabel#batchProgressLabel,
 QLabel#totalProgressLabel,
-QLabel#recentBatchSummaryLabel {
+QLabel#recentBatchSummaryLabel,
+QLabel#mediaPreviewFileLabel,
+QLabel#mediaRangeSummaryLabel,
+QLabel#mediaPreviewStatusLabel,
+QLabel#mediaTimeLabel {
   color: #91a0b8;
 }
 
@@ -257,6 +280,25 @@ QLabel#formSectionLabel {
   font-size: 12px;
   font-weight: 800;
   margin-top: 2px;
+}
+
+QLabel#mediaPreviewFileLabel {
+  color: #d7e2f5;
+  font-weight: 700;
+}
+
+QLabel#mediaPreviewStatusLabel,
+QLabel#mediaRangeSummaryLabel,
+QLabel#mediaTimeLabel {
+  font-size: 11px;
+}
+
+QLabel#mediaPreviewPlaceholder {
+  color: #687386;
+  background: #0f1320;
+  border: 1px dashed #333a50;
+  border-radius: 8px;
+  font-weight: 700;
 }
 
 QLabel#outputDirSummary {

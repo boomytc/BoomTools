@@ -74,6 +74,28 @@ def test_parameter_form_sets_payload_values() -> None:
     assert extra_inputs == {}
 
 
+def test_parameter_form_preview_writeback_updates_range_and_thumbnail_time() -> None:
+    form = OperationParameterForm()
+    form.set_trim_start_seconds(1.2345)
+    form.set_trim_end_seconds(5.0)
+
+    _operation, options, _extra_inputs = form.collect()
+    assert options["start_seconds"] == 1.234
+    assert options["end_seconds"] == 5.0
+    assert form.trim_range() == (1.234, 5.0)
+
+    form.clear_trim_range()
+    _operation, options, _extra_inputs = form.collect()
+    assert "start_seconds" not in options
+    assert "end_seconds" not in options
+
+    assert not form.set_thumbnail_timestamp_seconds(2.0)
+    form.set_operation(Operation.thumbnail)
+    assert form.set_thumbnail_timestamp_seconds(2.5)
+    _operation, options, _extra_inputs = form.collect()
+    assert options["timestamp_seconds"] == 2.5
+
+
 def test_parameter_form_applies_media_defaults_from_string_probe_size() -> None:
     form = OperationParameterForm()
     form.set_operation(Operation.resize_compress)

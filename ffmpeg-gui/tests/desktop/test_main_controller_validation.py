@@ -44,6 +44,11 @@ class _FakeWindow:
         self.zip_results_enabled_values: list[tuple[bool, bool]] = []
         self.recent_batch_summaries: list[tuple[str, str, bool, bool]] = []
         self.batch_progress_values: list[tuple[int, int, str | None]] = []
+        self.preview_records: list[TaskRecord] = []
+        self.preview_operation: Operation = Operation.convert
+        self.preview_trim_start: float | None = None
+        self.preview_trim_end: float | None = None
+        self.preview_thumbnail_timestamp: float | None = None
 
         self.input_file_selected = _Signal()
         self.input_mode_changed = _Signal()
@@ -63,6 +68,11 @@ class _FakeWindow:
         self.stack_item_selected = _Signal()
         self.stack_item_moved = _Signal()
         self.command_preview_requested = _Signal()
+        self.task_selected = _Signal()
+        self.preview_trim_start_requested = _Signal()
+        self.preview_trim_end_requested = _Signal()
+        self.preview_trim_clear_requested = _Signal()
+        self.preview_thumbnail_time_requested = _Signal()
         self.open_output_requested = _Signal()
         self.open_output_dir_requested = _Signal()
         self.zip_outputs_requested = _Signal()
@@ -130,6 +140,36 @@ class _FakeWindow:
 
     def set_media_info(self, _media_info: object) -> None:
         return None
+
+    def set_preview_record(self, record: TaskRecord) -> None:
+        self.preview_records.append(record)
+
+    def clear_preview(self, _message: str = "暂无预览") -> None:
+        self.preview_records.clear()
+
+    def preview_task_id(self) -> str | None:
+        if not self.preview_records:
+            return None
+        return self.preview_records[-1].task_id
+
+    def set_preview_operation(self, operation: Operation) -> None:
+        self.preview_operation = operation
+
+    def set_trim_start_seconds(self, seconds: float) -> None:
+        self.preview_trim_start = seconds
+
+    def set_trim_end_seconds(self, seconds: float) -> None:
+        self.preview_trim_end = seconds
+
+    def clear_trim_range(self) -> None:
+        self.preview_trim_start = None
+        self.preview_trim_end = None
+
+    def set_thumbnail_timestamp_seconds(self, seconds: float) -> bool:
+        if self._operation_payload[0] is not Operation.thumbnail:
+            return False
+        self.preview_thumbnail_timestamp = seconds
+        return True
 
     def show_error(self, message: str) -> None:
         self.error_messages.append(message)
@@ -1188,6 +1228,25 @@ def test_file_selection_appends_to_existing_queue_rows(tmp_path: Path) -> None:
     controller.on_batch_files_selected([str(third)])
 
     assert [record.input_path for record in task_model.records()] == [first, second, third]
+    assert window.preview_records[0].input_path == first
+
+
+def test_preview_actions_write_back_parameters_and_refresh_preview() -> None:
+    window = _FakeWindow()
+    controller = _make_controller(window)
+
+    controller._apply_preview_trim_start(1.25)
+    controller._apply_preview_trim_end(3.5)
+    controller._clear_preview_trim_range()
+    window.set_operation_payload(Operation.thumbnail, {"image_format": "jpg"}, {})
+    controller._apply_preview_thumbnail_time(2.0)
+
+    assert window.preview_trim_start is None
+    assert window.preview_trim_end is None
+    assert window.preview_thumbnail_timestamp == 2.0
+    assert any("已设置开始时间：1.25" in message for message in window.status_messages)
+    assert any("已清空处理范围" in message for message in window.status_messages)
+    assert window.preview_operation is Operation.thumbnail
 
 
 def test_remove_task_removes_single_prepared_queue_row(tmp_path: Path) -> None:

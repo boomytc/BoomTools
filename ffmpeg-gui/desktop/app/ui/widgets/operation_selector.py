@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Set as AbstractSet
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QButtonGroup, QGridLayout, QPushButton, QSizePolicy, QWidget
 
@@ -23,6 +23,10 @@ STACK_MODE_FALLBACK_ORDER = (
     Operation.resize_compress,
 )
 
+MAX_OPERATION_COLUMNS = 8
+MIN_OPERATION_CARD_WIDTH = 78
+OPERATION_GRID_SPACING = 6
+
 
 class OperationSelector(PanelFrame):
     operation_changed = Signal(object)
@@ -40,6 +44,8 @@ class OperationSelector(PanelFrame):
         self._batch_mode = False
         self._batch_supported_operations: set[Operation] = set()
         self._stack_mode = False
+        self._operation_order = list(OPERATION_LABELS)
+        self._operation_columns = 0
 
         self.mode_toggle = SegmentedToggle(
             [
@@ -52,11 +58,10 @@ class OperationSelector(PanelFrame):
 
         self.operation_button_group = QButtonGroup(self)
         self.operation_button_group.setExclusive(True)
-        operation_grid = QGridLayout()
-        operation_grid.setHorizontalSpacing(6)
-        operation_grid.setVerticalSpacing(6)
-        operation_columns = 8
-        for index, operation in enumerate(OPERATION_LABELS):
+        self.operation_grid = QGridLayout()
+        self.operation_grid.setHorizontalSpacing(OPERATION_GRID_SPACING)
+        self.operation_grid.setVerticalSpacing(OPERATION_GRID_SPACING)
+        for operation in self._operation_order:
             button = _OperationButton(operation, operation_card_text(operation))
             button.setCheckable(True)
             button.setProperty("role", "operationCard")
@@ -68,17 +73,19 @@ class OperationSelector(PanelFrame):
             button.activated.connect(self._activate_operation)
             self.operation_button_group.addButton(button)
             self._operation_buttons[operation] = button
-            operation_grid.addWidget(button, index // operation_columns, index % operation_columns)
 
         self.operation_grid_widget = QWidget()
         self.operation_grid_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
-        self.operation_grid_widget.setLayout(operation_grid)
+        self.operation_grid_widget.setMinimumWidth(0)
+        self.operation_grid_widget.setLayout(self.operation_grid)
 
         self.operation_scroll_area = FixedScrollArea(height=140)
         self.operation_scroll_area.setObjectName("operationScroll")
         self.operation_scroll_area.set_content_widget(self.operation_grid_widget)
+        self.operation_scroll_area.viewport().installEventFilter(self)
         self.body_layout().addWidget(self.operation_scroll_area)
         self.body_layout().addStretch(1)
+        self._relayout_operation_grid()
         self.select_operation(self._selected_operation, emit=False)
 
     def selected_operation(self) -> Operation:
@@ -86,6 +93,11 @@ class OperationSelector(PanelFrame):
 
     def operation_buttons(self) -> dict[Operation, QPushButton]:
         return dict(self._operation_buttons)
+
+    def eventFilter(self, watched: object, event: QEvent) -> bool:
+        if watched is self.operation_scroll_area.viewport() and event.type() == QEvent.Type.Resize:
+            self._relayout_operation_grid()
+        return super().eventFilter(watched, event)
 
     def set_stack_mode(self, enabled: bool) -> None:
         self.mode_toggle.set_value("stack" if enabled else "single", force=True)
@@ -197,6 +209,36 @@ class OperationSelector(PanelFrame):
         if self._batch_mode and operation not in self._batch_supported_operations:
             blockers.append("多个文件暂不支持此动作。")
         return blockers
+
+    def _relayout_operation_grid(self) -> None:
+        columns = self._operation_columns_for_width(self._operation_grid_available_width())
+        if columns == self._operation_columns:
+            return
+        self._operation_columns = columns
+        for button in self._operation_buttons.values():
+            self.operation_grid.removeWidget(button)
+        for index, operation in enumerate(self._operation_order):
+            self.operation_grid.addWidget(self._operation_buttons[operation], index // columns, index % columns)
+        for column in range(MAX_OPERATION_COLUMNS):
+            self.operation_grid.setColumnStretch(column, 1 if column < columns else 0)
+        self.operation_grid_widget.updateGeometry()
+
+    def _operation_grid_available_width(self) -> int:
+        viewport_width = self.operation_scroll_area.viewport().width()
+        if viewport_width > 0:
+            return viewport_width
+        content_margins = self.body_layout().contentsMargins()
+        return max(0, self.width() - content_margins.left() - content_margins.right())
+
+    def _operation_columns_for_width(self, available_width: int) -> int:
+        if available_width <= 0:
+            return MAX_OPERATION_COLUMNS
+        button_width = max(
+            MIN_OPERATION_CARD_WIDTH,
+            max((button.sizeHint().width() for button in self._operation_buttons.values()), default=0),
+        )
+        columns = (available_width + OPERATION_GRID_SPACING) // (button_width + OPERATION_GRID_SPACING)
+        return max(1, min(MAX_OPERATION_COLUMNS, columns))
 
 
 class _OperationButton(QPushButton):

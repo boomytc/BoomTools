@@ -62,8 +62,8 @@ def test_main_window_min_height_keeps_stack_mode_panels_separated() -> None:
 
     assert window.height() >= window.minimumHeight()
     assert window.minimumHeight() >= 900
-    assert window.runtime_panel.geometry().bottom() < window.operation_panel.geometry().top()
-    assert window.operation_panel.geometry().bottom() < window.task_panel.geometry().top()
+    assert _bottom_in_window(window.runtime_panel, window) < _top_in_window(window.operation_panel, window)
+    assert _bottom_in_window(window.operation_panel, window) < _top_in_window(window.task_panel, window)
     assert selector.geometry().bottom() < command_preview.geometry().top()
     assert operation_form.geometry().bottom() < stack_panel.geometry().top()
     assert stack_chain.geometry().bottom() <= stack_panel.body_widget.rect().bottom()
@@ -325,6 +325,14 @@ def _qt_app() -> QApplication:
     if app is None:
         return QApplication(sys.argv)
     return app
+
+
+def _top_in_window(widget, window: MainWindow) -> int:
+    return widget.mapTo(window, QPoint(0, 0)).y()
+
+
+def _bottom_in_window(widget, window: MainWindow) -> int:
+    return widget.mapTo(window, QPoint(0, widget.height())).y()
 
 
 def _wheel_up_event() -> QWheelEvent:

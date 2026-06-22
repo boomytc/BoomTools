@@ -115,6 +115,21 @@ class OperationPanel(QWidget):
     def set_subtitle_path(self, path: str) -> None:
         self.operation_form.set_subtitle_path(path)
 
+    def set_trim_start_seconds(self, seconds: float) -> None:
+        self.operation_form.set_trim_start_seconds(seconds)
+
+    def set_trim_end_seconds(self, seconds: float) -> None:
+        self.operation_form.set_trim_end_seconds(seconds)
+
+    def clear_trim_range(self) -> None:
+        self.operation_form.clear_trim_range()
+
+    def set_thumbnail_timestamp_seconds(self, seconds: float) -> bool:
+        return self.operation_form.set_thumbnail_timestamp_seconds(seconds)
+
+    def trim_range(self) -> tuple[float | None, float | None]:
+        return self.operation_form.trim_range()
+
     def _is_stack_operation_supported(self) -> bool:
         return self.selected_operation() in STACK_FILTER_OPERATIONS
 

@@ -10,6 +10,7 @@
 ## 功能
 
 - 查看 `ffprobe` 媒体信息
+- 内嵌媒体预览：任务表选中行可预览输入/输出，支持播放、暂停、seek，并可把当前时间写入处理范围或封面提取时间点
 - 基础转换：`convert`、`resize_compress`、`compress`
 - 主要视频处理：静音、旋转/翻转、裁剪、封面提取、速度调整、淡入淡出、亮度对比饱和度、循环、补边、去噪、锐化/模糊、倒放、倒放回放
 - 音频处理：音量调整、响度标准化、混音
@@ -25,13 +26,13 @@
 - 按 `ffmpeg` 原生能力完成非模型功能复现，不接入 Whisper / 自动字幕模型 / Transformers.js / ffmpeg.wasm。
 - 操作名使用本项目 `snake_case`：`resize_compress`、`side_by_side`、`picture_in_picture`、`media_info` 等，按本项目单一命名规范实现。
 - 不引入 FastAPI、WebUI、数据库、远程服务或持久任务系统。
-- 不做 Auto-Caption / Whisper 自动字幕、PWA、浏览器下载中心或内嵌 Web 播放器。
+- 不做 Auto-Caption / Whisper 自动字幕、PWA、浏览器下载中心或内嵌 Web 播放器；当前预览是 PySide6/Qt Multimedia 本机控件。
 
 ## UI 结构
 
 - `desktop/app/ui/components/`：通用 Qt Widgets 结构件，包含 `PanelFrame`、`SegmentedToggle`、`PanelActionBar`、`FixedScrollArea`、`FormSection`。
-- `desktop/app/ui/panels/`：产品级区域组合，如内容选择、动作选择宿主、命令预览、任务队列。
-- `desktop/app/ui/widgets/`：产品级复合控件、字段工厂和表格模型。
+- `desktop/app/ui/panels/`：产品级区域组合，如内容选择、动作选择宿主、命令预览、媒体预览、任务队列。
+- `desktop/app/ui/widgets/`：产品级复合控件、媒体播放器、字段工厂和表格模型。
 - `desktop/app/ui/delegates/`：任务表 model/view 绘制委托，负责媒体摘要、文本列、进度和行操作渲染。
 - `desktop/app/ui/layouts/`：主窗口内容布局宿主；当前使用 `DashboardLayout` 设置稳定 `panel_id`，不实现拖拽或布局持久化。
 - `resources/qss/app.qss`：唯一视觉入口，通过 `objectName` 和 dynamic property 接入组件状态。
@@ -67,6 +68,16 @@ uv run python -m desktop.app.main
 ```
 
 输出、临时文件和日志默认写入 `ffmpeg-gui/data/`，该目录不会提交到 git。
+
+## 内嵌媒体预览
+
+右侧媒体预览面板跟随任务表当前行。输入文件可直接预览；任务成功后，如果输出文件仍存在，可切换到输出预览。预览面板使用 Qt Multimedia，不影响 ffmpeg 任务执行；如果本机 Qt 解码器无法播放某个文件，任务仍可继续运行。
+
+预览面板提供轻量编辑辅助：
+
+- “设为开始”“设为结束”“清空范围”会写回现有处理范围参数。
+- 选择“提取封面”动作时，“设为封面时间”会写回 `timestamp_seconds`。
+- 这些操作只更新当前参数表单和命令预览，不为批处理中每个文件单独保存独立编辑参数。
 
 ## GIF 质量
 

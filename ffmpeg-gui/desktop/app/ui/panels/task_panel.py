@@ -34,6 +34,7 @@ class TaskPanel(PanelFrame):
     copy_batch_output_paths_requested = Signal()
     open_batch_output_dir_requested = Signal()
     locate_batch_results_requested = Signal()
+    task_selection_changed = Signal(str)
 
     def __init__(self, task_model: TaskTableModel) -> None:
         super().__init__("任务队列", density="compact")
@@ -103,6 +104,9 @@ class TaskPanel(PanelFrame):
         self.task_table.clicked.connect(self._handle_table_clicked)
         self.task_table.doubleClicked.connect(self._handle_table_double_clicked)
         self.task_table.customContextMenuRequested.connect(self._open_context_menu)
+        selection_model = self.task_table.selectionModel()
+        if selection_model is not None:
+            selection_model.currentRowChanged.connect(self._handle_current_row_changed)
 
         task_model.modelReset.connect(self.refresh_total_progress)
         task_model.rowsInserted.connect(lambda *_args: self.refresh_total_progress())
@@ -197,6 +201,19 @@ class TaskPanel(PanelFrame):
             return None
         return records[row].output_path
 
+    def selected_task_id(self) -> str | None:
+        selection_model = self.task_table.selectionModel()
+        if selection_model is None:
+            return None
+        selected_rows = selection_model.selectedRows()
+        if not selected_rows:
+            return None
+        row = selected_rows[0].row()
+        records = self._task_model.records()
+        if row < 0 or row >= len(records):
+            return None
+        return records[row].task_id
+
     def output_path_exists(self) -> bool:
         output_path = self.selected_output_path()
         return bool(output_path and output_path.exists())
@@ -214,6 +231,14 @@ class TaskPanel(PanelFrame):
         if index.row() < 0 or index.row() >= len(records):
             return
         self.remove_task_requested.emit(records[index.row()].task_id)
+
+    def _handle_current_row_changed(self, current: QModelIndex, _previous: QModelIndex) -> None:
+        if not current.isValid():
+            return
+        records = self._task_model.records()
+        if current.row() < 0 or current.row() >= len(records):
+            return
+        self.task_selection_changed.emit(records[current.row()].task_id)
 
     def _open_context_menu(self, position: QPoint) -> None:
         index = self.task_table.indexAt(position)

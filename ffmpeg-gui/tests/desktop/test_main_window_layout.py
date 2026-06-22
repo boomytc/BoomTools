@@ -28,7 +28,9 @@ def test_main_window_builds_dashboard_layout_host() -> None:
     assert window.operation_panel.operation_form.parameter_form.property("panel_id") == "parameters"
     assert window.operation_panel.stack_panel.property("panel_id") == "stack"
     assert window.command_preview_panel.property("panel_id") == "command_preview"
+    assert window.media_preview_panel.property("panel_id") == "media_preview"
     assert window.task_panel.property("panel_id") == "tasks"
+    assert window.dashboard_layout.content_splitter.widget(1) is window.media_preview_panel
 
     window.close()
 
@@ -49,6 +51,7 @@ def test_main_window_default_panel_order_and_resize_bounds() -> None:
     task_top = _top_in_window(window.task_panel, window)
     operation_selector = window.operation_panel.operation_form.operation_selector
     parameter_form = window.operation_panel.operation_form.parameter_form
+    preview_top = _top_in_window(window.media_preview_panel, window)
     operation_selector_top = _top_in_window(operation_selector, window)
     parameter_form_top = _top_in_window(parameter_form, window)
     command_bottom = _bottom_in_window(window.command_preview_panel, window)
@@ -56,6 +59,7 @@ def test_main_window_default_panel_order_and_resize_bounds() -> None:
 
     assert runtime_top > _top_in_window(masthead, window)
     assert runtime_top < operation_top < command_top < task_top
+    assert runtime_top < preview_top
     assert command_top < _bottom_in_window(window.operation_panel, window)
     assert abs(operation_selector_top - parameter_form_top) <= 2
     assert abs(parameter_bottom - command_bottom) <= 2

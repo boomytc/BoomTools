@@ -87,6 +87,21 @@ class OperationFormWidget(QWidget):
     def set_subtitle_path(self, path: str) -> None:
         self.parameter_form.set_subtitle_path(path)
 
+    def set_trim_start_seconds(self, seconds: float) -> None:
+        self.parameter_form.set_trim_start_seconds(seconds)
+
+    def set_trim_end_seconds(self, seconds: float) -> None:
+        self.parameter_form.set_trim_end_seconds(seconds)
+
+    def clear_trim_range(self) -> None:
+        self.parameter_form.clear_trim_range()
+
+    def set_thumbnail_timestamp_seconds(self, seconds: float) -> bool:
+        return self.parameter_form.set_thumbnail_timestamp_seconds(seconds)
+
+    def trim_range(self) -> tuple[float | None, float | None]:
+        return self.parameter_form.trim_range()
+
     def collect(self) -> tuple[Operation, dict[str, object], dict[str, Path]]:
         return self.parameter_form.collect()
 

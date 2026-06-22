@@ -9,6 +9,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
+from desktop.app.core.paths import QSS_PATH
 from desktop.app.ui.widgets.operation_selector import OperationSelector
 from shared.contracts import Operation
 
@@ -109,6 +110,23 @@ def test_operation_selector_segmented_toggle_emits_stack_mode() -> None:
 
     assert selector.stack_mode()
     assert emitted == [True]
+
+
+def test_operation_selector_reflows_operation_cards_at_narrow_width() -> None:
+    app = _qt_app()
+    app.setStyleSheet(QSS_PATH.read_text(encoding="utf-8"))
+    selector = OperationSelector()
+    selector.resize(360, selector.minimumHeight())
+    selector.show()
+    app.processEvents()
+
+    content = selector.operation_grid_widget
+    viewport = selector.operation_scroll_area.viewport()
+
+    assert content.width() <= viewport.width() + 2
+    assert selector.operation_scroll_area.horizontalScrollBar().maximum() == 0
+    assert max(button.geometry().right() for button in selector.operation_buttons().values()) <= content.rect().right()
+    selector.close()
 
 
 def _qt_app() -> QApplication:

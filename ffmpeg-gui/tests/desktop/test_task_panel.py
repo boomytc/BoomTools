@@ -217,6 +217,22 @@ def test_task_panel_selects_rows_by_task_ids() -> None:
     assert [index.row() for index in panel.task_table.selectionModel().selectedRows()] == [0, 2]
 
 
+def test_task_panel_emits_selected_task_id_when_current_row_changes() -> None:
+    _qt_app()
+    model = TaskTableModel()
+    first = TaskRecord(operation=Operation.convert, input_path=Path("first.mp4"), status=TaskStatus.ready)
+    second = TaskRecord(operation=Operation.convert, input_path=Path("second.mp4"), status=TaskStatus.ready)
+    model.append_record(first)
+    model.append_record(second)
+    panel = TaskPanel(model)
+    emitted: list[str] = []
+    panel.task_selection_changed.connect(emitted.append)
+
+    panel.task_table.selectRow(1)
+
+    assert emitted[-1] == second.task_id
+
+
 def test_task_panel_places_total_progress_under_title() -> None:
     app = _qt_app()
     app.setStyleSheet(QSS_PATH.read_text(encoding="utf-8"))

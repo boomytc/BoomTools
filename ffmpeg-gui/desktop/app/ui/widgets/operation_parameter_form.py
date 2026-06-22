@@ -151,6 +151,28 @@ class OperationParameterForm(PanelFrame):
     def set_subtitle_path(self, path: str) -> None:
         self.set_file_path("subtitle", path)
 
+    def set_trim_start_seconds(self, seconds: float) -> None:
+        self._set_line_text("start_seconds", _format_seconds(seconds))
+
+    def set_trim_end_seconds(self, seconds: float) -> None:
+        self._set_line_text("end_seconds", _format_seconds(seconds))
+
+    def clear_trim_range(self) -> None:
+        self.start_seconds_edit.clear()
+        self.end_seconds_edit.clear()
+
+    def set_thumbnail_timestamp_seconds(self, seconds: float) -> bool:
+        if self._operation is not Operation.thumbnail:
+            return False
+        widget = self._controls.get("timestamp_seconds")
+        if widget is None:
+            return False
+        _set_control_text(widget, _format_seconds(seconds))
+        return True
+
+    def trim_range(self) -> tuple[float | None, float | None]:
+        return _optional_float_text(self.start_seconds_edit.text()), _optional_float_text(self.end_seconds_edit.text())
+
     def set_payload(self, options: dict[str, object], extra_inputs: dict[str, Path]) -> None:
         self._set_line_text("start_seconds", _option_text(options.get("start_seconds")))
         self._set_line_text("end_seconds", _option_text(options.get("end_seconds")))
@@ -343,6 +365,20 @@ def _option_text(value: object) -> str:
     if value is None:
         return ""
     return str(value)
+
+
+def _optional_float_text(text: str) -> float | None:
+    text = text.strip()
+    if not text:
+        return None
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
+def _format_seconds(seconds: float) -> str:
+    return f"{max(0.0, seconds):.3f}".rstrip("0").rstrip(".")
 
 
 def _set_combo_value(combo: QComboBox, value: object) -> None:

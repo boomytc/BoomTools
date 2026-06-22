@@ -17,7 +17,7 @@
 - 字幕：软字幕与字幕烧录（`.srt/.vtt/.ass/.ssa`）
 - 多输入组合：叠加、拼接、并排、画中画
 - Raw 参数：输入参数数组构建，支持可选第二输入
-- 抽取音频（MP3/WAV/AAC/FLAC/OGG）与 GIF 输出（mp4/mkv/mov/webm/avi）；高质量 GIF 可使用 `palettegen/paletteuse` 两阶段 palette 模式
+- 抽取音频支持 MP3/WAV/AAC/FLAC/OGG；视频输出支持 MP4/MKV/MOV/WebM/AVI；GIF 可通过 `gif` 操作或 Stack GIF 输出生成
 - 单任务执行、批处理队列、任务进度、日志、取消、输出结果入口（打开文件、打开目录、复制路径、最近批次结果操作、打包当前批次成功结果）
 - 长任务防睡眠：执行 ffmpeg 或打包 ZIP 时可临时阻止系统睡眠，macOS 下使用 `caffeinate -dimsu`，失败时降级但不阻塞任务
 

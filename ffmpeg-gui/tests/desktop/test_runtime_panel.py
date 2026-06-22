@@ -125,6 +125,10 @@ def test_stack_panel_renders_steps_as_arrow_chain() -> None:
     assert panel.description_label.text() == "双击加入 · 拖动排序 · 最多 6 步"
     assert panel.body_layout().count() == 2
     assert panel.maximumHeight() <= 156
+    assert [panel.output_format_combo.itemData(index) for index in range(panel.output_format_combo.count())] == [
+        "inherit",
+        "gif",
+    ]
     assert panel.stack_output_options() == {"output_format": "inherit"}
     assert not hasattr(panel, "move_up_button")
     assert not hasattr(panel, "move_down_button")

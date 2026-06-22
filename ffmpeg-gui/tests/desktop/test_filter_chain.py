@@ -50,6 +50,22 @@ def test_stack_output_inherit_keeps_existing_final_operation_format() -> None:
         assert "-c:a" in spec.args
 
 
+def test_stack_output_rejects_explicit_regular_video_format_override() -> None:
+    with TemporaryDirectory() as tmp:
+        stack = [
+            (Operation.crop, {"x": 0, "y": 0, "width": 320, "height": 180, "output_format": "mp4"}, {}),
+        ]
+
+        with pytest.raises(CommandError, match="output_format must be one of: gif, inherit"):
+            build_stack_command(
+                ffmpeg_bin="ffmpeg",
+                input_path=Path(tmp) / "input.mp4",
+                output_dir=Path(tmp) / "outputs",
+                stack=stack,
+                output_options={"output_format": "mp4"},
+            )
+
+
 def test_stack_output_gif_fast_appends_gif_filter_and_drops_audio_args() -> None:
     with TemporaryDirectory() as tmp:
         stack = [

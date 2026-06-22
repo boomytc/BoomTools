@@ -120,14 +120,10 @@ class StackPanel(PanelFrame):
         self.output_format_combo = _stack_combo(
             [
                 ("跟随最后一步", "inherit"),
-                ("MP4", "mp4"),
-                ("WebM", "webm"),
-                ("MOV", "mov"),
-                ("MKV", "mkv"),
-                ("AVI", "avi"),
                 ("GIF", "gif"),
             ]
         )
+        self.output_format_combo.setToolTip("默认使用最后一步的输出格式；选择 GIF 时输出不包含音频。")
         self.output_format_combo.currentIndexChanged.connect(self._on_output_format_changed)
         layout.addWidget(self.output_format_combo)
 

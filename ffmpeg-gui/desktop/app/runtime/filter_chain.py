@@ -130,7 +130,7 @@ def _stack_output_options(
     options = dict(output_options or {})
     output_format = _choice(
         options.get("output_format", "inherit"),
-        {"inherit", "mp4", "webm", "mov", "mkv", "avi", "gif"},
+        {"inherit", "gif"},
         "output_format",
     )
     if output_format == "inherit":
